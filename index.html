@@ -1223,7 +1223,21 @@ img.lazy.loaded{opacity:1;}
 .footer-bar-disclaimer{text-align:center;font-size:10px;color:var(--text3);margin-top:5px;line-height:1.6;max-width:580px;margin-left:auto;margin-right:auto;}
 
 </style>
-</head>
+
+  <style id="ks-footer-pin">
+    /* === FORCE BRAND BAR + FOOTER TO ALWAYS BE AT THE BOTTOM === */
+    html, body { min-height: 100vh; }
+    body { display: flex !important; flex-direction: column !important; }
+    #homeView { display: flex !important; flex-direction: column !important; flex: 1 1 auto !important; min-height: 0; }
+    #homeView > .layout { flex: 1 1 auto !important; min-height: 0; }
+    /* Anything between .layout and the brand bar gets pushed to the bottom together */
+    #adSlotTop { margin-top: auto !important; }
+    .ad-slot.ad-slot-top, .ad-slot.ad-slot-bottom,
+    #adblockBanner, .bottom-banner, .site-footer-bar { flex-shrink: 0 !important; }
+    /* If only the brand bar/footer exist (ads hidden), still pin them */
+    .bottom-banner:first-of-type { margin-top: auto; }
+  </style>
+  </head>
 <body>
 
 <!-- ════════════════════════════════════════
@@ -2014,6 +2028,27 @@ values (
       </form>
       <div class="auth-switch">Have an account? <a onclick="switchAuth('login')">Log in</a></div>
     </div>
+    <!-- ── VERIFY EMAIL SCREEN ── -->
+    <div id="verifyEmailForm" style="display:none;text-align:center;">
+      <div style="font-size:54px;margin-bottom:6px;line-height:1;">📬</div>
+      <h2>Check your inbox</h2>
+      <p>We just sent a confirmation link to<br><strong id="vEmailShown" style="color:#fff;font-size:14px;word-break:break-all;">your email</strong></p>
+      <div style="background:rgba(255,45,120,0.08);border:1px solid rgba(255,45,120,0.22);border-radius:10px;padding:12px 14px;font-size:12px;color:var(--text2);margin:14px 0 12px;line-height:1.7;text-align:left;">
+        <div style="font-weight:800;color:#fff;margin-bottom:6px;">📌 Next steps</div>
+        1. Open your email app<br>
+        2. Find the message from <span style="color:var(--pink);font-weight:700;">KamiStream</span><br>
+        3. Click <span style="color:var(--gold);font-weight:700;">"Confirm your email"</span><br>
+        4. Come back and log in!
+      </div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:14px;line-height:1.6;">
+        Didn't get it? Check your <strong style="color:var(--text2);">spam</strong> or <strong style="color:var(--text2);">promotions</strong> folder.
+      </div>
+      <div id="vResendOk" style="display:none;background:rgba(6,214,160,0.1);border:1px solid rgba(6,214,160,0.3);border-radius:9px;padding:9px 12px;font-size:11px;color:var(--green);margin-bottom:10px;">✅ Confirmation email sent again.</div>
+      <div id="vResendErr" style="display:none;background:rgba(255,71,87,0.1);border:1px solid rgba(255,71,87,0.3);border-radius:9px;padding:9px 12px;font-size:11px;color:var(--red);margin-bottom:10px;"></div>
+      <div id="vLoading" class="auth-loading" style="display:none;">⏳ Resending…</div>
+      <button class="auth-btn" id="vBtn" type="button" onclick="closeMo('authModal')">Got it</button>
+      <div class="auth-switch">Didn't receive it? <a id="vResendLink" onclick="resendVerifyEmail()">Resend confirmation email</a></div>
+    </div>
     <!-- ── FORGOT PASSWORD FORM ── -->
     <div id="forgotForm" style="display:none;">
       <h2>Reset Password 🔑</h2>
@@ -2402,15 +2437,43 @@ function openAuth(type='login'){
 }
 
 function switchAuth(type){
-  document.getElementById('loginForm').style.display  = type==='login'  ?'block':'none';
-  document.getElementById('signupForm').style.display = type==='signup' ?'block':'none';
-  document.getElementById('forgotForm').style.display = type==='forgot' ?'block':'none';
+  document.getElementById('loginForm').style.display       = type==='login'  ?'block':'none';
+  document.getElementById('signupForm').style.display      = type==='signup' ?'block':'none';
+  document.getElementById('forgotForm').style.display      = type==='forgot' ?'block':'none';
+  const ve = document.getElementById('verifyEmailForm'); if(ve) ve.style.display = type==='verify' ?'block':'none';
   // Reset errors + success states
   ['lErr','sUErr','sEErr','sPErr','fErr'].forEach(id=>{
     const e=document.getElementById(id); if(e) e.classList.remove('show');
   });
   const fs=document.getElementById('fSuccess'); if(fs) fs.style.display='none';
   const fb=document.getElementById('fBtn'); if(fb){fb.style.display='block';fb.disabled=false;fb.textContent='Send Reset Link';}
+  const vOk=document.getElementById('vResendOk'); if(vOk) vOk.style.display='none';
+  const vErr=document.getElementById('vResendErr'); if(vErr) vErr.style.display='none';
+}
+
+let _ksLastSignupEmail = '';
+async function resendVerifyEmail(){
+  const email = _ksLastSignupEmail;
+  const okEl = document.getElementById('vResendOk');
+  const errEl = document.getElementById('vResendErr');
+  const loadEl = document.getElementById('vLoading');
+  const link = document.getElementById('vResendLink');
+  if(okEl) okEl.style.display='none';
+  if(errEl) errEl.style.display='none';
+  if(!email){ if(errEl){errEl.textContent='No email on file. Please sign up again.';errEl.style.display='block';} return; }
+  if(!supabase){ if(okEl){okEl.style.display='block';} return; }
+  if(loadEl) loadEl.style.display='flex';
+  if(link) link.style.pointerEvents='none';
+  try {
+    const { error } = await supabase.auth.resend({ type:'signup', email });
+    if(error) throw error;
+    if(okEl) okEl.style.display='block';
+  } catch(e){
+    if(errEl){ errEl.textContent = e.message || 'Could not resend. Try again in a moment.'; errEl.style.display='block'; }
+  } finally {
+    if(loadEl) loadEl.style.display='none';
+    if(link) link.style.pointerEvents='auto';
+  }
 }
 
 async function doForgotPassword(){
@@ -2496,10 +2559,13 @@ async function doSignup(){
     if(error){ document.getElementById('sEErr').textContent=error.message; document.getElementById('sEErr').classList.add('show'); return; }
     // Update profile username
     if(data.user){
-      await supabase.from('profiles').upsert({id:data.user.id, username}).select();
+      try { await supabase.from('profiles').upsert({id:data.user.id, username}).select(); } catch(e){}
     }
-    closeMo('authModal');
-    showToast('Welcome to KamiStream, @'+username+' 🎌','ok');
+    // Show "verify your email" screen instead of closing
+    _ksLastSignupEmail = email;
+    const shown = document.getElementById('vEmailShown'); if(shown) shown.textContent = email;
+    switchAuth('verify');
+    showToast('Account created — check your email 📬','ok');
   } else {
     const db2 = ldb();
     if(!db2.users) db2.users = {};
