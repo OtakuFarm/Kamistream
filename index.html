@@ -29,12 +29,6 @@
 
 <!-- Theme color (browser UI) -->
 <meta name="theme-color" content="#ff2d78"/>
-<meta name="mobile-web-app-capable" content="yes"/>
-<meta name="apple-mobile-web-app-capable" content="yes"/>
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
-<meta name="apple-mobile-web-app-title" content="KamiStream"/>
-<!-- PWA Manifest (inline via data URI) -->
-<link rel="manifest" href="data:application/manifest+json,{&quot;name&quot;:&quot;KamiStream&quot;,&quot;short_name&quot;:&quot;KamiStream&quot;,&quot;description&quot;:&quot;Watch anime, join challenges&quot;,&quot;start_url&quot;:&quot;/&quot;,&quot;display&quot;:&quot;standalone&quot;,&quot;background_color&quot;:&quot;#0a0010&quot;,&quot;theme_color&quot;:&quot;#ff2d78&quot;,&quot;orientation&quot;:&quot;portrait&quot;,&quot;icons&quot;:[{&quot;src&quot;:&quot;data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect width='192' height='192' rx='32' fill='%23ff2d78'/><text y='148' x='20' font-size='140' font-family='Arial Black' font-weight='900' fill='white'>K</text></svg>&quot;,&quot;sizes&quot;:&quot;192x192&quot;,&quot;type&quot;:&quot;image/svg+xml&quot;}]}"/>
 
 <!-- Favicon — inline SVG (no file needed) -->
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='8' fill='%23ff2d78'/><text y='24' x='4' font-size='22' font-family='Arial Black,sans-serif' font-weight='900' fill='white'>K</text></svg>"/>
@@ -2476,27 +2470,8 @@ async function doUpdatePassword(){
   window.addEventListener('load', restoreFromUrl);
 })();
 
-// ── PULL TO REFRESH (swipe down from top) ──
-(function initPullToRefresh(){
-  let startY=0, pulling=false;
-  const threshold=90;
-  document.addEventListener('touchstart',function(e){
-    if(window.scrollY===0) { startY=e.touches[0].clientY; pulling=true; }
-  },{passive:true});
-  document.addEventListener('touchmove',function(e){
-    if(!pulling) return;
-  },{passive:true});
-  document.addEventListener('touchend',function(e){
-    if(!pulling) return;
-    const endY=e.changedTouches[0].clientY;
-    if(endY - startY > threshold){
-      pulling=false;
-      showToast('🔄 Refreshing…','ok');
-      setTimeout(()=>location.reload(), 400);
-    }
-    pulling=false;
-  },{passive:true});
-})();
+
+
 
 function openAuth(type='login'){
   switchAuth(type);
@@ -3308,7 +3283,6 @@ function renderAnimePage(anime, episodes, sources){
           ${episodes.length?`<button class="ap-btn-watch" onclick="playEpisode(${episodes[0]?.id},1,'${episodes[0]?.embed_sources?.[0]?.embed_url||''}','${episodes[0]?.embed_sources?.[0]?.source_name||'Server 1'}')">▶ Watch Now</button>`:''}
           <button class="ap-btn-watchlist" id="wlBtn-${anime.id}" onclick="toggleWatchlist(${anime.id},this)">+ Watchlist</button>
           ${anime.trailer_url?`<button class="ap-btn-watchlist" onclick="window.open('${anime.trailer_url}','_blank')">▶ Trailer</button>`:''}
-          <button class="ap-btn-watchlist" onclick="shareAnime(${JSON.stringify({id:anime.id,title_english:anime.title_english,title_romaji:anime.title_romaji}).replace(/"/g,'&quot;')})">📤 Share</button>
         </div>
       </div>
     </div>
@@ -7487,174 +7461,6 @@ setTimeout(()=>{
   });
   console.log('[KamiStream] Supabase error-visibility patch installed. Run __sbDebug() for recent errors.');
 })();
-</script>
-
-<!-- ══════════════════════════════════════════════════════
-     PWA INSTALL BANNER
-     ══════════════════════════════════════════════════════ -->
-<div id="pwaBanner" style="display:none;position:fixed;bottom:70px;left:12px;right:12px;z-index:9999;background:linear-gradient(135deg,#1a0030,#0d0020);border:1px solid rgba(255,45,120,0.35);border-radius:16px;padding:14px 16px;box-shadow:0 8px 32px rgba(0,0,0,0.6);display:none;align-items:center;gap:12px;">
-  <div style="width:40px;height:40px;background:linear-gradient(135deg,#ff2d78,#9b5de5);border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:22px;font-weight:900;color:#fff;flex-shrink:0;">K</div>
-  <div style="flex:1;">
-    <div style="font-size:13px;font-weight:800;color:#fff;">Install KamiStream</div>
-    <div style="font-size:11px;color:rgba(255,255,255,0.5);">Add to home screen for the best experience</div>
-  </div>
-  <button onclick="pwaDismiss()" style="background:none;border:none;color:rgba(255,255,255,0.4);font-size:18px;cursor:pointer;padding:4px;">✕</button>
-  <button onclick="pwaInstall()" style="background:linear-gradient(135deg,#ff2d78,#9b5de5);border:none;color:#fff;padding:8px 16px;border-radius:10px;font-size:12px;font-weight:800;cursor:pointer;flex-shrink:0;">Install</button>
-</div>
-
-<!-- ══════════════════════════════════════════════════════
-     SOCIAL SHARE MODAL
-     ══════════════════════════════════════════════════════ -->
-<div id="shareModal" style="display:none;position:fixed;inset:0;z-index:9998;background:rgba(0,0,0,0.7);backdrop-filter:blur(6px);align-items:flex-end;justify-content:center;">
-  <div style="background:var(--bg2);border:1px solid var(--border2);border-radius:20px 20px 0 0;padding:20px;width:100%;max-width:480px;animation:slideUp .25s ease;">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
-      <div style="font-size:15px;font-weight:800;color:#fff;">📤 Share Anime</div>
-      <button onclick="shareClose()" style="background:none;border:none;color:var(--text3);font-size:20px;cursor:pointer;">✕</button>
-    </div>
-    <div id="shareAnimeInfo" style="background:var(--bg3);border-radius:12px;padding:12px;margin-bottom:16px;font-size:13px;color:var(--text2);"></div>
-    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px;">
-      <button onclick="shareVia('whatsapp')" style="background:rgba(37,211,102,0.12);border:1px solid rgba(37,211,102,0.3);border-radius:12px;padding:14px 8px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;">
-        <span style="font-size:24px;">📱</span><span style="font-size:10px;font-weight:700;color:#25d366;">WhatsApp</span>
-      </button>
-      <button onclick="shareVia('twitter')" style="background:rgba(29,161,242,0.12);border:1px solid rgba(29,161,242,0.3);border-radius:12px;padding:14px 8px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;">
-        <span style="font-size:24px;">🐦</span><span style="font-size:10px;font-weight:700;color:#1da1f2;">Twitter/X</span>
-      </button>
-      <button onclick="shareVia('telegram')" style="background:rgba(0,136,204,0.12);border:1px solid rgba(0,136,204,0.3);border-radius:12px;padding:14px 8px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;">
-        <span style="font-size:24px;">✈️</span><span style="font-size:10px;font-weight:700;color:#0088cc;">Telegram</span>
-      </button>
-      <button onclick="shareVia('copy')" style="background:rgba(155,93,229,0.12);border:1px solid rgba(155,93,229,0.3);border-radius:12px;padding:14px 8px;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:6px;">
-        <span style="font-size:24px;">🔗</span><span style="font-size:10px;font-weight:700;color:var(--purple);">Copy Link</span>
-      </button>
-    </div>
-    <button onclick="shareVia('native')" id="shareNativeBtn" style="width:100%;background:linear-gradient(135deg,var(--pink),var(--purple));border:none;color:#fff;padding:12px;border-radius:12px;font-size:13px;font-weight:800;cursor:pointer;">📤 Share via System</button>
-  </div>
-</div>
-
-<style>
-@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
-.pwa-notif-bar{position:fixed;top:70px;right:16px;z-index:9997;background:linear-gradient(135deg,#1a0030,#0d0020);border:1px solid rgba(155,93,229,0.3);border-radius:14px;padding:14px 16px;max-width:300px;box-shadow:0 8px 28px rgba(0,0,0,0.5);animation:slideDown .3s ease;}
-@keyframes slideDown{from{transform:translateY(-20px);opacity:0}to{transform:translateY(0);opacity:1}}
-</style>
-
-<script>
-// ══════════════════════════════════════════════════════
-// PWA — Install prompt
-// ══════════════════════════════════════════════════════
-let _pwaPrompt = null;
-window.addEventListener('beforeinstallprompt', e => {
-  e.preventDefault();
-  _pwaPrompt = e;
-  if(!localStorage.getItem('ks_pwa_dismissed')){
-    setTimeout(()=>{ const b=document.getElementById('pwaBanner'); if(b) b.style.display='flex'; }, 3000);
-  }
-});
-function pwaInstall(){
-  if(_pwaPrompt){ _pwaPrompt.prompt(); _pwaPrompt.userChoice.then(()=>{ document.getElementById('pwaBanner').style.display='none'; }); }
-  else { showToast('To install: tap browser menu → "Add to Home Screen"','ok'); document.getElementById('pwaBanner').style.display='none'; }
-}
-function pwaDismiss(){ document.getElementById('pwaBanner').style.display='none'; localStorage.setItem('ks_pwa_dismissed','1'); }
-
-// Register service worker for offline + PWA
-if('serviceWorker' in navigator){
-  const swCode = `
-const CACHE='kamistream-v1';
-const STATIC=['/','./index.html'];
-self.addEventListener('install',e=>e.waitUntil(caches.open(CACHE).then(c=>c.addAll(STATIC).catch(()=>{}))));
-self.addEventListener('fetch',e=>{
-  if(e.request.method!=='GET')return;
-  e.respondWith(fetch(e.request).catch(()=>caches.match(e.request)));
-});
-self.addEventListener('push',e=>{
-  const d=e.data?e.data.json():{title:'KamiStream',body:'New anime update!'};
-  e.waitUntil(self.registration.showNotification(d.title||'KamiStream',{body:d.body,icon:'/icon-192.png',badge:'/icon-192.png',tag:'kami-notif',renotify:true}));
-});
-self.addEventListener('notificationclick',e=>{ e.notification.close(); e.waitUntil(clients.openWindow('/')); });
-`;
-  const swBlob = new Blob([swCode],{type:'application/javascript'});
-  const swUrl  = URL.createObjectURL(swBlob);
-  navigator.serviceWorker.register(swUrl,{scope:'./'}).then(reg=>{
-    window._swReg = reg;
-  }).catch(()=>{});
-}
-
-// ══════════════════════════════════════════════════════
-// PUSH NOTIFICATIONS
-// ══════════════════════════════════════════════════════
-async function requestPushPermission(){
-  if(!('Notification' in window)){ showToast('Notifications not supported on this browser','warn'); return; }
-  if(Notification.permission==='granted'){ showToast('✅ Notifications already enabled','ok'); return; }
-  const perm = await Notification.requestPermission();
-  if(perm==='granted'){
-    showToast('🔔 Notifications enabled! You\'ll be notified of new episodes.','ok');
-    localStorage.setItem('ks_notif_enabled','1');
-    // Show in-app confirmation notification
-    new Notification('KamiStream 🎌',{body:'You\'ll now get notified when new episodes drop!',icon:'data:image/svg+xml,<svg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 32 32\'><rect width=\'32\' height=\'32\' rx=\'8\' fill=\'%23ff2d78\'/><text y=\'24\' x=\'4\' font-size=\'22\' font-family=\'Arial Black\' font-weight=\'900\' fill=\'white\'>K</text></svg>'});
-  } else {
-    showToast('Notifications blocked. Enable in browser settings.','warn');
-  }
-}
-
-function pushNewEpisode(animeTitle, epNum){
-  if(Notification.permission!=='granted') return;
-  new Notification('New Episode on KamiStream 🎌',{
-    body: `${animeTitle} — Episode ${epNum} is now available!`,
-    icon:'data:image/svg+xml,<svg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 32 32\'><rect width=\'32\' height=\'32\' rx=\'8\' fill=\'%23ff2d78\'/><text y=\'24\' x=\'4\' font-size=\'22\' font-family=\'Arial Black\' font-weight=\'900\' fill=\'white\'>K</text></svg>',
-    tag:'kami-ep',
-    renotify:true
-  });
-}
-window.pushNewEpisode = pushNewEpisode;
-
-// Show push enable nudge after 30 seconds
-setTimeout(()=>{
-  if(Notification.permission==='default' && !localStorage.getItem('ks_notif_nudged')){
-    localStorage.setItem('ks_notif_nudged','1');
-    const bar = document.createElement('div');
-    bar.className='pwa-notif-bar';
-    bar.innerHTML=`<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;"><span style="font-size:20px;">🔔</span><div><div style="font-size:13px;font-weight:800;color:#fff;">Get Episode Alerts</div><div style="font-size:11px;color:rgba(255,255,255,0.5);">Know when new episodes drop</div></div><button onclick="this.closest('.pwa-notif-bar').remove()" style="background:none;border:none;color:rgba(255,255,255,0.4);font-size:16px;cursor:pointer;margin-left:auto;">✕</button></div><button onclick="requestPushPermission();this.closest('.pwa-notif-bar').remove()" style="width:100%;background:linear-gradient(135deg,var(--pink),var(--purple));border:none;color:#fff;padding:9px;border-radius:10px;font-size:12px;font-weight:800;cursor:pointer;">Enable Notifications</button>`;
-    document.body.appendChild(bar);
-    setTimeout(()=>bar.remove(), 12000);
-  }
-},30000);
-
-// ══════════════════════════════════════════════════════
-// SOCIAL SHARING
-// ══════════════════════════════════════════════════════
-let _shareData = {};
-function shareAnime(anime){
-  _shareData = {
-    title: anime.title_english||anime.title_romaji||'Anime',
-    url: location.origin+'/?anime='+anime.id,
-    text: `🎌 Watch "${anime.title_english||anime.title_romaji}" on KamiStream — free anime streaming!`
-  };
-  const info = document.getElementById('shareAnimeInfo');
-  if(info) info.innerHTML=`<strong style="color:#fff;">${_shareData.title}</strong><br><span style="font-size:11px;color:var(--text3);">${_shareData.url}</span>`;
-  const modal = document.getElementById('shareModal');
-  if(modal){ modal.style.display='flex'; }
-  // Hide native btn if not supported
-  if(!navigator.share) document.getElementById('shareNativeBtn').style.display='none';
-}
-function shareClose(){ document.getElementById('shareModal').style.display='none'; }
-function shareVia(platform){
-  const {title,url,text} = _shareData;
-  const enc = encodeURIComponent;
-  const links = {
-    whatsapp: `https://wa.me/?text=${enc(text+' '+url)}`,
-    twitter:  `https://twitter.com/intent/tweet?text=${enc(text)}&url=${enc(url)}`,
-    telegram: `https://t.me/share/url?url=${enc(url)}&text=${enc(text)}`,
-  };
-  if(platform==='copy'){
-    navigator.clipboard?.writeText(url).then(()=>showToast('🔗 Link copied!','ok')).catch(()=>showToast('Copy: '+url,'ok'));
-    shareClose(); return;
-  }
-  if(platform==='native'){
-    navigator.share?.({title,text,url}).catch(()=>{}); shareClose(); return;
-  }
-  if(links[platform]) window.open(links[platform],'_blank','noopener');
-  shareClose();
-}
-// Close share modal on backdrop click
-document.getElementById('shareModal').addEventListener('click',function(e){ if(e.target===this) shareClose(); });
 </script>
 
   </body>
