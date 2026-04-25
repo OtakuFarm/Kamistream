@@ -474,24 +474,24 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;disp
 .ap-genre:hover{border-color:rgba(155,93,229,0.4);color:var(--purple);}
 
 /* Episode grid */
-.ep-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;}
-.ep-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;cursor:pointer;transition:all .25s;display:flex;align-items:stretch;}
-.ep-card:hover{border-color:rgba(155,93,229,0.35);transform:translateY(-2px);}
+.ep-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:7px;}
+.ep-card{background:var(--card);border:1px solid var(--border);border-radius:8px;overflow:hidden;cursor:pointer;transition:all .2s;display:flex;align-items:stretch;}
+.ep-card:hover{border-color:rgba(155,93,229,0.35);transform:translateY(-1px);}
 .ep-card.active{border-color:var(--pink);}
-.ep-thumb{width:120px;flex-shrink:0;background:var(--card2);position:relative;display:flex;align-items:center;justify-content:center;overflow:hidden;}
+.ep-thumb{width:70px;flex-shrink:0;background:var(--card2);position:relative;display:flex;align-items:center;justify-content:center;overflow:hidden;}
 .ep-thumb-art{position:absolute;inset:0;}
-.ep-thumb-icon{font-size:28px;opacity:.2;position:relative;z-index:1;}
+.ep-thumb-icon{font-size:18px;opacity:.2;position:relative;z-index:1;}
 .ep-play-ov{position:absolute;inset:0;background:rgba(0,0,0,0);transition:background .2s;display:flex;align-items:center;justify-content:center;z-index:2;}
 .ep-card:hover .ep-play-ov{background:rgba(0,0,0,0.45);}
-.ep-play-btn{width:32px;height:32px;background:rgba(255,255,255,0.9);border-radius:50%;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .2s;}
+.ep-play-btn{width:22px;height:22px;background:rgba(255,255,255,0.9);border-radius:50%;display:flex;align-items:center;justify-content:center;opacity:0;transition:opacity .2s;}
 .ep-card:hover .ep-play-btn{opacity:1;}
-.ep-play-btn::after{content:'';width:0;height:0;border-top:7px solid transparent;border-bottom:7px solid transparent;border-left:11px solid #000;margin-left:2px;}
-.ep-info{padding:12px 14px;flex:1;display:flex;flex-direction:column;justify-content:center;}
-.ep-num{font-size:10px;font-weight:700;color:var(--pink);letter-spacing:1px;text-transform:uppercase;margin-bottom:3px;}
-.ep-title{font-size:14px;font-weight:700;color:#fff;margin-bottom:4px;}
-.ep-meta{font-size:11px;color:var(--text3);}
-.ep-source-pills{display:flex;gap:5px;margin-top:7px;flex-wrap:wrap;}
-.ep-source-pill{font-size:9px;font-weight:700;padding:2px 8px;border-radius:8px;background:rgba(155,93,229,0.12);color:var(--purple);border:1px solid rgba(155,93,229,0.2);cursor:pointer;transition:all .2s;}
+.ep-play-btn::after{content:'';width:0;height:0;border-top:5px solid transparent;border-bottom:5px solid transparent;border-left:8px solid #000;margin-left:1px;}
+.ep-info{padding:7px 9px;flex:1;display:flex;flex-direction:column;justify-content:center;}
+.ep-num{font-size:9px;font-weight:700;color:var(--pink);letter-spacing:1px;text-transform:uppercase;margin-bottom:2px;}
+.ep-title{font-size:11px;font-weight:700;color:#fff;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.ep-meta{font-size:10px;color:var(--text3);}
+.ep-source-pills{display:flex;gap:4px;margin-top:4px;flex-wrap:wrap;}
+.ep-source-pill{font-size:8px;font-weight:700;padding:1px 6px;border-radius:6px;background:rgba(155,93,229,0.12);color:var(--purple);border:1px solid rgba(155,93,229,0.2);cursor:pointer;transition:all .2s;}
 .ep-source-pill:hover{background:rgba(155,93,229,0.22);}
 .ep-source-pill.active-src{background:rgba(255,45,120,0.15);color:var(--pink);border-color:rgba(255,45,120,0.3);}
 
@@ -502,9 +502,8 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;disp
 .ap-player-src{display:flex;gap:6px;align-items:center;}
 .ap-src-btn{font-size:10px;font-weight:700;padding:4px 11px;border-radius:8px;cursor:pointer;transition:all .2s;border:1px solid var(--border2);background:none;color:var(--text3);}
 .ap-src-btn:hover,.ap-src-btn.active-src{background:rgba(255,45,120,0.15);border-color:rgba(255,45,120,0.35);color:var(--pink);}
-.ap-video-wrap{aspect-ratio:16/9;background:#000;position:relative;max-height:360px;}
+.ap-video-wrap{aspect-ratio:16/9;background:#000;position:relative;}
 .ap-video-wrap iframe{width:100%;height:100%;border:none;position:absolute;inset:0;}
-.ap-video-wrap:fullscreen,.ap-video-wrap:-webkit-full-screen,.ap-video-wrap:-moz-full-screen{max-height:none;aspect-ratio:16/9;width:100vw;height:100vh;}
 .ap-video-placeholder{width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:linear-gradient(135deg,#060c14,#0a1828);position:absolute;inset:0;}
 .ap-no-src{font-size:13px;color:var(--text3);text-align:center;}
 
@@ -954,9 +953,8 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;disp
 /* 2. TRAILER */
 .trailer-section{margin-bottom:20px;}
 .trailer-badge{display:inline-flex;align-items:center;gap:5px;background:rgba(255,45,120,0.1);border:1px solid rgba(255,45,120,0.25);border-radius:20px;padding:3px 11px;font-size:11px;font-weight:700;color:var(--pink);margin-bottom:9px;}
-.trailer-wrap{border-radius:var(--radius);overflow:hidden;background:#000;aspect-ratio:16/9;position:relative;max-height:300px;}
+.trailer-wrap{border-radius:var(--radius);overflow:hidden;background:#000;aspect-ratio:16/9;position:relative;}
 .trailer-wrap iframe{width:100%;height:100%;border:none;position:absolute;inset:0;}
-.trailer-wrap:fullscreen,.trailer-wrap:-webkit-full-screen,.trailer-wrap:-moz-full-screen{max-height:none;width:100vw;height:100vh;}
 
 /* 3. CONTINUE WATCHING — live */
 .cw-remove-btn{position:absolute;top:5px;right:5px;width:20px;height:20px;background:rgba(0,0,0,0.7);border:none;color:rgba(255,255,255,0.6);border-radius:50%;font-size:10px;cursor:pointer;display:none;align-items:center;justify-content:center;z-index:5;}
@@ -2427,10 +2425,62 @@ async function doUpdatePassword(){
 (function checkPasswordResetUrl(){
   const params = new URLSearchParams(window.location.search);
   if(params.get('reset')==='1'){
-    // Supabase will fire PASSWORD_RECOVERY event via onAuthStateChange
-    // which calls showPasswordUpdateModal() — just clean the URL now
     if(window.history?.replaceState) window.history.replaceState({},'','/');
   }
+})();
+
+// ── ANIME PAGE URL PERSISTENCE (refresh restores page) ──
+(function initAnimeRouting(){
+  function restoreFromUrl(){
+    const params = new URLSearchParams(window.location.search);
+    const animeId = params.get('anime');
+    if(animeId && !isNaN(animeId)){
+      // Wait for supabase to be ready then open the page
+      const tryOpen = (attempts) => {
+        if(window.supabase || attempts <= 0){ openAnimePage(parseInt(animeId)); }
+        else { setTimeout(()=>tryOpen(attempts-1), 400); }
+      };
+      tryOpen(10);
+    }
+  }
+  // Handle browser back/forward
+  window.addEventListener('popstate', function(e){
+    const params = new URLSearchParams(window.location.search);
+    const animeId = params.get('anime');
+    if(animeId){
+      openAnimePage(parseInt(animeId));
+    } else {
+      document.getElementById('animePageView').style.display='none';
+      document.getElementById('homeView').style.display='flex';
+      currentAnime=null; currentEpisode=null;
+      const iframe=document.getElementById('apIframe'); if(iframe) iframe.src='';
+    }
+  });
+  // Restore on page load
+  document.addEventListener('DOMContentLoaded', restoreFromUrl);
+  window.addEventListener('load', restoreFromUrl);
+})();
+
+// ── PULL TO REFRESH (swipe down from top) ──
+(function initPullToRefresh(){
+  let startY=0, pulling=false;
+  const threshold=90;
+  document.addEventListener('touchstart',function(e){
+    if(window.scrollY===0) { startY=e.touches[0].clientY; pulling=true; }
+  },{passive:true});
+  document.addEventListener('touchmove',function(e){
+    if(!pulling) return;
+  },{passive:true});
+  document.addEventListener('touchend',function(e){
+    if(!pulling) return;
+    const endY=e.changedTouches[0].clientY;
+    if(endY - startY > threshold){
+      pulling=false;
+      showToast('🔄 Refreshing…','ok');
+      setTimeout(()=>location.reload(), 400);
+    }
+    pulling=false;
+  },{passive:true});
 })();
 
 function openAuth(type='login'){
@@ -3163,6 +3213,8 @@ let currentEpisode = null;
 let currentSource = null;
 
 async function openAnimePage(animeId){
+  // Update URL so refresh restores the page
+  history.pushState({animeId}, '', location.pathname + '?anime=' + animeId);
   const page = document.getElementById('animePageView');
   page.innerHTML = '<div style="height:100vh;display:flex;align-items:center;justify-content:center;color:var(--text3);font-size:14px;">⏳ Loading…</div>';
   page.style.display='flex';
@@ -3446,6 +3498,7 @@ async function checkWatchlistStatus(animeId){
 }
 
 function closeAnimePage(){
+  history.pushState({}, '', location.pathname);
   document.getElementById('animePageView').style.display='none';
   document.getElementById('homeView').style.display='flex';
   currentAnime=null; currentEpisode=null;
@@ -4513,17 +4566,52 @@ function sdInit(){
 async function sdSearch(q){
   const dd=document.getElementById('searchDropdown');
   if(!dd)return;
-  // Local JAI library first
+  // Search Supabase first for exact matches with ID
+  if(window.supabase){
+    try{
+      const {data:sbResults} = await window.supabase.from('anime')
+        .select('id,title_english,title_romaji,poster,release_year,format,score')
+        .or('title_english.ilike.%'+q+'%,title_romaji.ilike.%'+q+'%')
+        .limit(8);
+      if(sbResults&&sbResults.length){
+        sdRenderWithId(sbResults);
+        return;
+      }
+    }catch(e){}
+  }
+  // Fallback: local JAI library
   const local=(typeof jaiGetAll==='function'?jaiGetAll():[])
-    .filter(a=>(a.title||'').toLowerCase().includes(q.toLowerCase())).slice(0,5);
-  if(local.length){sdRender(local);return;}
+    .filter(a=>(a.title||'').toLowerCase().includes(q.toLowerCase())).slice(0,8);
+  if(local.length){
+    sdRenderWithId(local.map(a=>({...a, title_english:a.title_english||a.title})));
+    return;
+  }
   if(_sdCache[q]){sdRender(_sdCache[q]);return;}
   try{
-    const res=await fetch(`https://api.jikan.moe/v4/anime?q=${encodeURIComponent(q)}&limit=5&sfw=true`);
+    const res=await fetch(`https://api.jikan.moe/v4/anime?q=${encodeURIComponent(q)}&limit=8&sfw=true`);
     const data=await res.json();
     const items=(data.data||[]).map(m=>({title:m.title_english||m.title,poster:m.images?.jpg?.image_url||'',release_year:m.year,format:m.type}));
     _sdCache[q]=items;sdRender(items);
   }catch(e){if(dd)dd.innerHTML='<div class="sd-msg">No results</div>';}
+}
+function sdRenderWithId(items){
+  const dd=document.getElementById('searchDropdown');
+  if(!dd)return;
+  if(!items.length){dd.innerHTML='<div class="sd-msg">No results found</div>';return;}
+  dd.innerHTML=items.map(it=>{
+    const title=it.title_english||it.title_romaji||it.title||'—';
+    const action=it.id
+      ? `document.getElementById('searchDropdown').classList.remove('open');openAnimePage(${it.id})`
+      : `document.getElementById('searchDropdown').classList.remove('open');tryOpenAnime('${title.replace(/'/g,"\\'").replace(/"/g,'&quot;')}')`;
+    return `<div class="sd-item" onclick="${action}">
+      ${it.poster?`<img class="sd-poster" src="${it.poster}" alt="" loading="lazy" onerror="this.outerHTML='<div class=sd-poster-ph>📺</div>'">`:'<div class="sd-poster-ph">📺</div>'}
+      <div>
+        <div class="sd-title">${title}</div>
+        <div class="sd-meta">${it.release_year||''}${it.format?' · '+it.format:''}</div>
+      </div>
+    </div>`;
+  }).join('');
+  dd.classList.add('open');
 }
 function sdRender(items){
   const dd=document.getElementById('searchDropdown');
@@ -5982,8 +6070,20 @@ async function pmInitPaystack(){
 
 const AD_STORE_KEY    = 'ks_ads_v1';
 const AD_STATS_KEY    = 'ks_ad_stats_v1';
-const AD_FREQ_KEY     = 'ks_ad_freq';     // localStorage — survives refresh
-const AD_SCRIPTS_KEY  = 'ks_ad_scripts';  // injected script src dedup
+const AD_FREQ_KEY     = 'ks_ad_freq';
+const AD_SCRIPTS_KEY  = 'ks_ad_scripts';
+
+// Load ads from Supabase (admin-synced) then cache locally
+async function adLoadFromSupabase(){
+  if(!supabase) return;
+  try{
+    const {data} = await supabase.from('site_config').select('value').eq('key','ks_ads_v1').single();
+    if(data?.value){
+      localStorage.setItem(AD_STORE_KEY, data.value);
+    }
+  }catch(e){ /* fallback to localStorage */ }
+}
+function adGetAll(){ try{return JSON.parse(localStorage.getItem(AD_STORE_KEY)||'[]');}catch(e){return[];} }
 
 let _adEngineRunning = false;
 let _adObservers     = [];
@@ -6608,9 +6708,10 @@ checkSession=async function(){
   await _origCheckSessionMoney.apply(this,arguments);
   await isPremium();
   pmUpdateUI();
+  await adLoadFromSupabase(); // pull latest ads from admin
   adEngineStart();
 };
-setTimeout(async()=>{ if(!currentUser){ pmUpdateUI(); adEngineStart(); } },2500);
+setTimeout(async()=>{ if(!currentUser){ pmUpdateUI(); await adLoadFromSupabase(); adEngineStart(); } },2500);
 
 // Expose for admin
 window.ksAdEngine={start:adEngineStart,stop:adEngineStop,adGetAll,adSaveAll,adTrack,adPickBest,adGetStats};

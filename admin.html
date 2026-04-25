@@ -867,9 +867,23 @@ tr:hover td{background:rgba(124,58,237,0.04);}
     <!-- Ad Editor Modal (inside admin page) -->
     <div id="adEditorWrap" style="display:none;position:fixed;inset:0;z-index:600;background:rgba(0,0,0,0.8);align-items:center;justify-content:center;">
       <div style="background:var(--card2);border:1px solid var(--border2);border-radius:18px;padding:24px;max-width:560px;width:92%;max-height:90vh;overflow-y:auto;">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
           <div style="font-family:'Poppins',sans-serif;font-size:16px;font-weight:800;color:#fff;" id="adEditorTitle">New Ad</div>
           <button onclick="adEditorClose()" style="background:none;border:none;color:var(--text3);font-size:20px;cursor:pointer;">✕</button>
+        </div>
+        <!-- Network Quick-Fill -->
+        <div style="background:var(--bg3);border:1px solid var(--border2);border-radius:10px;padding:12px;margin-bottom:14px;">
+          <div style="font-size:10px;font-weight:700;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;">⚡ Quick Fill — Select Your Ad Network</div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;">
+            <button onclick="adFillNetwork('adsterra')"     style="background:rgba(6,214,160,0.12);border:1px solid rgba(6,214,160,0.3);color:#06d6a0;border-radius:7px;padding:4px 11px;font-size:11px;font-weight:700;cursor:pointer;">Adsterra</button>
+            <button onclick="adFillNetwork('monetag')"      style="background:rgba(67,97,238,0.12);border:1px solid rgba(67,97,238,0.3);color:#4361ee;border-radius:7px;padding:4px 11px;font-size:11px;font-weight:700;cursor:pointer;">Monetag</button>
+            <button onclick="adFillNetwork('propellerads')" style="background:rgba(255,45,120,0.12);border:1px solid rgba(255,45,120,0.3);color:var(--pink);border-radius:7px;padding:4px 11px;font-size:11px;font-weight:700;cursor:pointer;">PropellerAds</button>
+            <button onclick="adFillNetwork('hilltopads')"   style="background:rgba(255,214,10,0.12);border:1px solid rgba(255,214,10,0.3);color:#ffd60a;border-radius:7px;padding:4px 11px;font-size:11px;font-weight:700;cursor:pointer;">HilltopAds</button>
+            <button onclick="adFillNetwork('popads')"       style="background:rgba(155,93,229,0.12);border:1px solid rgba(155,93,229,0.3);color:var(--purple);border-radius:7px;padding:4px 11px;font-size:11px;font-weight:700;cursor:pointer;">PopAds</button>
+            <button onclick="adFillNetwork('trafficjunky')" style="background:rgba(255,100,50,0.12);border:1px solid rgba(255,100,50,0.3);color:#ff6432;border-radius:7px;padding:4px 11px;font-size:11px;font-weight:700;cursor:pointer;">TrafficJunky</button>
+            <button onclick="adFillNetwork('adcash')"       style="background:rgba(0,200,255,0.12);border:1px solid rgba(0,200,255,0.3);color:#00c8ff;border-radius:7px;padding:4px 11px;font-size:11px;font-weight:700;cursor:pointer;">Adcash</button>
+            <button onclick="adFillNetwork('evadav')"       style="background:rgba(100,200,100,0.12);border:1px solid rgba(100,200,100,0.3);color:#64c864;border-radius:7px;padding:4px 11px;font-size:11px;font-weight:700;cursor:pointer;">Evadav</button>
+          </div>
         </div>
           <div style="display:flex;flex-direction:column;gap:12px;">
           <div>
@@ -915,7 +929,7 @@ tr:hover td{background:rgba(124,58,237,0.04);}
               </label>
             </div>
           </div>
-          <!-- VAST URL field (shown when VAST type selected) -->
+          <!-- VAST URL field -->
           <div id="adVastUrlWrap" style="display:none;">
             <div class="setting-label" style="margin-bottom:5px;">VAST Tag URL</div>
             <input id="adVastUrl" class="setting-input" style="width:100%;box-sizing:border-box;font-family:'Share Tech Mono',monospace;font-size:11px;"
@@ -924,9 +938,10 @@ tr:hover td{background:rgba(124,58,237,0.04);}
               📌 Paste your VAST 2.0/3.0 tag URL. The system fetches the XML, extracts the video file, and plays it directly in the player with full quartile tracking (25%, 50%, 75%, complete, skip).
             </div>
           </div>
-          <!-- JS/iframe code field (shown when code type selected) -->
+          <!-- JS/iframe code field -->
           <div id="adCodeWrap">
-            <div class="setting-label" style="margin-bottom:5px;">Ad Code (JS tag, iframe, or image)</div>
+            <div class="setting-label" style="margin-bottom:4px;">Ad Code (JS tag, iframe, or image)</div>
+            <div id="adCodeHint" style="font-size:10px;color:#06d6a0;margin-bottom:5px;min-height:14px;"></div>
             <textarea id="adCode" style="width:100%;box-sizing:border-box;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;color:var(--text);padding:10px 12px;font-family:'Share Tech Mono',monospace;font-size:11px;resize:vertical;height:120px;outline:none;" placeholder="Paste ad network code here&#10;&lt;script src=&quot;...&quot;&gt;&lt;/script&gt;&#10;&lt;iframe src=&quot;...&quot;&gt;&lt;/iframe&gt;&#10;Or direct URL: https://ad.example.com/banner.jpg"></textarea>
           </div>
           <!-- Frequency fields -->
@@ -5101,8 +5116,46 @@ async function jaiBulkRegenerateAllEmbeds(){
 // ███ MONETIZATION ADMIN — Ad Manager + Revenue Dashboard
 // ════════════════════════════════════════════════════════════════
 
+// ⚠️ Keys MUST match index.html so ads sync correctly
+const ADMIN_AD_KEY   = 'ks_ads_v1';
+const ADMIN_STAT_KEY = 'ks_ad_stats_v1';
+
+// Ad network quick-fill templates
+const AD_NETWORK_TEMPLATES = {
+  adsterra:     { name:'Adsterra Banner',     advertiser:'Adsterra',     hint:'Paste your Adsterra banner/popunder script below' },
+  monetag:      { name:'Monetag Banner',       advertiser:'Monetag',       hint:'Paste your Monetag ad code below' },
+  propellerads: { name:'PropellerAds Banner',  advertiser:'PropellerAds',  hint:'Paste your PropellerAds banner code below' },
+  hilltopads:   { name:'HilltopAds Banner',    advertiser:'HilltopAds',    hint:'Paste your HilltopAds tag code below' },
+  popads:       { name:'PopAds Tag',           advertiser:'PopAds',        hint:'Paste your PopAds tag code below' },
+  trafficjunky: { name:'TrafficJunky Banner',  advertiser:'TrafficJunky',  hint:'Paste your TrafficJunky ad tag below' },
+  adcash:       { name:'Adcash Banner',        advertiser:'Adcash',        hint:'Paste your Adcash zone code below' },
+  evadav:       { name:'Evadav Push/Banner',   advertiser:'Evadav',        hint:'Paste your Evadav ad code below' },
+};
+
+function adFillNetwork(network){
+  const t = AD_NETWORK_TEMPLATES[network];
+  if(!t) return;
+  const nameEl = document.getElementById('adName');
+  const advEl  = document.getElementById('adAdvertiser');
+  const hint   = document.getElementById('adCodeHint');
+  if(nameEl && !nameEl.value) nameEl.value = t.name;
+  if(advEl)  advEl.value = t.advertiser;
+  if(hint)   hint.textContent = '💡 ' + t.hint;
+  showToast('✅ ' + t.advertiser + ' template loaded', 'ok');
+}
+
 function adminAdGetAll(){ try{ return JSON.parse(localStorage.getItem(ADMIN_AD_KEY)||'[]'); }catch(e){return[];} }
-function adminAdSave(ads){ localStorage.setItem(ADMIN_AD_KEY,JSON.stringify(ads)); }
+function adminAdSave(ads){
+  localStorage.setItem(ADMIN_AD_KEY, JSON.stringify(ads));
+  // Sync to Supabase so main site reads latest ads across all devices
+  const sb = getSB();
+  if(sb){
+    sb.from('site_config').upsert(
+      {key:'ks_ads_v1', value: JSON.stringify(ads), updated_at: new Date().toISOString()},
+      {onConflict:'key'}
+    ).then(({error})=>{ if(error) console.warn('[AdSync]',error.message); else console.log('[AdSync] Ads synced ✅'); });
+  }
+}
 function adminAdStats(){ try{ return JSON.parse(localStorage.getItem(ADMIN_STAT_KEY)||'{}'); }catch(e){return {};} }
 
 function adSavePaystackConfig(){
