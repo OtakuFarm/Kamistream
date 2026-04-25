@@ -7395,7 +7395,25 @@ setTimeout(()=>{
       showToast(`DB ${op} ${table} failed: ${entry.message}`, 'err'); } catch(_){}
   }
   window.__sbDebug = () => { console.table(errLog); return errLog; };
-  function findClient(){ return window.supabase || window.sb || window.client || null; }
+  function isClient(c){ return c && typeof c.from === 'function' && typeof c.auth === 'object'; }
+  function findClient(){
+    const cands = [window.__sb, window.sb, window.client, window.supabaseClient,
+                   isClient(window.supabase) ? window.supabase : null];
+    for (const c of cands) if (isClient(c)) return c;
+    return null;
+  }
+  function hookCreateClient(){
+    const lib = window.supabase;
+    if (!lib || typeof lib.createClient !== 'function' || lib.__kamiHooked) return;
+    const orig = lib.createClient.bind(lib);
+    lib.createClient = function(){
+      const inst = orig.apply(this, arguments);
+      window.__sb = inst;
+      patchClient(inst);
+      return inst;
+    };
+    lib.__kamiHooked = true;
+  }
   const patched = new WeakSet();
   function patchClient(client){
     if (!client || patched.has(client) || typeof client.from !== 'function') return;
@@ -7426,11 +7444,11 @@ setTimeout(()=>{
       return qb;
     };
   }
-  function tryPatch(){ const c = findClient(); if (c) patchClient(c); }
+  function tryPatch(){ hookCreateClient(); const c = findClient(); if (c) patchClient(c); }
   tryPatch();
   document.addEventListener('DOMContentLoaded', tryPatch);
   let tries = 0;
-  const iv = setInterval(() => { tryPatch(); if (++tries > 20) clearInterval(iv); }, 500);
+  const iv = setInterval(() => { tryPatch(); if (++tries > 40) clearInterval(iv); }, 500);
   window.addEventListener('unhandledrejection', ev => {
     const r = ev.reason;
     if (r && (r.code || r.message) && (r.hint !== undefined || r.details !== undefined))
