@@ -1337,6 +1337,7 @@ tr:hover td{background:rgba(124,58,237,0.04);}
           <button class="btn btn-ghost btn-sm" onclick="jaiRefreshTrending()">📈 Refresh Trending</button>
           <button class="btn btn-ghost btn-sm" onclick="jaiRefreshSeasonal()">🌸 Refresh Seasonal</button>
           <button class="btn btn-success btn-sm" onclick="jaiRunUpdateCheck()">🔄 Check Updates Now</button>
+          <button class="btn btn-success btn-sm" id="jaiBulkRegenBtn" onclick="jaiBulkRegenerateAllEmbeds()" title="Regenerate every server's embed URL for every episode of every imported anime">⚡ Auto-Generate Embeds for ALL Anime</button>
         </div>
       </div>
 
@@ -1396,18 +1397,6 @@ tr:hover td{background:rgba(124,58,237,0.04);}
         <button class="jai-btn-ghost" onclick="jaiLoadPopular()">Top Rated</button>
         <button class="jai-btn-ghost" onclick="jaiLoadTrendingResults()">📈 Trending</button>
         <button class="jai-btn-ghost" onclick="jaiLoadSeasonalResults()">🌸 Seasonal</button>
-        <button class="jai-btn" id="jaiImportAllBtn" onclick="jaiImportAllResults()" style="background:linear-gradient(135deg,#06d6a0,#4361ee);display:none;" title="Import all search results with VidNest + Cinetaro sources">⚡ Import All</button>
-      </div>
-      <!-- Bulk import progress -->
-      <div id="jaiBulkProgress" style="display:none;background:var(--bg3);border:1px solid var(--border2);border-radius:11px;padding:14px 16px;margin-bottom:12px;">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-          <div style="font-size:13px;font-weight:800;color:#fff;">⚡ Bulk Import Progress</div>
-          <div id="jaiBulkCount" style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--text3);">0 / 0</div>
-        </div>
-        <div style="background:var(--bg);border-radius:6px;height:8px;overflow:hidden;margin-bottom:8px;">
-          <div id="jaiBulkBar" style="height:100%;background:linear-gradient(90deg,#06d6a0,#4361ee);width:0%;transition:width .3s;border-radius:6px;"></div>
-        </div>
-        <div id="jaiBulkLog" style="font-size:11px;color:var(--text3);font-family:'Share Tech Mono',monospace;max-height:100px;overflow-y:auto;"></div>
       </div>
       <div class="jai-results" id="jaiResults">
         <div class="jai-empty">🔍 Search above or click "Top Airing" to get started.</div>
@@ -1470,7 +1459,7 @@ tr:hover td{background:rgba(124,58,237,0.04);}
                 <div class="esc-anime-actions">
                   <button class="esc-action-btn esc-action-import" id="escImportBtn" onclick="escImportToSupabase()">☁ Import to Supabase</button>
                   <button class="esc-action-btn" style="background:rgba(255,255,255,0.07);border:1px solid var(--border2);color:var(--text3);" onclick="escLoadEpisodes()">📋 Load Episodes</button>
-                  <button class="esc-action-btn" style="background:linear-gradient(135deg,rgba(6,214,160,0.2),rgba(67,97,238,0.15));border:1px solid rgba(6,214,160,0.35);color:var(--green);font-weight:800;" onclick="vidnestRegenerate()" id="vidnestRegenBtn" title="Auto-generate all VidNest embed URLs from AniList ID">⚡ Regenerate VidNest</button>
+                  <button class="esc-action-btn" style="background:linear-gradient(135deg,rgba(6,214,160,0.2),rgba(67,97,238,0.15));border:1px solid rgba(6,214,160,0.35);color:var(--green);font-weight:800;" onclick="vidnestRegenerate()" id="vidnestRegenBtn" title="Auto-generate every server's embed URL for every episode">⚡ Auto-Generate ALL Episodes (All Servers)</button>
                 </div>
               </div>
             </div>
@@ -3556,14 +3545,9 @@ async function jaiLoadPopular(){
   catch(e){grid.innerHTML=`<div class="jai-empty">⚠️ ${e.message}</div>`;}
 }
 
-let _jaiCurrentResults = [];
 function jaiRenderResults(list){
-  _jaiCurrentResults = list;
   const grid=document.getElementById('jaiResults');
   const imported=jaiGetAll().map(a=>a.mal_id);
-  // Show/hide Import All button
-  const importAllBtn = document.getElementById('jaiImportAllBtn');
-  if(importAllBtn) importAllBtn.style.display = list.length ? 'inline-flex' : 'none';
   if(!list.length){grid.innerHTML='<div class="jai-empty">No results.</div>';return;}
   grid.innerHTML=list.map(m=>{
     const isImported=imported.includes(m.mal_id);
@@ -3590,50 +3574,6 @@ function jaiRenderResults(list){
       </div>
     </div>`;
   }).join('');
-}
-
-async function jaiImportAllResults(){
-  const list = _jaiCurrentResults;
-  if(!list||!list.length){ showToast('No results to import','warn'); return; }
-  const toImport = list.filter(m=>!jaiGetAll().find(a=>a.mal_id===m.mal_id));
-  if(!toImport.length){ showToast('All results already imported','warn'); return; }
-  const btn = document.getElementById('jaiImportAllBtn');
-  if(btn){ btn.disabled=true; btn.textContent='⏳ Importing…'; }
-  const prog = document.getElementById('jaiBulkProgress');
-  const bar  = document.getElementById('jaiBulkBar');
-  const cnt  = document.getElementById('jaiBulkCount');
-  const log  = document.getElementById('jaiBulkLog');
-  if(prog) prog.style.display='block';
-  if(log)  log.innerHTML='';
-  const total = toImport.length;
-  let done=0, failed=0;
-  function bulkLog(msg){
-    if(!log)return;
-    const line=document.createElement('div');
-    line.textContent=msg;
-    log.prepend(line);
-  }
-  for(const m of toImport){
-    cnt && (cnt.textContent = done+'/'+total);
-    bar  && (bar.style.width = Math.round((done/total)*100)+'%');
-    bulkLog('⏳ Importing: '+(m.title||m.mal_id)+'…');
-    try{
-      await jaiImport(m.mal_id);
-      done++;
-      bulkLog('✅ Done: '+(m.title||m.mal_id));
-    }catch(e){
-      failed++;
-      done++;
-      bulkLog('❌ Failed: '+(m.title||m.mal_id)+' — '+e.message);
-    }
-    // Throttle to avoid Jikan rate limit (3 req/s)
-    await new Promise(r=>setTimeout(r,600));
-  }
-  bar  && (bar.style.width='100%');
-  cnt  && (cnt.textContent = total+'/'+total);
-  if(btn){ btn.disabled=false; btn.textContent='⚡ Import All'; }
-  showToast('✅ Bulk import done! '+done+' imported, '+failed+' failed.', failed?'warn':'ok');
-  jaiRefreshStats(); jaiRenderLibrary();
 }
 
 async function jaiImport(malId){
@@ -3806,45 +3746,25 @@ async function sbInsertAnime(sb, anime, malId, rawJikan){
     }
   }
 
-  // ── AUTO-GENERATE VIDNEST + CINETARO EMBED SOURCES ──
-  if(anilistId && epCount > 0){
-    jaiSetStatus(malId,'pending','Generating VidNest + Cinetaro embeds…');
-    const embedRows = [];
-    for(let ep=1; ep<=epCount; ep++){
-      const epId = epIdMap[ep];
-      if(!epId) continue;
-      // VidNest
-      embedRows.push({
-        episode_id:  epId,
-        anime_id:    animeId,
-        embed_url:   'https://vidnest.fun/animepahe/'+anilistId+'/'+ep+'/sub',
-        source_name: 'VidNest',
-        episode_number: ep,
-        quality:     'SUB',
-        is_active:   true,
-        updated_at:  new Date().toISOString()
-      });
-      // Cinetaro
-      embedRows.push({
-        episode_id:  epId,
-        anime_id:    animeId,
-        embed_url:   'https://api.cinetaro.buzz/anime/'+anilistId+'/'+ep+'/sub',
-        source_name: 'Cinetaro',
-        episode_number: ep,
-        quality:     '1080p',
-        is_active:   true,
-        updated_at:  new Date().toISOString()
-      });
+  // ── AUTO-GENERATE EMBED SOURCES FOR ALL CONFIGURED PROVIDERS ──
+  if(epCount > 0){
+    jaiSetStatus(malId,'pending','Generating embed URLs ('+ADMIN_EMBED_PROVIDERS.length+' servers)…');
+    const animeMeta = {
+      mal_id:     malId,
+      anilist_id: anilistId,
+      title:      anime.title,
+    };
+    const epList = Object.keys(epIdMap).map(n=>({id:epIdMap[n], episode_number:parseInt(n)}));
+    try{
+      const r = await adminGenAllEmbedsForAnime(sb, animeId, animeMeta, {episodes: epList});
+      jaiAddLog('Auto-embeds: '+r.saved+' URLs across '+r.providerCount+' server(s) for '+anime.title+(r.anilistId?' (AniList #'+r.anilistId+')':''));
+      if(!r.anilistId){
+        jaiAddLog('⚠️ Some servers skipped — no AniList ID for MAL #'+malId);
+      }
+    }catch(e){
+      console.warn('[JAI] auto-embed generation failed:', e.message);
+      jaiAddLog('⚠️ Auto-embeds failed: '+e.message);
     }
-    // Insert in chunks of 100
-    for(let i=0; i<embedRows.length; i+=100){
-      const chunk = embedRows.slice(i,i+100);
-      const {error:embErr} = await sb.from('embed_sources').upsert(chunk,{onConflict:'episode_id,source_name',ignoreDuplicates:true});
-      if(embErr) console.warn('[JAI] embed insert warning:',embErr.message);
-    }
-    jaiAddLog('VidNest+Cinetaro: '+(epCount*2)+' embed URLs generated for AniList #'+anilistId);
-  } else if(!anilistId){
-    jaiAddLog('⚠️ Embeds skipped — could not resolve AniList ID for MAL #'+malId);
   }
 
   // ── Remove old placeholder anime_source if VidNest was generated ──
@@ -4179,8 +4099,43 @@ async function jaiSyncOne(malId){
 }
 
 // ── Auto-attach sources for new episodes ──
+// 1. Auto-generate URLs for every configured provider (VidNest, Cinetaro, …)
+// 2. Also apply any custom anime_sources patterns the admin saved earlier
 async function autoAttachSources(sb,animeId,newEpRows,malId){
-  // Get source pattern from anime_sources table
+  // ─── (A) Auto-providers (VidNest / Cinetaro / etc.) ───
+  // Look up real episode IDs for the freshly-inserted rows.
+  const epNums = newEpRows.map(e=>e.episode_number);
+  const {data:epRows} = await sb
+    .from('episodes')
+    .select('id,episode_number')
+    .eq('anime_id',animeId)
+    .in('episode_number', epNums);
+
+  if(epRows?.length){
+    // Pull the anime row so we have anilist_id (and refresh it if missing)
+    const {data:animeRow} = await sb
+      .from('anime')
+      .select('id,mal_id,anilist_id,title_english,title_romaji')
+      .eq('id',animeId)
+      .maybeSingle();
+
+    const animeMeta = {
+      mal_id:     animeRow?.mal_id || malId,
+      anilist_id: animeRow?.anilist_id || null,
+      title:      animeRow?.title_english || animeRow?.title_romaji || '',
+    };
+    try{
+      const r = await adminGenAllEmbedsForAnime(sb, animeId, animeMeta, {episodes: epRows});
+      if(r.saved){
+        console.log('[AutoUpdate] Auto-providers attached',r.saved,'embed rows ('+r.providerCount+' servers ×',epRows.length,'new eps)');
+        jaiAddLog('☁ +'+r.saved+' new embeds ('+r.providerCount+' servers) for new episodes');
+      }
+    }catch(e){
+      console.warn('[AutoUpdate] auto-provider gen failed:',e.message);
+    }
+  }
+
+  // ─── (B) Custom patterns saved in anime_sources ───
   const {data:srcRows}=await sb
     .from('anime_sources')
     .select('embed_pattern,source_name,language,quality')
@@ -4189,36 +4144,41 @@ async function autoAttachSources(sb,animeId,newEpRows,malId){
     .limit(3);
 
   if(!srcRows?.length){
-    // No pattern set — insert placeholder row only (admin fills URL later)
-    console.log('[AutoUpdate] No source pattern for anime #'+animeId+' — skipping embed URL generation');
+    console.log('[AutoUpdate] No custom pattern for anime #'+animeId+' — auto-providers handled it');
     return;
   }
+
+  // Map custom patterns onto real episode IDs so they actually attach
+  const epIdByNum = {};
+  (epRows||[]).forEach(e=>{ epIdByNum[e.episode_number]=e.id; });
 
   const sourceInserts=[];
   for(const ep of newEpRows){
     for(const src of srcRows){
+      if(!src.embed_pattern) continue;
       const embedUrl=buildEmbedUrl(src.embed_pattern,ep.episode_number);
+      if(!embedUrl) continue;
       sourceInserts.push({
-        episode_id:  null, // Will be null unless you join — safe to leave for now
-        anime_id:    animeId,
+        episode_id:     epIdByNum[ep.episode_number] || null,
+        anime_id:       animeId,
         episode_number: ep.episode_number,
-        source_name: src.source_name||'Server 1',
-        embed_url:   embedUrl||'',
-        language:    src.language||'sub',
-        quality:     src.quality||'1080p',
-        is_active:   !!embedUrl,
+        source_name:    src.source_name||'Server 1',
+        embed_url:      embedUrl,
+        language:       src.language||'sub',
+        quality:        src.quality||'1080p',
+        is_active:      true,
+        updated_at:     new Date().toISOString(),
       });
     }
   }
 
   if(sourceInserts.length){
-    // Insert in batches
     for(let i=0;i<sourceInserts.length;i+=50){
       const chunk=sourceInserts.slice(i,i+50);
-      const {error}=await sb.from('anime_sources').upsert(chunk,{ignoreDuplicates:true});
-      if(error) console.warn('[AutoUpdate] source insert warning:',error.message);
+      const {error}=await sb.from('embed_sources').upsert(chunk,{onConflict:'episode_id,source_name',ignoreDuplicates:false});
+      if(error) console.warn('[AutoUpdate] custom pattern insert warning:',error.message);
     }
-    console.log('[AutoUpdate] Attached',sourceInserts.length,'source entries for new episodes');
+    console.log('[AutoUpdate] Attached',sourceInserts.length,'custom-pattern embed entries');
   }
 }
 
@@ -4611,11 +4571,11 @@ async function deleteComment(commentId, videoId){
 // ════════════════════════════════════════════════════════════════
 const ADMIN_EMBED_PROVIDERS = [
   {
-    id:'vidnest',  name:'VidNest',  icon:'📺', quality:'Sub',   type:'anilist',
+    id:'vidnest',  name:'VidNest',  icon:'📺', quality:'SUB',  language:'sub', type:'anilist',
     build:(a,ep)=>{ const id=a.anilist_id; return id?'https://vidnest.fun/animepahe/'+id+'/'+ep+'/sub':null; }
   },
   {
-    id:'cinetaro', name:'Cinetaro', icon:'🎬', quality:'1080p', type:'anilist',
+    id:'cinetaro', name:'Cinetaro', icon:'🎬', quality:'1080p', language:'sub', type:'anilist',
     build:(a,ep)=>{ const id=a.anilist_id; return id?'https://api.cinetaro.buzz/anime/'+id+'/'+ep+'/sub':null; }
   },
 ];
@@ -4623,6 +4583,123 @@ const ADMIN_EMBED_PROVIDERS = [
 function _aSlug(title){
   if(!title) return '';
   return title.toLowerCase().replace(/[^a-z0-9\s-]/g,'').trim().replace(/\s+/g,'-').replace(/-+/g,'-');
+}
+
+// ────────────────────────────────────────────────────────────────
+// UNIFIED MULTI-PROVIDER AUTO-GENERATION
+// One source of truth used by import, sync, and manual regenerate
+// ────────────────────────────────────────────────────────────────
+
+// Resolve AniList ID for an anime (cached). Updates the supabase row + local
+// object when found. Safe to call repeatedly — no-op if already known.
+async function adminResolveAnilistId(sb, animeMeta, sbAnimeId){
+  if(animeMeta?.anilist_id) return animeMeta.anilist_id;
+  const malId = animeMeta?.mal_id;
+  if(!malId) return null;
+  try{
+    const cache = JSON.parse(localStorage.getItem('an_mal2al_v1')||'{}');
+    if(cache[malId]){
+      animeMeta.anilist_id = cache[malId];
+      return cache[malId];
+    }
+    const res = await fetch('https://graphql.anilist.co',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','Accept':'application/json'},
+      body:JSON.stringify({query:'query($m:Int){Media(idMal:$m,type:ANIME){id}}',variables:{m:parseInt(malId)}})
+    });
+    const gql = await res.json();
+    const alId = gql?.data?.Media?.id || null;
+    if(alId){
+      cache[malId] = alId;
+      localStorage.setItem('an_mal2al_v1', JSON.stringify(cache));
+      animeMeta.anilist_id = alId;
+      if(sb && sbAnimeId){
+        await sb.from('anime').update({anilist_id:alId}).eq('id',sbAnimeId)
+          .then(({error})=>{ if(error) console.warn('[AutoGen] anilist_id save:',error.message); });
+      }
+    }
+    return alId;
+  }catch(e){
+    console.warn('[AutoGen] AniList ID lookup failed:',e.message);
+    return null;
+  }
+}
+
+// Build embed_sources rows for ALL configured providers across ALL given episodes.
+// `episodes` = [{id, episode_number}] from the episodes table.
+function adminBuildAllProviderEmbeds(animeMeta, episodes){
+  const rows = [];
+  const now = new Date().toISOString();
+  for(const ep of (episodes||[])){
+    if(!ep?.id || !ep?.episode_number) continue;
+    for(const p of ADMIN_EMBED_PROVIDERS){
+      const url = p.build(animeMeta, ep.episode_number);
+      if(!url) continue; // provider unavailable for this anime (e.g. no anilist_id)
+      rows.push({
+        episode_id:     ep.id,
+        anime_id:       animeMeta.__sb_id || null,
+        episode_number: ep.episode_number,
+        source_name:    p.name,
+        embed_url:      url,
+        language:       p.language || 'sub',
+        quality:        p.quality   || '1080p',
+        is_active:      true,
+        updated_at:     now,
+      });
+    }
+  }
+  return rows;
+}
+
+// Upsert the rows in safe chunks. Returns count saved.
+async function adminUpsertEmbedRows(sb, rows){
+  if(!sb || !rows?.length) return 0;
+  let saved = 0;
+  for(let i=0; i<rows.length; i+=100){
+    const chunk = rows.slice(i, i+100);
+    const {error} = await sb.from('embed_sources')
+      .upsert(chunk, {onConflict:'episode_id,source_name', ignoreDuplicates:false});
+    if(error) console.warn('[AutoGen] chunk error:', error.message);
+    else saved += chunk.length;
+  }
+  return saved;
+}
+
+// One-shot: resolve anilist id, fetch episode rows, build embeds for ALL
+// providers, upsert. Returns {saved, providerCount, episodeCount, anilistId}.
+async function adminGenAllEmbedsForAnime(sb, sbAnimeId, animeMeta, opts){
+  opts = opts || {};
+  if(!sb) throw new Error('Supabase not connected');
+  if(!sbAnimeId) throw new Error('No anime id');
+  animeMeta = animeMeta || {};
+
+  // 1. Resolve anilist id (silent — the building loop will simply skip
+  //    providers that need it if it can't be found)
+  await adminResolveAnilistId(sb, animeMeta, sbAnimeId);
+  animeMeta.__sb_id = sbAnimeId;
+
+  // 2. Get episode rows (or use the ones provided)
+  let episodes = opts.episodes;
+  if(!episodes){
+    const {data, error} = await sb.from('episodes')
+      .select('id,episode_number')
+      .eq('anime_id', sbAnimeId)
+      .order('episode_number', {ascending:true});
+    if(error) throw new Error('episode fetch: '+error.message);
+    episodes = data || [];
+  }
+
+  // 3. Build & save
+  const rows = adminBuildAllProviderEmbeds(animeMeta, episodes);
+  const providersInUse = new Set(rows.map(r=>r.source_name));
+  const saved = await adminUpsertEmbedRows(sb, rows);
+
+  return {
+    saved,
+    providerCount: providersInUse.size,
+    episodeCount:  episodes.length,
+    anilistId:     animeMeta.anilist_id || null,
+  };
 }
 
 
@@ -4928,101 +5005,96 @@ async function vidnestRegenerate(){
   if(!escAnime){ showToast('Select an anime first','err'); return; }
   const sb = getSB();
   if(!sb){ showToast('Supabase not connected','err'); return; }
+  if(!escSbAnimeId){ showToast('Import anime to Supabase first','err'); return; }
 
   const btn = document.getElementById('vidnestRegenBtn');
-  if(btn){ btn.textContent='⏳ Working…'; btn.disabled=true; }
+  const originalLabel = '⚡ Auto-Generate ALL Episodes (All Servers)';
+  if(btn){ btn.textContent='⏳ Generating…'; btn.disabled=true; }
 
   try{
-    // ── 1. Resolve AniList ID ──
-    let anilistId = escAnime.anilist_id || null;
+    showToast('⏳ Generating embeds for every episode × every server…');
+    const r = await adminGenAllEmbedsForAnime(sb, escSbAnimeId, escAnime);
 
-    if(!anilistId && escAnime.mal_id){
-      // Check localStorage cache first
-      const cache = JSON.parse(localStorage.getItem('an_mal2al_v1')||'{}');
-      if(cache[escAnime.mal_id]){
-        anilistId = cache[escAnime.mal_id];
-      } else {
-        showToast('⏳ Looking up AniList ID…');
-        const res = await fetch('https://graphql.anilist.co',{
-          method:'POST',
-          headers:{'Content-Type':'application/json','Accept':'application/json'},
-          body:JSON.stringify({
-            query:'query($m:Int){Media(idMal:$m,type:ANIME){id}}',
-            variables:{m:parseInt(escAnime.mal_id)}
-          })
-        });
-        const gql = await res.json();
-        anilistId = gql?.data?.Media?.id || null;
-        if(anilistId){
-          cache[escAnime.mal_id] = anilistId;
-          localStorage.setItem('an_mal2al_v1', JSON.stringify(cache));
-          // Save back to Supabase anime row
-          if(escSbAnimeId) await sb.from('anime').update({anilist_id:anilistId}).eq('id',escSbAnimeId);
-          escAnime.anilist_id = anilistId;
-        }
-      }
-    }
-
-    if(!anilistId){
-      showToast('❌ No AniList ID found — cannot generate VidNest URLs','err');
-      if(btn){ btn.textContent='⚡ Regenerate VidNest'; btn.disabled=false; }
+    if(r.saved === 0){
+      showToast('❌ Nothing generated — no AniList ID found for any server','err');
+      addLog('Auto-gen failed: no resolvable provider URLs','red');
       return;
     }
 
-    // ── 2. Get all episode IDs from Supabase ──
-    if(!escSbAnimeId){ showToast('Import anime to Supabase first','err'); return; }
+    // Mark all episode buttons green in the grid
+    document.querySelectorAll('.esc-ep-btn').forEach(b=>b.classList.add('has-src'));
 
-    const {data:episodes, error:epErr} = await sb.from('episodes')
-      .select('id,episode_number')
-      .eq('anime_id', escSbAnimeId)
-      .order('episode_number',{ascending:true});
-
-    if(epErr || !episodes?.length){
-      showToast('No episodes found — import anime first','err');
-      if(btn){ btn.textContent='⚡ Regenerate VidNest'; btn.disabled=false; }
-      return;
-    }
-
-    // ── 3. Build all VidNest embed rows ──
-    const embedRows = episodes.map(ep=>({
-      episode_id:  ep.id,
-      anime_id:    escSbAnimeId,
-      embed_url:   'https://vidnest.fun/animepahe/'+anilistId+'/'+ep.episode_number+'/sub',
-      source_name: 'VidNest',
-      quality:     'SUB',
-      is_active:   true,
-      updated_at:  new Date().toISOString()
-    }));
-
-    // ── 4. Upsert in chunks of 100 ──
-    let saved = 0;
-    for(let i=0; i<embedRows.length; i+=100){
-      const chunk = embedRows.slice(i,i+100);
-      const {error} = await sb.from('embed_sources')
-        .upsert(chunk,{onConflict:'episode_id,source_name',ignoreDuplicates:false});
-      if(error) console.warn('[VidNest Regen] chunk error:',error.message);
-      else saved += chunk.length;
-    }
-
-    // ── 5. Mark all episode buttons green in the grid ──
-    episodes.forEach(ep=>{
-      const epBtn = document.getElementById('escep-'+ep.episode_number);
-      if(epBtn) epBtn.classList.add('has-src');
-    });
-
-    addLog('VidNest regenerated: '+saved+' embed URLs for AniList #'+anilistId,'green');
-    showToast('✅ '+saved+' VidNest embeds generated! (AniList #'+anilistId+')','ok');
+    const msg = '✅ '+r.saved+' embed URLs ('+r.providerCount+' server'+(r.providerCount===1?'':'s')+' × '+r.episodeCount+' episodes)';
+    addLog(msg+(r.anilistId?' · AniList #'+r.anilistId:''),'green');
+    showToast(msg, 'ok');
 
     // Reload episode grid to reflect new sources
     await escLoadEpisodesFromSB(escSbAnimeId);
 
   }catch(e){
-    showToast('VidNest regen failed: '+e.message,'err');
-    addLog('VidNest regen error: '+e.message,'red');
-    console.error('[VidNest Regen]',e);
+    showToast('Auto-generate failed: '+e.message,'err');
+    addLog('Auto-gen error: '+e.message,'red');
+    console.error('[AutoGen All]',e);
   } finally {
-    if(btn){ btn.textContent='⚡ Regenerate VidNest'; btn.disabled=false; }
+    if(btn){ btn.textContent=originalLabel; btn.disabled=false; }
   }
+}
+
+// ════════════════════════════════════════════════════════════════
+// ███ LIBRARY-WIDE BULK REGENERATE
+// One click → regenerate every embed for every episode of every anime
+// ════════════════════════════════════════════════════════════════
+async function jaiBulkRegenerateAllEmbeds(){
+  const sb = getSB();
+  if(!sb){ showToast('Supabase not connected','err'); return; }
+
+  const btn = document.getElementById('jaiBulkRegenBtn');
+  const orig = btn ? btn.textContent : '';
+
+  // Pull every anime row in the library
+  const {data:animeList, error} = await sb
+    .from('anime')
+    .select('id,mal_id,anilist_id,title_english,title_romaji,episodes_total')
+    .order('id',{ascending:true});
+
+  if(error){ showToast('Fetch failed: '+error.message,'err'); return; }
+  if(!animeList?.length){ showToast('Library is empty','warn'); return; }
+
+  if(!confirm('Regenerate embeds for ALL '+animeList.length+' anime?\n\nThis fills every episode × every server ('+ADMIN_EMBED_PROVIDERS.length+' servers) with a fresh embed URL. Existing URLs are overwritten.\n\nMay take a few minutes.')) return;
+
+  if(btn){ btn.disabled=true; }
+  let totalSaved=0, succeeded=0, failed=0, skipped=0;
+
+  for(let i=0; i<animeList.length; i++){
+    const a = animeList[i];
+    const title = a.title_english || a.title_romaji || ('MAL #'+a.mal_id);
+    if(btn) btn.textContent='⏳ '+(i+1)+'/'+animeList.length+'…';
+    showToast('('+(i+1)+'/'+animeList.length+') '+title);
+
+    try{
+      const meta = {
+        mal_id:     a.mal_id,
+        anilist_id: a.anilist_id,
+        title:      title,
+      };
+      const r = await adminGenAllEmbedsForAnime(sb, a.id, meta);
+      if(r.saved===0) skipped++;
+      else { succeeded++; totalSaved += r.saved; }
+    }catch(e){
+      failed++;
+      console.warn('[BulkRegen] '+title+':', e.message);
+    }
+    // Small pause to be polite to AniList + supabase
+    await new Promise(r=>setTimeout(r,250));
+  }
+
+  if(btn){ btn.disabled=false; btn.textContent=orig; }
+  const msg='✅ Bulk regen done — '+succeeded+' anime · '+totalSaved+' embeds saved'+
+            (skipped?' · '+skipped+' skipped (no AniList ID)':'')+
+            (failed?' · '+failed+' failed':'');
+  addLog(msg,'green');
+  showToast(msg,'ok');
+  jaiAddLog(msg);
 }
 
 // ════════════════════════════════════════════════════════════════

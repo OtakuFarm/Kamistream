@@ -502,8 +502,9 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;disp
 .ap-player-src{display:flex;gap:6px;align-items:center;}
 .ap-src-btn{font-size:10px;font-weight:700;padding:4px 11px;border-radius:8px;cursor:pointer;transition:all .2s;border:1px solid var(--border2);background:none;color:var(--text3);}
 .ap-src-btn:hover,.ap-src-btn.active-src{background:rgba(255,45,120,0.15);border-color:rgba(255,45,120,0.35);color:var(--pink);}
-.ap-video-wrap{aspect-ratio:16/9;background:#000;position:relative;}
+.ap-video-wrap{aspect-ratio:16/9;background:#000;position:relative;max-height:360px;}
 .ap-video-wrap iframe{width:100%;height:100%;border:none;position:absolute;inset:0;}
+.ap-video-wrap:fullscreen,.ap-video-wrap:-webkit-full-screen,.ap-video-wrap:-moz-full-screen{max-height:none;aspect-ratio:16/9;width:100vw;height:100vh;}
 .ap-video-placeholder{width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:linear-gradient(135deg,#060c14,#0a1828);position:absolute;inset:0;}
 .ap-no-src{font-size:13px;color:var(--text3);text-align:center;}
 
@@ -953,8 +954,9 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;disp
 /* 2. TRAILER */
 .trailer-section{margin-bottom:20px;}
 .trailer-badge{display:inline-flex;align-items:center;gap:5px;background:rgba(255,45,120,0.1);border:1px solid rgba(255,45,120,0.25);border-radius:20px;padding:3px 11px;font-size:11px;font-weight:700;color:var(--pink);margin-bottom:9px;}
-.trailer-wrap{border-radius:var(--radius);overflow:hidden;background:#000;aspect-ratio:16/9;position:relative;}
+.trailer-wrap{border-radius:var(--radius);overflow:hidden;background:#000;aspect-ratio:16/9;position:relative;max-height:300px;}
 .trailer-wrap iframe{width:100%;height:100%;border:none;position:absolute;inset:0;}
+.trailer-wrap:fullscreen,.trailer-wrap:-webkit-full-screen,.trailer-wrap:-moz-full-screen{max-height:none;width:100vw;height:100vh;}
 
 /* 3. CONTINUE WATCHING — live */
 .cw-remove-btn{position:absolute;top:5px;right:5px;width:20px;height:20px;background:rgba(0,0,0,0.7);border:none;color:rgba(255,255,255,0.6);border-radius:50%;font-size:10px;cursor:pointer;display:none;align-items:center;justify-content:center;z-index:5;}
