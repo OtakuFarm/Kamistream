@@ -5405,5 +5405,223 @@ async function revLoad(){
 }
 
 </script>
+
+<!-- ════════════════════════════════════════════════════════════════
+     KAMISTREAM — SUPABASE ERROR-VISIBILITY PATCH
+     ════════════════════════════════════════════════════════════════ -->
+<script>
+(function(){
+  if (typeof window === 'undefined') return;
+  if (window.__kamiPatchInstalled) return;
+  window.__kamiPatchInstalled = true;
+  const errLog = [];
+  function recordErr(table, op, err){
+    const entry = {
+      at: new Date().toISOString(), table, op,
+      code: err?.code || null,
+      message: err?.message || String(err),
+      details: err?.details || null,
+      hint: err?.hint || null
+    };
+    errLog.push(entry);
+    if (errLog.length > 50) errLog.shift();
+    console.error(`[Supabase ${op} ${table}]`, entry);
+    try { if (typeof showToast === 'function')
+      showToast(`DB ${op} ${table} failed: ${entry.message}`, 'err'); } catch(_){}
+    try { if (typeof addLog === 'function')
+      addLog(`DB ${op} ${table}: ${entry.message}`, 'red'); } catch(_){}
+  }
+  window.__sbDebug = () => { console.table(errLog); return errLog; };
+  function findClient(){ return window.sb || window.supabase || window.client || null; }
+  const patched = new WeakSet();
+  function patchClient(client){
+    if (!client || patched.has(client) || typeof client.from !== 'function') return;
+    patched.add(client);
+    const origFrom = client.from.bind(client);
+    client.from = function(table){
+      const qb = origFrom(table);
+      if (!qb) return qb;
+      ['insert','update','upsert','delete'].forEach(op => {
+        if (typeof qb[op] !== 'function') return;
+        const orig = qb[op].bind(qb);
+        qb[op] = function(){
+          const builder = orig.apply(this, arguments);
+          if (builder && typeof builder.then === 'function'){
+            const origThen = builder.then.bind(builder);
+            builder.then = function(onFulfilled, onRejected){
+              return origThen(
+                (res) => { if (res && res.error) recordErr(table, op, res.error);
+                           return onFulfilled ? onFulfilled(res) : res; },
+                (err) => { recordErr(table, op, err);
+                           if (onRejected) return onRejected(err); throw err; }
+              );
+            };
+          }
+          return builder;
+        };
+      });
+      return qb;
+    };
+  }
+  function tryPatch(){ const c = findClient(); if (c) patchClient(c); }
+  tryPatch();
+  document.addEventListener('DOMContentLoaded', tryPatch);
+  let tries = 0;
+  const iv = setInterval(() => { tryPatch(); if (++tries > 20) clearInterval(iv); }, 500);
+  window.addEventListener('unhandledrejection', ev => {
+    const r = ev.reason;
+    if (r && (r.code || r.message) && (r.hint !== undefined || r.details !== undefined))
+      recordErr('(unhandled)', 'promise', r);
+  });
+  console.log('[KamiStream] Supabase error-visibility patch installed.');
+})();
+</script>
+
+<!-- ════════════════════════════════════════════════════════════════
+     KAMISTREAM — ADMIN HEALTH CHECK PANEL
+     Adds a floating "⚡ DB Health" button bottom-right.
+     ════════════════════════════════════════════════════════════════ -->
+<script>
+(function(){
+  if (window.__kamiHealthInstalled) return;
+  window.__kamiHealthInstalled = true;
+  const TABLES = [
+    { name:'profiles',      cols:'id,username,is_premium,is_admin' },
+    { name:'weeks',         cols:'id,week_key,is_active' },
+    { name:'videos',        cols:'id,user_id,week_id,likes,views,created_at' },
+    { name:'likes',         cols:'id,user_id,video_id' },
+    { name:'comments',      cols:'id,user_id,video_id' },
+    { name:'winners',       cols:'id,user_id,week_id,prize' },
+    { name:'anime',         cols:'id,mal_id,title_romaji,auto_update' },
+    { name:'episodes',      cols:'id,anime_id,episode_number' },
+    { name:'embed_sources', cols:'id,episode_id,source_name' },
+    { name:'anime_sources', cols:'id,anime_id,source_name' },
+    { name:'import_log',    cols:'id,action,status,ran_at' },
+    { name:'watch_history', cols:'id,user_id,episode_id,watched_at' },
+    { name:'watchlist',     cols:'id,user_id,anime_id' },
+    { name:'notifications', cols:'id,user_id,type,read' },
+    { name:'follows',       cols:'id,follower_id,creator_id' },
+    { name:'payments',      cols:'id,user_id,amount,status' },
+    { name:'site_config',   cols:'key,value' },
+    { name:'ad_stats',      cols:'ad_id,impressions,clicks' }
+  ];
+  function getClient(){ return window.sb || window.supabase || window.client || null; }
+  function injectStyles(){
+    if (document.getElementById('kamiHealthStyles')) return;
+    const s = document.createElement('style'); s.id = 'kamiHealthStyles';
+    s.textContent = `
+      #kamiHealthBtn{position:fixed;right:18px;bottom:18px;z-index:99998;
+        background:linear-gradient(135deg,#7c3aed,#ff2d78);color:#fff;border:none;
+        padding:10px 16px;border-radius:999px;font-family:'Poppins',sans-serif;
+        font-size:12px;font-weight:800;letter-spacing:.5px;cursor:pointer;
+        box-shadow:0 8px 24px rgba(124,58,237,.4);}
+      #kamiHealthBtn:hover{filter:brightness(1.1);}
+      #kamiHealthOverlay{position:fixed;inset:0;z-index:99999;background:rgba(0,0,0,.7);
+        display:none;align-items:center;justify-content:center;padding:24px;}
+      #kamiHealthOverlay.show{display:flex;}
+      #kamiHealthBox{background:#12121e;border:1px solid #ffffff22;border-radius:14px;
+        max-width:680px;width:100%;max-height:85vh;overflow:hidden;display:flex;flex-direction:column;
+        font-family:'Nunito',sans-serif;color:#fff;}
+      #kamiHealthHd{padding:18px 22px;display:flex;align-items:center;justify-content:space-between;
+        border-bottom:1px solid #ffffff14;}
+      #kamiHealthHd h3{font-family:'Poppins',sans-serif;font-size:16px;font-weight:800;}
+      #kamiHealthHd .sub{font-size:11px;color:#7878a3;margin-top:2px;}
+      #kamiHealthClose{background:none;border:none;color:#7878a3;font-size:22px;cursor:pointer;}
+      #kamiHealthClose:hover{color:#fff;}
+      #kamiHealthBody{padding:14px 22px;overflow-y:auto;flex:1;}
+      .kh-row{display:grid;grid-template-columns:160px 80px 1fr;gap:12px;align-items:center;
+        padding:9px 0;border-bottom:1px solid #ffffff0a;font-size:12px;}
+      .kh-tbl{font-family:'Share Tech Mono',monospace;color:#c4c4e0;font-weight:700;}
+      .kh-pill{display:inline-block;padding:3px 10px;border-radius:999px;font-size:10px;
+        font-weight:800;letter-spacing:.5px;text-align:center;}
+      .kh-pill.ok  {background:rgba(6,214,160,.15);color:#06d6a0;border:1px solid rgba(6,214,160,.3);}
+      .kh-pill.warn{background:rgba(255,214,10,.12);color:#ffd60a;border:1px solid rgba(255,214,10,.3);}
+      .kh-pill.err {background:rgba(255,71,87,.15);color:#ff4757;border:1px solid rgba(255,71,87,.3);}
+      .kh-pill.run {background:rgba(67,97,238,.15);color:#4361ee;border:1px solid rgba(67,97,238,.3);}
+      .kh-msg{font-size:11px;color:#7878a3;font-family:'Share Tech Mono',monospace;
+        white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+      #kamiHealthFt{padding:12px 22px;border-top:1px solid #ffffff14;display:flex;
+        gap:8px;align-items:center;justify-content:space-between;font-size:11px;color:#7878a3;}
+      #kamiHealthFt button{background:linear-gradient(135deg,#7c3aed,#ff2d78);border:none;color:#fff;
+        padding:7px 14px;border-radius:8px;font-weight:700;cursor:pointer;font-size:11px;}
+      #kamiHealthSummary{font-family:'Share Tech Mono',monospace;}
+    `;
+    document.head.appendChild(s);
+  }
+  function buildUI(){
+    if (document.getElementById('kamiHealthBtn')) return;
+    const btn = document.createElement('button');
+    btn.id = 'kamiHealthBtn'; btn.textContent = '⚡ DB Health'; btn.onclick = openHealth;
+    document.body.appendChild(btn);
+    const overlay = document.createElement('div');
+    overlay.id = 'kamiHealthOverlay';
+    overlay.innerHTML = `
+      <div id="kamiHealthBox">
+        <div id="kamiHealthHd">
+          <div><h3>Supabase Health Check</h3>
+            <div class="sub">Read-only probe of every expected table</div></div>
+          <button id="kamiHealthClose">×</button>
+        </div>
+        <div id="kamiHealthBody"></div>
+        <div id="kamiHealthFt">
+          <span id="kamiHealthSummary">Idle</span>
+          <button id="kamiHealthRerun">Re-run</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+    overlay.addEventListener('click', e => { if (e.target === overlay) closeHealth(); });
+    document.getElementById('kamiHealthClose').onclick = closeHealth;
+    document.getElementById('kamiHealthRerun').onclick = runChecks;
+  }
+  function openHealth(){ document.getElementById('kamiHealthOverlay').classList.add('show'); runChecks(); }
+  function closeHealth(){ document.getElementById('kamiHealthOverlay').classList.remove('show'); }
+  async function probe(client, t){
+    try {
+      const { data, error, count } = await client
+        .from(t.name).select(t.cols, { count:'exact', head:false }).limit(1);
+      if (error) return { status:'err', msg:`${error.code||''} ${error.message||error}`.trim() };
+      const n = (typeof count === 'number') ? count : (data?.length || 0);
+      if (n === 0) return { status:'warn', msg:'table exists but is empty' };
+      return { status:'ok', msg:`${n} row${n===1?'':'s'} (showing 1)` };
+    } catch (e) { return { status:'err', msg: e?.message || String(e) }; }
+  }
+  async function runChecks(){
+    const body = document.getElementById('kamiHealthBody');
+    const summary = document.getElementById('kamiHealthSummary');
+    const client = getClient();
+    if (!client){
+      body.innerHTML = '<div class="kh-row"><span class="kh-tbl">—</span>'
+                    + '<span class="kh-pill err">NO CLIENT</span>'
+                    + '<span class="kh-msg">Supabase client not found on window.</span></div>';
+      summary.textContent = 'No supabase client detected'; return;
+    }
+    body.innerHTML = TABLES.map(t => `
+      <div class="kh-row" data-tbl="${t.name}">
+        <span class="kh-tbl">${t.name}</span>
+        <span class="kh-pill run">…</span>
+        <span class="kh-msg">checking…</span>
+      </div>`).join('');
+    let ok=0, warn=0, err=0;
+    for (const t of TABLES){
+      const r = await probe(client, t);
+      const row = body.querySelector(`[data-tbl="${t.name}"]`);
+      if (!row) continue;
+      const pill = row.querySelector('.kh-pill');
+      const msg  = row.querySelector('.kh-msg');
+      pill.className = 'kh-pill ' + r.status;
+      pill.textContent = r.status.toUpperCase();
+      msg.textContent = r.msg; msg.title = r.msg;
+      if (r.status === 'ok') ok++;
+      if (r.status === 'warn') warn++;
+      if (r.status === 'err') err++;
+    }
+    summary.textContent = `${ok} OK · ${warn} empty · ${err} broken`;
+  }
+  function init(){ injectStyles(); buildUI(); }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+  else init();
+})();
+</script>
+
 </body>
 </html>

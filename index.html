@@ -7368,5 +7368,77 @@ setTimeout(()=>{
     handle();
   })();
   </script>
+
+<!-- ════════════════════════════════════════════════════════════════
+     KAMISTREAM — SUPABASE ERROR-VISIBILITY PATCH
+     Surfaces silent Supabase failures via showToast().
+     Run __sbDebug() in the console to dump the last 50 errors.
+     ════════════════════════════════════════════════════════════════ -->
+<script>
+(function(){
+  if (typeof window === 'undefined') return;
+  if (window.__kamiPatchInstalled) return;
+  window.__kamiPatchInstalled = true;
+  const errLog = [];
+  function recordErr(table, op, err){
+    const entry = {
+      at: new Date().toISOString(), table, op,
+      code: err?.code || null,
+      message: err?.message || String(err),
+      details: err?.details || null,
+      hint: err?.hint || null
+    };
+    errLog.push(entry);
+    if (errLog.length > 50) errLog.shift();
+    console.error(`[Supabase ${op} ${table}]`, entry);
+    try { if (typeof showToast === 'function')
+      showToast(`DB ${op} ${table} failed: ${entry.message}`, 'err'); } catch(_){}
+  }
+  window.__sbDebug = () => { console.table(errLog); return errLog; };
+  function findClient(){ return window.supabase || window.sb || window.client || null; }
+  const patched = new WeakSet();
+  function patchClient(client){
+    if (!client || patched.has(client) || typeof client.from !== 'function') return;
+    patched.add(client);
+    const origFrom = client.from.bind(client);
+    client.from = function(table){
+      const qb = origFrom(table);
+      if (!qb) return qb;
+      ['insert','update','upsert','delete'].forEach(op => {
+        if (typeof qb[op] !== 'function') return;
+        const orig = qb[op].bind(qb);
+        qb[op] = function(){
+          const builder = orig.apply(this, arguments);
+          if (builder && typeof builder.then === 'function'){
+            const origThen = builder.then.bind(builder);
+            builder.then = function(onFulfilled, onRejected){
+              return origThen(
+                (res) => { if (res && res.error) recordErr(table, op, res.error);
+                           return onFulfilled ? onFulfilled(res) : res; },
+                (err) => { recordErr(table, op, err);
+                           if (onRejected) return onRejected(err); throw err; }
+              );
+            };
+          }
+          return builder;
+        };
+      });
+      return qb;
+    };
+  }
+  function tryPatch(){ const c = findClient(); if (c) patchClient(c); }
+  tryPatch();
+  document.addEventListener('DOMContentLoaded', tryPatch);
+  let tries = 0;
+  const iv = setInterval(() => { tryPatch(); if (++tries > 20) clearInterval(iv); }, 500);
+  window.addEventListener('unhandledrejection', ev => {
+    const r = ev.reason;
+    if (r && (r.code || r.message) && (r.hint !== undefined || r.details !== undefined))
+      recordErr('(unhandled)', 'promise', r);
+  });
+  console.log('[KamiStream] Supabase error-visibility patch installed. Run __sbDebug() for recent errors.');
+})();
+</script>
+
   </body>
 </html>
