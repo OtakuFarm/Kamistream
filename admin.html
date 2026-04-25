@@ -1396,6 +1396,18 @@ tr:hover td{background:rgba(124,58,237,0.04);}
         <button class="jai-btn-ghost" onclick="jaiLoadPopular()">Top Rated</button>
         <button class="jai-btn-ghost" onclick="jaiLoadTrendingResults()">📈 Trending</button>
         <button class="jai-btn-ghost" onclick="jaiLoadSeasonalResults()">🌸 Seasonal</button>
+        <button class="jai-btn" id="jaiImportAllBtn" onclick="jaiImportAllResults()" style="background:linear-gradient(135deg,#06d6a0,#4361ee);display:none;" title="Import all search results with VidNest + Cinetaro sources">⚡ Import All</button>
+      </div>
+      <!-- Bulk import progress -->
+      <div id="jaiBulkProgress" style="display:none;background:var(--bg3);border:1px solid var(--border2);border-radius:11px;padding:14px 16px;margin-bottom:12px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+          <div style="font-size:13px;font-weight:800;color:#fff;">⚡ Bulk Import Progress</div>
+          <div id="jaiBulkCount" style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--text3);">0 / 0</div>
+        </div>
+        <div style="background:var(--bg);border-radius:6px;height:8px;overflow:hidden;margin-bottom:8px;">
+          <div id="jaiBulkBar" style="height:100%;background:linear-gradient(90deg,#06d6a0,#4361ee);width:0%;transition:width .3s;border-radius:6px;"></div>
+        </div>
+        <div id="jaiBulkLog" style="font-size:11px;color:var(--text3);font-family:'Share Tech Mono',monospace;max-height:100px;overflow-y:auto;"></div>
       </div>
       <div class="jai-results" id="jaiResults">
         <div class="jai-empty">🔍 Search above or click "Top Airing" to get started.</div>
@@ -3544,9 +3556,14 @@ async function jaiLoadPopular(){
   catch(e){grid.innerHTML=`<div class="jai-empty">⚠️ ${e.message}</div>`;}
 }
 
+let _jaiCurrentResults = [];
 function jaiRenderResults(list){
+  _jaiCurrentResults = list;
   const grid=document.getElementById('jaiResults');
   const imported=jaiGetAll().map(a=>a.mal_id);
+  // Show/hide Import All button
+  const importAllBtn = document.getElementById('jaiImportAllBtn');
+  if(importAllBtn) importAllBtn.style.display = list.length ? 'inline-flex' : 'none';
   if(!list.length){grid.innerHTML='<div class="jai-empty">No results.</div>';return;}
   grid.innerHTML=list.map(m=>{
     const isImported=imported.includes(m.mal_id);
@@ -3573,6 +3590,50 @@ function jaiRenderResults(list){
       </div>
     </div>`;
   }).join('');
+}
+
+async function jaiImportAllResults(){
+  const list = _jaiCurrentResults;
+  if(!list||!list.length){ showToast('No results to import','warn'); return; }
+  const toImport = list.filter(m=>!jaiGetAll().find(a=>a.mal_id===m.mal_id));
+  if(!toImport.length){ showToast('All results already imported','warn'); return; }
+  const btn = document.getElementById('jaiImportAllBtn');
+  if(btn){ btn.disabled=true; btn.textContent='⏳ Importing…'; }
+  const prog = document.getElementById('jaiBulkProgress');
+  const bar  = document.getElementById('jaiBulkBar');
+  const cnt  = document.getElementById('jaiBulkCount');
+  const log  = document.getElementById('jaiBulkLog');
+  if(prog) prog.style.display='block';
+  if(log)  log.innerHTML='';
+  const total = toImport.length;
+  let done=0, failed=0;
+  function bulkLog(msg){
+    if(!log)return;
+    const line=document.createElement('div');
+    line.textContent=msg;
+    log.prepend(line);
+  }
+  for(const m of toImport){
+    cnt && (cnt.textContent = done+'/'+total);
+    bar  && (bar.style.width = Math.round((done/total)*100)+'%');
+    bulkLog('⏳ Importing: '+(m.title||m.mal_id)+'…');
+    try{
+      await jaiImport(m.mal_id);
+      done++;
+      bulkLog('✅ Done: '+(m.title||m.mal_id));
+    }catch(e){
+      failed++;
+      done++;
+      bulkLog('❌ Failed: '+(m.title||m.mal_id)+' — '+e.message);
+    }
+    // Throttle to avoid Jikan rate limit (3 req/s)
+    await new Promise(r=>setTimeout(r,600));
+  }
+  bar  && (bar.style.width='100%');
+  cnt  && (cnt.textContent = total+'/'+total);
+  if(btn){ btn.disabled=false; btn.textContent='⚡ Import All'; }
+  showToast('✅ Bulk import done! '+done+' imported, '+failed+' failed.', failed?'warn':'ok');
+  jaiRefreshStats(); jaiRenderLibrary();
 }
 
 async function jaiImport(malId){
@@ -3745,19 +3806,32 @@ async function sbInsertAnime(sb, anime, malId, rawJikan){
     }
   }
 
-  // ── AUTO-GENERATE VIDNEST EMBED SOURCES ──
+  // ── AUTO-GENERATE VIDNEST + CINETARO EMBED SOURCES ──
   if(anilistId && epCount > 0){
-    jaiSetStatus(malId,'pending','Generating VidNest embeds…');
+    jaiSetStatus(malId,'pending','Generating VidNest + Cinetaro embeds…');
     const embedRows = [];
     for(let ep=1; ep<=epCount; ep++){
       const epId = epIdMap[ep];
       if(!epId) continue;
+      // VidNest
       embedRows.push({
         episode_id:  epId,
         anime_id:    animeId,
         embed_url:   'https://vidnest.fun/animepahe/'+anilistId+'/'+ep+'/sub',
         source_name: 'VidNest',
+        episode_number: ep,
         quality:     'SUB',
+        is_active:   true,
+        updated_at:  new Date().toISOString()
+      });
+      // Cinetaro
+      embedRows.push({
+        episode_id:  epId,
+        anime_id:    animeId,
+        embed_url:   'https://api.cinetaro.buzz/anime/'+anilistId+'/'+ep+'/sub',
+        source_name: 'Cinetaro',
+        episode_number: ep,
+        quality:     '1080p',
         is_active:   true,
         updated_at:  new Date().toISOString()
       });
@@ -3766,11 +3840,11 @@ async function sbInsertAnime(sb, anime, malId, rawJikan){
     for(let i=0; i<embedRows.length; i+=100){
       const chunk = embedRows.slice(i,i+100);
       const {error:embErr} = await sb.from('embed_sources').upsert(chunk,{onConflict:'episode_id,source_name',ignoreDuplicates:true});
-      if(embErr) console.warn('[JAI] VidNest embed insert warning:',embErr.message);
+      if(embErr) console.warn('[JAI] embed insert warning:',embErr.message);
     }
-    jaiAddLog('VidNest: '+embedRows.length+' embed URLs generated for AniList #'+anilistId);
+    jaiAddLog('VidNest+Cinetaro: '+(epCount*2)+' embed URLs generated for AniList #'+anilistId);
   } else if(!anilistId){
-    jaiAddLog('⚠️ VidNest skipped — could not resolve AniList ID for MAL #'+malId);
+    jaiAddLog('⚠️ Embeds skipped — could not resolve AniList ID for MAL #'+malId);
   }
 
   // ── Remove old placeholder anime_source if VidNest was generated ──
