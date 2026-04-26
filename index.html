@@ -2470,28 +2470,6 @@ async function doUpdatePassword(){
   window.addEventListener('load', restoreFromUrl);
 })();
 
-// ── PULL TO REFRESH (swipe down from top) ──
-(function initPullToRefresh(){
-  let startY=0, pulling=false;
-  const threshold=90;
-  document.addEventListener('touchstart',function(e){
-    if(window.scrollY===0) { startY=e.touches[0].clientY; pulling=true; }
-  },{passive:true});
-  document.addEventListener('touchmove',function(e){
-    if(!pulling) return;
-  },{passive:true});
-  document.addEventListener('touchend',function(e){
-    if(!pulling) return;
-    const endY=e.changedTouches[0].clientY;
-    if(endY - startY > threshold){
-      pulling=false;
-      showToast('🔄 Refreshing…','ok');
-      setTimeout(()=>location.reload(), 400);
-    }
-    pulling=false;
-  },{passive:true});
-})();
-
 function openAuth(type='login'){
   switchAuth(type);
   document.getElementById('authModal').classList.add('open');
@@ -3551,7 +3529,6 @@ async function loadAnimeLibraryCache(){
         ruRenderSB();
         filtersInitSB();
         pwRenderSB();
-        heroDynamicUpdate(); // update hero now that cache is ready
         return;
       }
     }catch(e){ console.warn('[KamiStream] Supabase anime load failed, using localStorage:',e.message); }
@@ -4906,31 +4883,21 @@ function ruRender(){
 function pwRenderSB(){
   const all=(_sbAnimeCache||[]).map(normaliseAnime);
   if(!all.length){ pwRender(); return; }
+  const wv=viewsGetWeek();
+  const ranked=all.map(a=>({...a,wv:wv[a.mal_id]||0})).filter(a=>a.wv>0).sort((a,b)=>b.wv-a.wv).slice(0,7);
+  if(!ranked.length)return;
   const card=document.getElementById('popularWeekCard');
   const list=document.getElementById('pwList');
   if(!card||!list)return;
   card.style.display='block';
-
-  const wv=viewsGetWeek();
-  let ranked=all.map(a=>({...a,wv:wv[a.mal_id]||0})).filter(a=>a.wv>0).sort((a,b)=>b.wv-a.wv).slice(0,7);
-
-  // Fallback: show top-rated anime when no watch history
-  if(!ranked.length){
-    ranked=all.filter(a=>a.poster).sort((a,b)=>(b.score||0)-(a.score||0)).slice(0,7).map(a=>({...a,wv:0}));
-    if(!ranked.length) return;
-  }
-
-  const max=Math.max(...ranked.map(a=>a.score||0),1);
+  const max=Math.max(...ranked.map(a=>a.wv),1);
   const rclasses=['pw-r1','pw-r2','pw-r3','pw-rn','pw-rn','pw-rn','pw-rn'];
   list.innerHTML=ranked.map((a,i)=>`
     <div class="pw-item" onclick="openAnimePage(${a.id})">
       <span class="pw-rank ${rclasses[i]}">${i+1}</span>
       ${a.poster?`<img class="pw-poster" src="${a.poster}" alt="${a.title}" loading="lazy" onerror="this.outerHTML='<div class=pw-poster-ph>📺</div>'">`:'<div class="pw-poster-ph">📺</div>'}
-      <div style="flex:1;min-width:0;">
-        <div class="pw-name">${a.title}</div>
-        <div class="pw-views">${a.wv>0?'👁 '+fmtN(a.wv)+' this week':a.score?'⭐ '+a.score+' rating':'📺 In library'}</div>
-      </div>
-      ${a.wv>0?`<div class="pw-bar"><div class="pw-bar-fill" style="width:${Math.round(a.wv/Math.max(...ranked.map(x=>x.wv),1)*100)}%"></div></div>`:''}
+      <div style="flex:1;min-width:0;"><div class="pw-name">${a.title}</div><div class="pw-views">👁 ${fmtN(a.wv)} this week</div></div>
+      <div class="pw-bar"><div class="pw-bar-fill" style="width:${Math.round(a.wv/max*100)}%"></div></div>
     </div>`).join('');
 }
 
@@ -6796,26 +6763,6 @@ async function lbSidebarLoad(){
   }
 
   if(!creators.length){
-    // Fallback: show top anime by score in leaderboard slot
-    if(supabase){
-      try{
-        const {data:topAnime} = await supabase.from('anime')
-          .select('id,title_english,title_romaji,cover_image,score')
-          .order('score',{ascending:false}).limit(5);
-        if(topAnime?.length){
-          el.innerHTML = topAnime.map((a,i)=>`
-            <div class="lb-item" style="cursor:pointer;" onclick="openAnimePage(${a.id})">
-              <div class="lb-rank" style="color:${['var(--gold)','rgba(192,192,192,0.9)','rgba(205,127,50,0.9)','var(--text3)','var(--text3)'][i]};font-weight:900;font-size:13px;width:18px;text-align:center;flex-shrink:0;">${i+1}</div>
-              ${a.cover_image?`<img src="${a.cover_image}" style="width:28px;height:28px;border-radius:6px;object-fit:cover;flex-shrink:0;" loading="lazy" onerror="this.style.display='none'">`:'<div style="width:28px;height:28px;border-radius:6px;background:var(--card2);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:12px;">📺</div>'}
-              <div class="lb-info" style="flex:1;min-width:0;">
-                <div class="lb-name" style="font-size:12px;font-weight:700;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${a.title_english||a.title_romaji}</div>
-                <div class="lb-handle" style="font-size:10px;color:var(--text3);">⭐ ${a.score||'—'}</div>
-              </div>
-            </div>`).join('');
-          return;
-        }
-      }catch(e){}
-    }
     el.innerHTML='<div style="padding:14px 16px;text-align:center;color:var(--text3);font-size:11px;line-height:1.6;">No challenge submissions yet.<br>Be the first to submit! 🎬</div>';
     return;
   }
@@ -6882,27 +6829,6 @@ async function topCreatorsSidebarLoad(){
   }
 
   if(!creators.length){
-    // Fallback: show recently added anime
-    if(supabase){
-      try{
-        const {data:recent} = await supabase.from('anime')
-          .select('id,title_english,title_romaji,cover_image,status,format')
-          .order('imported_at',{ascending:false}).limit(3);
-        if(recent?.length){
-          el.innerHTML = `
-            <div style="padding:8px 12px 4px;font-size:10px;font-weight:700;color:var(--text3);letter-spacing:1px;text-transform:uppercase;">Recently Added</div>
-            ${recent.map((a,i)=>`
-            <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--border);cursor:pointer;" onclick="openAnimePage(${a.id})">
-              ${a.cover_image?`<img src="${a.cover_image}" style="width:36px;height:50px;border-radius:6px;object-fit:cover;flex-shrink:0;" loading="lazy" onerror="this.style.display='none'">`:'<div style="width:36px;height:50px;border-radius:6px;background:var(--card2);flex-shrink:0;display:flex;align-items:center;justify-content:center;">📺</div>'}
-              <div style="flex:1;min-width:0;">
-                <div style="font-size:12px;font-weight:700;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${a.title_english||a.title_romaji}</div>
-                <div style="font-size:10px;color:var(--text3);margin-top:2px;">${a.format||'TV'} · ${a.status||''}</div>
-              </div>
-            </div>`).join('')}`;
-          return;
-        }
-      }catch(e){}
-    }
     el.innerHTML='<div style="padding:14px 16px;text-align:center;color:var(--text3);font-size:11px;line-height:1.6;">Submit a challenge video to appear here! 🔥</div>';
     return;
   }
@@ -6929,43 +6855,25 @@ async function topCreatorsSidebarLoad(){
 }
 
 // ── Dynamic hero banner ──
-async function heroDynamicUpdate(){
-  let all = getAnimeList();
-
-  // If cache not ready yet, load from Supabase directly
-  if(!all.length && supabase){
-    try{
-      const {data} = await supabase.from('anime')
-        .select('id,title_english,title_romaji,cover_image,poster,banner_image,score,season_year,release_year,mal_id,anilist_id,episodes_total,updated_at,imported_at,genres,status,format')
-        .order('score',{ascending:false})
-        .limit(20);
-      if(data?.length){
-        _sbAnimeCache = data;
-        _sbCacheLoaded = true;
-        all = data;
-      }
-    }catch(e){}
-  }
-
+function heroDynamicUpdate(){
+  const all = getAnimeList();
   if(!all.length) return;
-
+  // Pick a random high-rated anime from library
   const candidates = all
-    .filter(a=>a.cover_image||a.poster||a.banner_image)
+    .filter(a=>a.poster || a.cover_image)
     .sort((a,b)=>(b.score||0)-(a.score||0))
     .slice(0,10);
   if(!candidates.length) return;
-
   const pick = candidates[Math.floor(Math.random()*Math.min(5,candidates.length))];
   const norm = normaliseAnime(pick);
-
+  // Update hero banner image
   const heroBanner = document.getElementById('heroBanner');
-  const img = norm.banner || norm.poster;
-  if(heroBanner && img){
-    heroBanner.style.backgroundImage = `linear-gradient(90deg, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.55) 55%, rgba(0,0,0,0.15) 100%), url('${img}')`;
+  if(heroBanner && norm.poster){
+    heroBanner.style.backgroundImage = `linear-gradient(90deg, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.4) 60%, transparent 100%), url('${norm.poster}')`;
     heroBanner.style.backgroundSize = 'cover';
-    heroBanner.style.backgroundPosition = 'center';
+    heroBanner.style.backgroundPosition = 'center right';
   }
-
+  // Update hero text
   const heroTitle = document.querySelector('.hero-title');
   const heroSub   = document.querySelector('.hero-sub');
   if(heroTitle && norm.title){
@@ -6979,16 +6887,10 @@ async function heroDynamicUpdate(){
       ${line3?`<span class="hl3">${line3}</span>`:''}`;
   }
   if(heroSub) heroSub.textContent = norm.title + (norm.release_year?' ('+norm.release_year+')':'');
-
+  // Wire Watch Now button
   const watchBtn = document.querySelector('.hero-watch-btn,.hero-btn');
   if(watchBtn && norm.id){
     watchBtn.onclick = ()=>openAnimePage(norm.id);
-  }
-
-  // Auto-rotate hero every 8 seconds
-  if(!window._heroRotating){
-    window._heroRotating = true;
-    setInterval(heroDynamicUpdate, 8000);
   }
 }
 
