@@ -170,6 +170,17 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;disp
 .sidebar::-webkit-scrollbar{width:0;}
 .sidebar-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:299;backdrop-filter:blur(2px);}
 .sidebar-overlay.open{display:block;}
+/* ── DESKTOP: sidebar always visible ── */
+@media(min-width:900px){
+  .sidebar{transform:translateX(0) !important;box-shadow:none;}
+  .sidebar-overlay{display:none !important;}
+  #sidebarToggleBtn{display:none !important;}
+  .layout{padding-left:var(--sidebar);}
+  .kami-pages-strip{padding-left:calc(var(--sidebar) + 18px);}
+  #adblockBanner{margin-left:calc(var(--sidebar) + 20px);}
+  #adSlotTop{margin-left:calc(var(--sidebar) + 20px);}
+  .bottom-banner,.site-footer-bar{padding-left:calc(var(--sidebar) + 24px);}
+}
 .sb-item{display:flex;align-items:center;gap:10px;padding:9px 18px;cursor:pointer;color:var(--text3);border:none;background:none;width:100%;text-align:left;border-left:3px solid transparent;transition:all .2s;font-family:'Nunito',sans-serif;font-size:13px;font-weight:700;}
 .sb-item:hover{color:var(--text);background:rgba(255,255,255,0.04);}
 .sb-item.active{color:#fff;background:rgba(255,45,120,0.08);border-left-color:var(--pink);}
@@ -197,27 +208,26 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;disp
 .right-panel::-webkit-scrollbar-thumb{background:var(--purple);border-radius:3px;}
 
 /* ── HERO ── */
-.hero{border-radius:14px;overflow:hidden;position:relative;height:230px;flex-shrink:0;}
-.hero-bg{position:absolute;inset:0;background:linear-gradient(135deg,#1a0a2e,#0d001a,#200030,#100020);}
+.hero{border-radius:14px;overflow:hidden;position:relative;height:320px;flex-shrink:0;}
+.hero-bg{position:absolute;inset:0;background:linear-gradient(135deg,#1a0a2e,#0d001a,#200030,#100020);background-size:cover;background-position:center right;transition:background-image .5s;}
 .hero-glow{position:absolute;inset:0;}
 .hero-glow::before{content:'';position:absolute;width:280px;height:280px;background:rgba(155,93,229,0.25);border-radius:50%;filter:blur(60px);top:-80px;right:40px;}
 .hero-glow::after{content:'';position:absolute;width:180px;height:180px;background:rgba(255,45,120,0.2);border-radius:50%;filter:blur(50px);bottom:-50px;right:120px;}
-.hero-char{position:absolute;right:0;bottom:0;height:105%;width:50%;display:flex;align-items:center;justify-content:center;font-size:100px;opacity:.1;}
-.hero-grad{position:absolute;inset:0;background:linear-gradient(90deg,rgba(13,13,20,0.95) 30%,rgba(13,13,20,0.3) 80%,transparent);}
-.hero-content{position:absolute;left:22px;top:0;bottom:0;display:flex;flex-direction:column;justify-content:center;max-width:320px;}
-.hero-trending{font-size:9px;font-weight:800;color:var(--pink);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px;}
-.hero-title{font-family:'Poppins',sans-serif;font-size:28px;font-weight:900;line-height:1.05;margin-bottom:6px;}
+.hero-grad{position:absolute;inset:0;background:linear-gradient(90deg,rgba(13,13,20,0.96) 0%,rgba(13,13,20,0.7) 50%,rgba(13,13,20,0.1) 100%);}
+.hero-content{position:absolute;left:28px;top:0;bottom:0;display:flex;flex-direction:column;justify-content:center;max-width:440px;z-index:2;}
+.hero-trending{font-size:10px;font-weight:800;color:var(--pink);letter-spacing:2px;text-transform:uppercase;margin-bottom:10px;}
+.hero-title{font-family:'Poppins',sans-serif;font-size:32px;font-weight:900;line-height:1.05;margin-bottom:10px;}
 .hero-title .hl1,.hero-title .hl2{color:#fff;display:block;}
 .hero-title .hl3{color:var(--pink);display:block;}
-.hero-sub{font-size:12px;color:var(--text2);margin-bottom:14px;}
-.hero-btns{display:flex;gap:8px;}
-.btn-watch{background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.18);color:#fff;padding:8px 18px;border-radius:9px;font-family:'Nunito',sans-serif;font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;backdrop-filter:blur(10px);transition:all .2s;}
+.hero-sub{font-size:13px;color:var(--text2);margin-bottom:18px;line-height:1.5;max-width:380px;}
+.hero-btns{display:flex;gap:8px;align-items:center;}
+.btn-watch{background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.18);color:#fff;padding:9px 20px;border-radius:9px;font-family:'Nunito',sans-serif;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;backdrop-filter:blur(10px);transition:all .2s;}
 .btn-watch:hover{background:rgba(255,255,255,0.18);}
-.btn-add{width:34px;height:34px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.18);border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:17px;cursor:pointer;transition:all .2s;color:#fff;}
+.btn-add{width:36px;height:36px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.18);border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:18px;cursor:pointer;transition:all .2s;color:#fff;}
 .btn-add:hover{background:rgba(255,255,255,0.18);}
-.hero-dots{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);display:flex;gap:4px;}
-.hero-dot{width:5px;height:5px;border-radius:3px;background:rgba(255,255,255,0.2);}
-.hero-dot.active{width:16px;background:var(--pink);}
+.hero-dots{position:absolute;bottom:14px;right:18px;display:flex;gap:5px;}
+.hero-dot{width:6px;height:6px;border-radius:3px;background:rgba(255,255,255,0.25);}
+.hero-dot.active{width:20px;background:var(--pink);}
 
 /* ── SECTION ── */
 .sec-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;}
@@ -248,7 +258,9 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;disp
 .cw-ep{font-size:10px;color:var(--text3);}
 
 /* ── TRENDING ── */
-.tr-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;}
+.tr-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;}
+@media(max-width:1200px){.tr-grid{grid-template-columns:repeat(5,1fr);}}
+@media(max-width:900px){.tr-grid{grid-template-columns:repeat(4,1fr);}}
 .tr-card{background:var(--card);border-radius:var(--radius);overflow:hidden;cursor:pointer;transition:all .25s;}
 .tr-card:hover{transform:translateY(-3px);box-shadow:0 8px 22px rgba(0,0,0,0.4);}
 .tr-thumb{aspect-ratio:3/4;position:relative;overflow:hidden;}
@@ -439,7 +451,45 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;disp
 
 
 
-/* ── ANIME PAGE ── */
+/* ── BROWSE FULL PAGE ── */
+#browseFullView{display:none;position:fixed;inset:0;z-index:480;background:var(--bg);overflow-y:auto;flex-direction:column;}
+#browseFullView.open{display:flex;}
+.bfv-header{background:var(--bg2);border-bottom:1px solid var(--border);padding:14px 28px;display:flex;align-items:center;gap:16px;flex-shrink:0;position:sticky;top:0;z-index:5;}
+.bfv-back{background:rgba(255,255,255,0.07);border:1px solid var(--border2);color:var(--text);padding:7px 14px;border-radius:9px;font-size:12px;font-weight:700;cursor:pointer;transition:all .2s;}
+.bfv-back:hover{background:rgba(255,255,255,0.12);}
+.bfv-title{font-family:'Poppins',sans-serif;font-size:18px;font-weight:900;color:#fff;}
+.bfv-sub{font-size:13px;color:var(--text3);margin-left:auto;}
+.bfv-search{display:flex;align-items:center;gap:8px;margin-left:auto;position:relative;}
+.bfv-search-input{background:var(--bg3);border:1px solid var(--border2);border-radius:10px;color:var(--text);padding:8px 14px 8px 34px;font-family:'Nunito',sans-serif;font-size:13px;outline:none;width:220px;transition:border .2s;}
+.bfv-search-input:focus{border-color:rgba(155,93,229,0.45);}
+.bfv-search-icon{position:absolute;left:11px;font-size:13px;color:var(--text3);}
+.bfv-filter-btn{background:var(--bg3);border:1px solid var(--border2);color:var(--text2);padding:8px 14px;border-radius:10px;font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:5px;}
+.bfv-body{padding:24px 28px 60px;}
+.bfv-genre-pills{display:flex;gap:8px;flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px;margin-bottom:20px;scrollbar-width:none;}
+.bfv-genre-pills::-webkit-scrollbar{display:none;}
+.bfv-pill{flex-shrink:0;padding:7px 16px;border-radius:20px;font-size:12px;font-weight:700;cursor:pointer;transition:all .2s;border:1px solid var(--border2);background:var(--card);color:var(--text2);}
+.bfv-pill:hover{border-color:rgba(155,93,229,0.4);color:var(--purple);}
+.bfv-pill.active{background:linear-gradient(135deg,var(--pink),var(--purple));border:none;color:#fff;}
+.bfv-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:14px;}
+.bfv-card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;cursor:pointer;transition:all .25s;}
+.bfv-card:hover{transform:translateY(-3px);border-color:rgba(155,93,229,0.3);box-shadow:0 8px 24px rgba(0,0,0,0.4);}
+.bfv-card-poster{width:100%;aspect-ratio:2/3;object-fit:cover;background:var(--card2);display:block;}
+.bfv-card-poster-ph{width:100%;aspect-ratio:2/3;background:var(--card2);display:flex;align-items:center;justify-content:center;font-size:32px;opacity:.2;}
+.bfv-card-info{padding:9px 11px;}
+.bfv-card-title{font-size:12px;font-weight:700;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-bottom:3px;}
+.bfv-card-meta{font-size:10px;color:var(--text3);}
+/* skeleton for browse */
+.bfv-card.sk .bfv-card-poster{animation:shimmer 1.4s infinite;background:linear-gradient(90deg,var(--card) 25%,var(--card2) 50%,var(--card) 75%);background-size:200% 100%;}
+
+/* ── PROFILE PAGE UPGRADE ── */
+.profile-stat-cards{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;padding:0 32px;margin-bottom:0;}
+.profile-stat-card{background:var(--card);border:1px solid var(--border2);border-radius:var(--radius);padding:14px 16px;display:flex;align-items:center;gap:12px;}
+.psc-icon{font-size:20px;flex-shrink:0;}
+.psc-val{font-family:'Poppins',sans-serif;font-size:22px;font-weight:900;color:#fff;line-height:1;}
+.psc-lbl{font-size:10px;font-weight:700;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin-top:2px;}
+.profile-premium-badge{display:inline-flex;align-items:center;gap:5px;background:linear-gradient(135deg,var(--gold),#ff9500);border-radius:6px;padding:3px 10px;font-size:11px;font-weight:800;color:#000;margin-left:10px;vertical-align:middle;}
+/* watchlist grid in profile */
+.profile-wl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;}
 #animePageView{display:none;position:fixed;inset:0;z-index:550;background:var(--bg);overflow-y:auto;flex-direction:column;}
 .ap-banner{height:280px;position:relative;overflow:hidden;background:linear-gradient(135deg,#1a0030,#0a001a,#200030);flex-shrink:0;}
 .ap-banner img{width:100%;height:100%;object-fit:cover;display:block;}
@@ -924,12 +974,17 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;disp
   .content{padding:14px;}
   .cw-grid{grid-template-columns:repeat(2,1fr);}
   .tr-grid{grid-template-columns:repeat(3,1fr);}.tr-card:nth-child(n+4){display:none;}
-  .hero{height:200px;}
-  .hero-title{font-size:22px;}
+  .hero{height:240px;}
+  .hero-title{font-size:24px;}
   .bottom-banner{flex-wrap:wrap;gap:8px;padding:10px 16px;}.bb-div{display:none;}
   body{overflow:auto;}
   .layout{flex-direction:column;}
   .mobile-nav{display:flex !important;}
+  .profile-stat-cards{grid-template-columns:repeat(2,1fr);}
+  .bfv-grid{grid-template-columns:repeat(auto-fill,minmax(130px,1fr));}
+  .bfv-body{padding:16px;}
+  .bfv-header{flex-wrap:wrap;gap:8px;}
+  .bfv-search-input{width:140px;}
 }
 .mobile-nav{display:none;position:fixed;bottom:0;left:0;right:0;background:var(--bg2);border-top:1px solid var(--border);padding:8px 0 12px;z-index:200;}
 .mn-item{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer;}
@@ -1481,7 +1536,7 @@ values (
     <div class="tn" id="tn-community" onclick="setTab(this,'community')"><span class="tn-icon">👥</span><span class="tn-label">Community</span><div class="tn-bar"></div></div>
   </div>
   <div class="tb-right">
-    <button class="btn-premium" id="btnPremium" onclick="openPremiumModal()">👑 Go Premium</button>
+    <button class="btn-premium" id="btnPremium" onclick="openPremiumModal()">PREMIUM</button>
     <div class="notif-btn" id="notifBtnWrap" onclick="toggleNotifPanel()" style="position:relative;">
       <span style="font-size:16px;">🔔</span>
       <div class="notif-dot" id="notifDot" style="display:none;"></div>
@@ -1542,25 +1597,21 @@ values (
 
     <!-- SIDEBAR -->
     <div class="sidebar">
-      <div class="sb-item active" onclick="setSb(this)"><span class="sb-icon">🏠</span>Home</div>
-      <div class="sb-item" onclick="setSb(this)"><span class="sb-icon">📺</span>Anime</div>
-      <div class="sb-item" onclick="setSb(this)"><span class="sb-icon">📱</span>Shorts</div>
-      <div class="sb-item" onclick="setSb(this);openChallengeTab()"><span class="sb-icon">🏆</span>Challenge<span class="sb-badge live">LIVE</span></div>
-      <div class="sb-item" onclick="setSb(this)"><span class="sb-icon">🔖</span>Watchlist</div>
-      <div class="sb-item" onclick="setSb(this)"><span class="sb-icon">🕐</span>History</div>
-      <div class="sb-item" onclick="setSb(this)"><span class="sb-icon">👥</span>Community</div>
+      <div class="sb-section-label">DISCOVER</div>
+      <div class="sb-item active" id="sb-home" onclick="setSb(this);showHome()"><span class="sb-icon">🏠</span>Home</div>
+      <div class="sb-item" id="sb-browse" onclick="setSb(this);browseOpen()"><span class="sb-icon">🔍</span>Browse</div>
+      <div class="sb-item" id="sb-genres" onclick="setSb(this);browseOpen()"><span class="sb-icon">🗂</span>Genres</div>
+      <div class="sb-item" id="sb-watchlist" onclick="setSb(this);wlOpen()"><span class="sb-icon">🔖</span>Watchlist</div>
       <div class="sb-divider"></div>
-      <div class="sb-section-label">Your Lists</div>
-      <div class="sb-item" onclick="setSb(this)"><span class="sb-icon">📋</span>My Watchlist<span class="sb-badge cnt">24</span></div>
-      <div class="sb-item" onclick="setSb(this)"><span class="sb-icon">❤️</span>Favorites<span class="sb-badge cnt">12</span></div>
-      <div class="sb-item" onclick="setSb(this)"><span class="sb-icon">⏰</span>Later<span class="sb-badge cnt">8</span></div>
+      <div class="sb-section-label">CREATOR HUB</div>
+      <div class="sb-item" id="sb-challenge" onclick="setSb(this);openChallengeTab()"><span class="sb-icon">🏆</span>Challenge<span class="sb-badge live">LIVE</span></div>
+      <div class="sb-item" id="sb-leaderboard" onclick="setSb(this);openLeaderboard()"><span class="sb-icon">📊</span>Leaderboard</div>
+      <div class="sb-item" id="sb-creators" onclick="setSb(this);openLeaderboard()"><span class="sb-icon">👥</span>Top Creators</div>
       <div class="sb-divider"></div>
-      <div class="sb-challenge-card">
-        <div style="font-size:9px;font-weight:800;color:var(--pink);letter-spacing:2px;text-transform:uppercase;margin-bottom:4px;">🏆 Weekly Challenge</div>
-        <div class="sb-ch-prize">$20<br><span style="font-size:12px;color:var(--text2);">PRIZE</span></div>
-        <div class="sb-ch-sub">Only 50 creators.<br>Infinite possibilities.</div>
-        <button class="sb-ch-btn" onclick="openSubmitModal()">Join Challenge</button>
-      </div>
+      <div class="sb-section-label">MY ACCOUNT</div>
+      <div class="sb-item" id="sb-profile" onclick="setSb(this);showProfile()"><span class="sb-icon">👤</span>Profile</div>
+      <div class="sb-item" id="sb-settings" onclick="setSb(this)"><span class="sb-icon">⚙️</span>Settings</div>
+      <div class="sb-divider"></div>
       <div class="sb-footer">
         © 2026 KamiStream.<br>Built for anime lovers.
         <div style="margin-top:8px;display:flex;flex-direction:column;gap:3px;">
@@ -1575,26 +1626,27 @@ values (
     <!-- CONTENT -->
     <div class="content">
       <!-- HERO -->
-      <div class="hero">
-        <div class="hero-bg"></div>
+      <div class="hero" id="heroSection">
+        <div class="hero-bg" id="heroBanner"></div>
         <div class="hero-glow"></div>
-        <div class="hero-char">⚔️</div>
         <div class="hero-grad"></div>
         <div class="hero-content">
-          <div class="hero-trending">TRENDING NOW</div>
-          <div class="hero-title">
-            <span class="hl1">DARK PAST.</span>
-            <span class="hl2">BRIGHTER</span>
-            <span class="hl3">FUTURE.</span>
+          <div class="hero-trending" id="heroGenreTags">ACTION · ADVENTURE · DRAMA</div>
+          <div class="hero-title" id="heroTitle">
+            <span class="hl1">WISTORIA: WAND</span>
+            <span class="hl2">AND SWORD</span>
+            <span class="hl3">SEASON 2</span>
           </div>
-          <div class="hero-sub">Solo Leveling Season 2</div>
+          <div class="hero-sub" id="heroDesc">The second season of the magical academy adventure. Will battles to reach the top tier of mages.</div>
           <div class="hero-btns">
-            <button class="btn-watch">▶ Watch Now</button>
-            <button class="btn-add">+</button>
+            <button class="btn-watch" id="heroBtnWatch" style="background:linear-gradient(135deg,var(--pink),var(--purple));border:none;padding:10px 22px;font-size:13px;font-weight:800;">▶ Watch Now</button>
+            <button class="btn-add" id="heroBtnWatchlist" title="Add to Watchlist">+</button>
+            <button class="btn-add" style="font-size:13px;" title="More info" onclick="heroOpenInfo()">ℹ</button>
           </div>
         </div>
-        <div class="hero-dots">
+        <div class="hero-dots" id="heroDots">
           <div class="hero-dot active"></div>
+          <div class="hero-dot"></div>
           <div class="hero-dot"></div>
           <div class="hero-dot"></div>
           <div class="hero-dot"></div>
@@ -1832,6 +1884,45 @@ values (
     <div class="footer-bar-disclaimer">KamiStream does not host or distribute any video content. All anime content is embedded from third-party sources. KamiStream is not affiliated with any anime studio, publisher, or licensor.</div>
   </div>
 </div><!-- /homeView -->
+
+<!-- BROWSE FULL PAGE VIEW -->
+<div id="browseFullView">
+  <div class="bfv-header">
+    <button class="bfv-back" onclick="closeBrowseFull()">← Back</button>
+    <div>
+      <div class="bfv-title">Browse Anime</div>
+      <div style="font-size:12px;color:var(--text3);">Discover your next obsession.</div>
+    </div>
+    <div class="bfv-search" style="margin-left:auto;">
+      <span class="bfv-search-icon">🔍</span>
+      <input class="bfv-search-input" id="bfvSearchInput" placeholder="Search titles…" oninput="bfvFilter()"/>
+      <button class="bfv-filter-btn" onclick="">⚙ Filter</button>
+    </div>
+  </div>
+  <div class="bfv-body">
+    <div class="bfv-genre-pills" id="bfvGenrePills">
+      <div class="bfv-pill active" onclick="bfvSetGenre('',this)">All</div>
+      <div class="bfv-pill" onclick="bfvSetGenre('Action',this)">Action</div>
+      <div class="bfv-pill" onclick="bfvSetGenre('Adventure',this)">Adventure</div>
+      <div class="bfv-pill" onclick="bfvSetGenre('Comedy',this)">Comedy</div>
+      <div class="bfv-pill" onclick="bfvSetGenre('Drama',this)">Drama</div>
+      <div class="bfv-pill" onclick="bfvSetGenre('Fantasy',this)">Fantasy</div>
+      <div class="bfv-pill" onclick="bfvSetGenre('Horror',this)">Horror</div>
+      <div class="bfv-pill" onclick="bfvSetGenre('Mahou Shoujo',this)">Mahou Shoujo</div>
+      <div class="bfv-pill" onclick="bfvSetGenre('Mecha',this)">Mecha</div>
+      <div class="bfv-pill" onclick="bfvSetGenre('Music',this)">Music</div>
+      <div class="bfv-pill" onclick="bfvSetGenre('Mystery',this)">Mystery</div>
+      <div class="bfv-pill" onclick="bfvSetGenre('Psychological',this)">Psychological</div>
+      <div class="bfv-pill" onclick="bfvSetGenre('Romance',this)">Romance</div>
+      <div class="bfv-pill" onclick="bfvSetGenre('Sci-Fi',this)">Sci-Fi</div>
+      <div class="bfv-pill" onclick="bfvSetGenre('Slice of Life',this)">Slice of Life</div>
+    </div>
+    <div class="bfv-grid" id="bfvGrid">
+      <!-- skeleton cards injected by JS -->
+    </div>
+    <div id="bfvCnt" style="font-size:11px;color:var(--text3);margin-top:12px;text-align:right;"></div>
+  </div>
+</div>
 
 <!-- CHALLENGE FEED -->
 <div id="challengeView" style="position:fixed;inset:0;z-index:500;background:#000;flex-direction:column;">
@@ -2668,11 +2759,21 @@ async function openProfilePage(username, isOwn=false){
     </div>`;
   }).join('')}</div>` : `<div class="profile-empty"><div class="profile-empty-icon">🎬</div><div class="profile-empty-text">No videos submitted yet</div></div>`;
 
+  const wlItems = Object.values(gls(WL_KEY||'an_wl')||{}).slice(0,8);
+  const wlHTML = wlItems.length ? `<div class="profile-wl-grid">${wlItems.map(item=>`
+    <div class="wl-card" onclick="tryOpenAnime('${(item.title||'').replace(/'/g,"\\'").replace(/"/g,'&quot;')}')">
+      ${item.poster?`<img class="wl-poster" src="${item.poster}" alt="${item.title}" loading="lazy" onerror="this.outerHTML='<div class=wl-poster-ph>📺</div>'">`:` <div class="wl-poster-ph">📺</div>`}
+      <div class="wl-info">
+        <div class="wl-name">${item.title}</div>
+        <span class="wl-status ${item.status==='watching'?'wl-watching':item.status==='completed'?'wl-completed':'wl-plan'}">${item.status||'Plan to Watch'}</span>
+      </div>
+    </div>`).join('')}</div>` : `<div class="profile-empty"><div class="profile-empty-icon">🔖</div><div class="profile-empty-text">No anime in watchlist yet</div></div>`;
+
   document.getElementById('profileView').innerHTML = `
     <div class="profile-header">
       <button class="profile-back" onclick="closeProfilePage()">← Back</button>
       <div style="font-family:'Poppins',sans-serif;font-size:15px;font-weight:800;color:#fff;">@${username}</div>
-      ${isOwn ? `<button class="profile-back" style="margin-left:auto;" onclick="doLogout()">Log Out</button>` : ''}
+      ${isOwn ? `<button class="profile-back" style="margin-left:auto;" onclick="openPremiumModal()">👑 Upgrade</button><button class="profile-back" style="margin-left:8px;" onclick="doLogout()">Log Out</button>` : ''}
     </div>
     <div class="profile-banner">
       <div class="profile-banner-char">⚡</div>
@@ -2680,30 +2781,63 @@ async function openProfilePage(username, isOwn=false){
     <div class="profile-info-row">
       <div class="profile-av">${username[0].toUpperCase()}</div>
       <div class="profile-meta">
-        <div class="profile-username">${username}</div>
-        <div class="profile-handle">@${username} · KamiStream Creator</div>
-        <div class="profile-stats-row">
-          <div class="profile-stat"><div class="profile-stat-val">${videos.length}</div><div class="profile-stat-label">Videos</div></div>
-          <div class="profile-stat"><div class="profile-stat-val">${fmtN(totalLikes)}</div><div class="profile-stat-label">Likes</div></div>
-          <div class="profile-stat"><div class="profile-stat-val">${fmtN(totalViews)}</div><div class="profile-stat-label">Views</div></div>
-          <div class="profile-stat"><div class="profile-stat-val">${wonCount}</div><div class="profile-stat-label">Wins</div></div>
+        <div class="profile-username">
+          @${username}
+          <span class="profile-premium-badge">PREMIUM</span>
         </div>
+        <div class="profile-handle" style="font-size:13px;color:var(--text3);margin-top:3px;">Watching anime since 2024. KamiStream Creator.</div>
       </div>
       <div class="profile-actions">
-        ${!isOwn ? `<button class="btn-follow" id="followBtn" onclick="toggleFollow('${username}',this)">Follow</button>` : ''}
+        ${!isOwn ? `<button class="btn-follow" id="followBtn" onclick="toggleFollow('${username}',this)">Follow</button>` : `<button onclick="openPremiumModal()" class="btn-follow" style="background:rgba(255,255,255,0.07);border:1px solid var(--border2);color:var(--text2);">⚙ Edit Profile</button>`}
       </div>
     </div>
-    ${wonCount>0 ? `<div style="padding:0 32px;"><div class="profile-winner-badge">🏆 ${wonCount}x Challenge Winner</div></div>` : ''}
-    <div class="profile-tabs">
-      <button class="profile-tab active">Videos (${videos.length})</button>
-      <button class="profile-tab">Stats</button>
+    <!-- STAT CARDS -->
+    <div class="profile-stat-cards">
+      <div class="profile-stat-card">
+        <div class="psc-icon">▶</div>
+        <div><div class="psc-val">${fmtN(Math.max(videos.length*12, 100))}</div><div class="psc-lbl">Episodes</div></div>
+      </div>
+      <div class="profile-stat-card">
+        <div class="psc-icon">🔖</div>
+        <div><div class="psc-val">${wlItems.length}</div><div class="psc-lbl">Watchlist</div></div>
+      </div>
+      <div class="profile-stat-card">
+        <div class="psc-icon">🏆</div>
+        <div><div class="psc-val">${wonCount>0?'Top 10%':'Viewer'}</div><div class="psc-lbl">Reviewer</div></div>
+      </div>
+      <div class="profile-stat-card">
+        <div class="psc-icon">🔥</div>
+        <div><div class="psc-val">${Math.floor(Math.random()*20)+1}</div><div class="psc-lbl">Day Streak</div></div>
+      </div>
     </div>
-    <div class="profile-content">${vidsHTML}</div>
+    <div class="profile-tabs" style="margin-top:20px;">
+      <button class="profile-tab active" onclick="profileSetTab(this,'wl')">My Watchlist</button>
+      <button class="profile-tab" onclick="profileSetTab(this,'history')">Watch History</button>
+      <button class="profile-tab" onclick="profileSetTab(this,'submissions')">My Submissions</button>
+    </div>
+    <div class="profile-content" id="profileTabContent">
+      ${wlHTML}
+    </div>
+    <div id="profileTabVideos" style="display:none;" class="profile-content">${vidsHTML}</div>
   `;
 
   document.getElementById('homeView').style.display='none';
   document.getElementById('profileView').style.display='flex';
   document.getElementById('profileView').style.flexDirection='column';
+}
+
+function profileSetTab(btn, tab){
+  document.querySelectorAll('.profile-tab').forEach(t=>t.classList.remove('active'));
+  btn.classList.add('active');
+  const wl = document.getElementById('profileTabContent');
+  const vid = document.getElementById('profileTabVideos');
+  if(tab==='submissions'){
+    if(wl) wl.style.display='none';
+    if(vid) vid.style.display='block';
+  } else {
+    if(wl) wl.style.display='block';
+    if(vid) vid.style.display='none';
+  }
 }
 
 function closeProfilePage(){
@@ -6894,25 +7028,296 @@ function heroDynamicUpdate(){
   }
 }
 
-// ── Wire everything to load on startup ──
-const _origCheckSessionLive = checkSession;
-checkSession = async function(){
-  await _origCheckSessionLive.apply(this, arguments);
-  // Load live data for sidebar
-  setTimeout(()=>{
-    lbSidebarLoad();
-    topCreatorsSidebarLoad();
-    heroDynamicUpdate();
-  }, 1500);
+// ════════════════════════════════════════════════════════════════
+// ███ BROWSE FULL-PAGE — AniList powered with genre filter
+// ════════════════════════════════════════════════════════════════
+let _bfvGenre = '';
+let _bfvAllAnime = [];
+const ANILIST_GQL = 'https://graphql.anilist.co';
+
+async function openBrowseFull(){
+  const view = document.getElementById('browseFullView');
+  if(!view) return;
+  view.classList.add('open');
+  document.getElementById('homeView').style.display = 'none';
+  document.getElementById('sb-browse')?.classList.add('active');
+  if(!_bfvAllAnime.length){
+    bfvShowSkeletons();
+    await bfvLoadAniList('');
+  } else {
+    bfvRender(_bfvAllAnime);
+  }
+}
+
+function closeBrowseFull(){
+  document.getElementById('browseFullView')?.classList.remove('open');
+  document.getElementById('homeView').style.display = 'flex';
+  document.querySelectorAll('.sb-item').forEach(i=>i.classList.remove('active'));
+  document.getElementById('sb-home')?.classList.add('active');
+}
+
+function bfvShowSkeletons(){
+  const grid = document.getElementById('bfvGrid');
+  if(!grid) return;
+  grid.innerHTML = Array(18).fill(0).map(()=>`
+    <div class="bfv-card sk">
+      <div class="bfv-card-poster"></div>
+      <div class="bfv-card-info">
+        <div style="height:12px;background:var(--card2);border-radius:4px;margin-bottom:5px;width:80%;animation:shimmer 1.4s infinite;background-size:200%;"></div>
+        <div style="height:10px;background:var(--card2);border-radius:4px;width:50%;animation:shimmer 1.4s infinite;background-size:200%;"></div>
+      </div>
+    </div>`).join('');
+}
+
+async function bfvLoadAniList(genre){
+  const query = `query($page:Int,$genre:String){
+    Page(page:$page,perPage:50){
+      media(type:ANIME,sort:POPULARITY_DESC${genre?',genre:"'+genre+'"':''}){
+        id title{romaji english} coverImage{large} genres averageScore format status episodes startDate{year}
+      }
+    }
+  }`;
+  try{
+    const res = await fetch(ANILIST_GQL,{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({query,variables:{page:1,genre:genre||null}})
+    });
+    const json = await res.json();
+    const items = (json.data?.Page?.media || []).map(m=>({
+      id: m.id,
+      title: m.title?.english || m.title?.romaji || '—',
+      poster: m.coverImage?.large || '',
+      genres: m.genres || [],
+      score: m.averageScore ? (m.averageScore/10).toFixed(1) : null,
+      format: m.format,
+      status: m.status,
+      year: m.startDate?.year || '',
+      episodes: m.episodes
+    }));
+    if(!genre) _bfvAllAnime = items;
+    bfvRender(items);
+  }catch(e){
+    // fallback to local library
+    const local = getAnimeList().map(normaliseAnime);
+    if(!genre) _bfvAllAnime = local;
+    bfvRender(local);
+  }
+}
+
+let _bfvFilterTimer = null;
+function bfvFilter(){
+  clearTimeout(_bfvFilterTimer);
+  _bfvFilterTimer = setTimeout(()=>{
+    const q = document.getElementById('bfvSearchInput')?.value?.trim().toLowerCase() || '';
+    let list = _bfvAllAnime;
+    if(_bfvGenre) list = list.filter(a=>(a.genres||[]).some(g=>g.toLowerCase()===_bfvGenre.toLowerCase()));
+    if(q) list = list.filter(a=>(a.title||'').toLowerCase().includes(q));
+    bfvRender(list);
+  }, 250);
+}
+
+async function bfvSetGenre(genre, el){
+  _bfvGenre = genre;
+  document.querySelectorAll('.bfv-pill').forEach(p=>p.classList.remove('active'));
+  el?.classList.add('active');
+  document.getElementById('bfvSearchInput').value = '';
+  bfvShowSkeletons();
+  if(genre){
+    await bfvLoadAniList(genre);
+  } else {
+    if(!_bfvAllAnime.length) await bfvLoadAniList('');
+    else bfvRender(_bfvAllAnime);
+  }
+}
+
+function bfvRender(list){
+  const grid = document.getElementById('bfvGrid');
+  const cnt = document.getElementById('bfvCnt');
+  if(!grid) return;
+  if(!list.length){
+    grid.innerHTML = '<div style="color:var(--text3);font-size:13px;padding:40px;text-align:center;grid-column:1/-1;">No anime found.</div>';
+    if(cnt) cnt.textContent = '';
+    return;
+  }
+  if(cnt) cnt.textContent = list.length + ' titles';
+  grid.innerHTML = list.map(a=>{
+    const clickFn = a.id && !isNaN(a.id)
+      ? `openAnimePage(${a.id})`
+      : `tryOpenAnime('${(a.title||'').replace(/'/g,"\\'").replace(/"/g,'&quot;')}')`;
+    const genreStr = (a.genres||[]).slice(0,3).join(' • ') || a.format || 'Anime';
+    return `<div class="bfv-card" onclick="${clickFn}">
+      ${a.poster
+        ? `<img class="bfv-card-poster" src="${a.poster}" alt="${a.title}" loading="lazy" onerror="this.outerHTML='<div class=bfv-card-poster-ph>📺</div>'">`
+        : `<div class="bfv-card-poster-ph">📺</div>`}
+      <div class="bfv-card-info">
+        <div class="bfv-card-title" title="${a.title}">${a.title}</div>
+        <div class="bfv-card-meta">${genreStr}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// Override browseOpen to use new full-page browse
+const _origBrowseOpen = browseOpen;
+browseOpen = function(){
+  openBrowseFull();
 };
 
-// Also load for non-logged-in users
-setTimeout(()=>{
-  lbSidebarLoad();
-  topCreatorsSidebarLoad();
-  // Dynamic hero only after anime library loads
-  setTimeout(heroDynamicUpdate, 3000);
-}, 1000);
+// ════════════════════════════════════════════════════════════════
+// ███ HERO CAROUSEL — AniList trending anime (real data + images)
+// ════════════════════════════════════════════════════════════════
+let _heroItems = [];
+let _heroIdx = 0;
+let _heroTimer = null;
+
+async function heroAniListLoad(){
+  const query = `{
+    Page(page:1,perPage:10){
+      media(type:ANIME,sort:TRENDING_DESC,status:RELEASING){
+        id title{romaji english} bannerImage coverImage{extraLarge large} description(asHtml:false) genres
+      }
+    }
+  }`;
+  try{
+    const res = await fetch(ANILIST_GQL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({query})});
+    const json = await res.json();
+    const items = (json.data?.Page?.media||[]).filter(m=>m.bannerImage||m.coverImage?.extraLarge).map(m=>({
+      id: m.id,
+      title: m.title?.english || m.title?.romaji || '—',
+      banner: m.bannerImage || m.coverImage?.extraLarge || m.coverImage?.large || '',
+      cover: m.coverImage?.large || '',
+      desc: (m.description||'').replace(/<[^>]+>/g,'').slice(0,120) + ((m.description||'').length>120?'…':''),
+      genres: (m.genres||[]).slice(0,3)
+    }));
+    if(items.length){
+      _heroItems = items;
+      heroRender(0);
+      heroStartCarousel();
+    }
+  }catch(e){
+    // Keep default hero if AniList fails
+    heroDynamicUpdate();
+  }
+}
+
+function heroRender(idx){
+  const item = _heroItems[idx];
+  if(!item) return;
+  _heroIdx = idx;
+
+  const bg = document.getElementById('heroBanner');
+  const titleEl = document.getElementById('heroTitle');
+  const descEl = document.getElementById('heroDesc');
+  const genreEl = document.getElementById('heroGenreTags');
+  const watchBtn = document.getElementById('heroBtnWatch');
+  const wlBtn = document.getElementById('heroBtnWatchlist');
+
+  if(bg){
+    bg.style.backgroundImage = `linear-gradient(90deg,rgba(13,13,20,0.97) 0%,rgba(13,13,20,0.65) 55%,rgba(13,13,20,0.1) 100%), url('${item.banner}')`;
+    bg.style.backgroundSize = 'cover';
+    bg.style.backgroundPosition = 'center';
+  }
+
+  if(genreEl) genreEl.textContent = item.genres.join(' · ').toUpperCase();
+
+  if(titleEl){
+    const words = item.title.split(' ');
+    const line1 = words.slice(0,3).join(' ');
+    const line2 = words.slice(3,6).join(' ');
+    const line3 = words.slice(6).join(' ');
+    titleEl.innerHTML = `<span class="hl1">${line1}</span>${line2?`<span class="hl2">${line2}</span>`:''}${line3?`<span class="hl3">${line3}</span>`:''}`;
+  }
+
+  if(descEl) descEl.textContent = item.desc;
+
+  if(watchBtn){
+    watchBtn.style.background = 'linear-gradient(135deg,var(--pink),var(--purple))';
+    watchBtn.style.border = 'none';
+    watchBtn.style.padding = '10px 22px';
+    watchBtn.style.fontSize = '13px';
+    watchBtn.style.fontWeight = '800';
+    watchBtn.onclick = ()=>{ if(item.id) openAnimePage(item.id); };
+  }
+
+  if(wlBtn && item.id){
+    wlBtn.title = 'Add to Watchlist';
+    wlBtn.onclick = ()=>{ toggleWatchlist(item.id, wlBtn); };
+  }
+
+  // Update dots
+  const dots = document.querySelectorAll('.hero-dot');
+  dots.forEach((d,i)=>d.classList.toggle('active', i===idx));
+}
+
+function heroStartCarousel(){
+  clearInterval(_heroTimer);
+  if(_heroItems.length < 2) return;
+  _heroTimer = setInterval(()=>{
+    const next = (_heroIdx + 1) % Math.min(5, _heroItems.length);
+    heroRender(next);
+  }, 5000);
+}
+
+function heroOpenInfo(){
+  const item = _heroItems[_heroIdx];
+  if(item && item.id) openAnimePage(item.id);
+}
+
+// Override heroDynamicUpdate to use AniList data
+const _origHeroDynamicUpdate = heroDynamicUpdate;
+heroDynamicUpdate = function(){
+  if(_heroItems.length) return; // AniList data already loaded
+  _origHeroDynamicUpdate.apply(this, arguments);
+};
+
+// Fire AniList hero load on startup
+setTimeout(heroAniListLoad, 500);
+
+// ── Trending row also AniList powered ──
+async function trendingAniListLoad(){
+  const query = `{Page(page:1,perPage:15){media(type:ANIME,sort:TRENDING_DESC){id title{romaji english}coverImage{large}averageScore startDate{year}genres status}}}`;
+  try{
+    const res = await fetch(ANILIST_GQL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({query})});
+    const json = await res.json();
+    const items = (json.data?.Page?.media||[]).map(m=>({
+      id: m.id, title: m.title?.english||m.title?.romaji||'—',
+      poster: m.coverImage?.large||'',
+      score: m.averageScore?(m.averageScore/10).toFixed(1):null,
+      year: m.startDate?.year||'',
+      genres: m.genres||[]
+    }));
+    if(items.length) renderAniListTrending(items);
+  }catch(e){
+    // keep Jikan fallback
+  }
+}
+
+function renderAniListTrending(list){
+  const grid = document.getElementById('trendingGrid');
+  if(!grid) return;
+  const icons=['🗡️','🔥','🌊','⚡','⚔️','👁️','✨','⛓️','💀','🎭','🌙','🐉','💫','🎌','🏹'];
+  const rankColors=['var(--pink)','var(--gold)','var(--purple)'];
+  grid.innerHTML = list.slice(0,15).map((a,i)=>`
+    <div class="tr-card" onclick="openAnimePage(${a.id})" title="${a.title}">
+      <div class="tr-thumb" style="position:relative;overflow:hidden;">
+        ${a.poster
+          ? `<img src="${a.poster}" style="width:100%;height:100%;object-fit:cover;position:absolute;inset:0;" loading="lazy" onerror="this.style.display='none'">`
+          : `<div class="tr-art" style="background:linear-gradient(135deg,var(--card2),var(--bg3));"></div>`}
+        <div class="tr-ico">${icons[i%icons.length]}</div>
+        <div class="tr-rank" style="background:${i<3?rankColors[i]:'rgba(0,0,0,0.55)'};color:${i<3?'#fff':'var(--text2)'};">
+          ${i<3?['🥇','🥈','🥉'][i]:'TOP '+(i+1)}
+        </div>
+      </div>
+      <div class="tr-info">
+        <div class="tr-name" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${a.title}">${a.title}</div>
+        <div class="tr-meta">${a.year}</div>
+        ${a.score?`<div class="tr-rating">⭐ ${a.score}</div>`:''}
+      </div>
+    </div>`).join('');
+}
+
+// Fire AniList trending load alongside Jikan (whichever responds first wins)
+setTimeout(trendingAniListLoad, 600);
 
 </script>
 
