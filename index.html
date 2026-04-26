@@ -1658,10 +1658,10 @@ values (
       <div id="browseSection" style="display:none;margin-bottom:20px;">
         <div class="sec-row">
           <div class="sec-title">📚 All Anime</div>
-          <div class="view-all" onclick="document.getElementById('browseSection').style.display='none';document.getElementById('trendingSection').style.display='block'">← Back to Trending</div>
+          <div class="view-all" onclick="browseClose()">← Back to Trending</div>
         </div>
         <div id="browseSearchRow" style="margin-bottom:12px;display:flex;gap:8px;flex-wrap:wrap;">
-          <input id="browseSearchInput" placeholder="Search anime…" oninput="browseFilter(this.value)"
+          <input id="browseSearchInput" placeholder="Search anime…" oninput="clearTimeout(window._bft);window._bft=setTimeout(()=>browseFilter(this.value),300)"
             style="flex:1;background:var(--card);border:1px solid var(--border2);border-radius:9px;color:var(--text);padding:9px 13px;font-family:'Nunito',sans-serif;font-size:13px;outline:none;"/>
           <select id="browseGenreFilter" onchange="browseFilter(document.getElementById('browseSearchInput').value)"
             style="background:var(--card);border:1px solid var(--border2);border-radius:9px;color:var(--text);padding:9px 12px;font-family:'Nunito',sans-serif;font-size:12px;outline:none;cursor:pointer;">
@@ -1675,7 +1675,7 @@ values (
             <option value="NOT_YET_RELEASED">Upcoming</option>
           </select>
         </div>
-        <div id="browseGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:11px;max-height:480px;overflow-y:auto;"></div>
+        <div id="browseGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:11px;"></div>
         <div id="browseCnt" style="font-size:11px;color:var(--text3);margin-top:8px;text-align:right;"></div>
       </div>
 
@@ -2470,8 +2470,27 @@ async function doUpdatePassword(){
   window.addEventListener('load', restoreFromUrl);
 })();
 
-
-
+// ── PULL TO REFRESH (swipe down from top) ──
+(function initPullToRefresh(){
+  let startY=0, pulling=false;
+  const threshold=90;
+  document.addEventListener('touchstart',function(e){
+    if(window.scrollY===0) { startY=e.touches[0].clientY; pulling=true; }
+  },{passive:true});
+  document.addEventListener('touchmove',function(e){
+    if(!pulling) return;
+  },{passive:true});
+  document.addEventListener('touchend',function(e){
+    if(!pulling) return;
+    const endY=e.changedTouches[0].clientY;
+    if(endY - startY > threshold){
+      pulling=false;
+      showToast('🔄 Refreshing…','ok');
+      setTimeout(()=>location.reload(), 400);
+    }
+    pulling=false;
+  },{passive:true});
+})();
 
 function openAuth(type='login'){
   switchAuth(type);
@@ -3836,26 +3855,54 @@ async function browseOpen(){
   if(!sec)return;
   sec.style.display='block';
   if(trSec)trSec.style.display='none';
-  await browseLoadFilters();
-  browseRender(getAnimeList().map(normaliseAnime));
+  const grid=document.getElementById('browseGrid');
+  if(grid) grid.innerHTML='<div style="color:var(--text3);font-size:13px;padding:20px;text-align:center;grid-column:1/-1;">⏳ Loading anime library…</div>';
+  let list=[];
+  if(supabase){
+    try{
+      const {data}=await supabase.from('anime')
+        .select('id,title_english,title_romaji,poster,release_year,score,status,format,genres')
+        .order('title_english',{ascending:true,nullsFirst:false})
+        .limit(1000);
+      if(data&&data.length) list=data.map(a=>({...a,title:a.title_english||a.title_romaji||'—'}));
+    }catch(e){}
+  }
+  if(!list.length) list=getAnimeList().map(normaliseAnime).sort((a,b)=>(a.title||'').localeCompare(b.title||''));
+  await browseLoadFilters(list);
+  browseRender(list);
 }
 
-async function browseLoadFilters(){
-  const list=getAnimeList().map(normaliseAnime);
+async function browseLoadFilters(list){
+  if(!list) list=getAnimeList().map(normaliseAnime);
   const genres=[...new Set(list.flatMap(a=>a.genres||[]))].sort();
   const sel=document.getElementById('browseGenreFilter');
-  if(sel&&sel.options.length<=1){
+  if(sel){
+    sel.innerHTML='<option value="">All Genres</option>';
     genres.forEach(g=>{const o=document.createElement('option');o.value=g;o.textContent=g;sel.appendChild(o);});
   }
 }
 
-function browseFilter(q){
+async function browseFilter(q){
   const genre=document.getElementById('browseGenreFilter')?.value||'';
   const status=document.getElementById('browseStatusFilter')?.value||'';
-  let list=getAnimeList().map(normaliseAnime);
-  if(q)list=list.filter(a=>(a.title||'').toLowerCase().includes(q.toLowerCase()));
-  if(genre)list=list.filter(a=>(a.genres||[]).includes(genre));
-  if(status)list=list.filter(a=>a.status===status);
+  let list=[];
+  if(supabase){
+    try{
+      let query=supabase.from('anime').select('id,title_english,title_romaji,poster,release_year,score,status,format,genres').limit(1000);
+      if(q) query=query.or(`title_english.ilike.%${q}%,title_romaji.ilike.%${q}%`);
+      if(status) query=query.eq('status',status);
+      query=query.order('title_english',{ascending:true,nullsFirst:false});
+      const {data}=await query;
+      if(data) list=data.map(a=>({...a,title:a.title_english||a.title_romaji||'—'}));
+    }catch(e){}
+  }
+  if(!list.length){
+    list=getAnimeList().map(normaliseAnime);
+    if(q) list=list.filter(a=>(a.title||'').toLowerCase().includes(q.toLowerCase()));
+    if(status) list=list.filter(a=>a.status===status);
+    list.sort((a,b)=>(a.title||'').localeCompare(b.title||''));
+  }
+  if(genre) list=list.filter(a=>(a.genres||[]).includes(genre));
   browseRender(list);
 }
 
@@ -3869,23 +3916,45 @@ function browseRender(list){
     return;
   }
   if(cnt)cnt.textContent=list.length+' anime';
-  grid.innerHTML=list.map(a=>`
-    <div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;cursor:pointer;transition:all .25s;"
-      onmouseover="this.style.borderColor='rgba(155,93,229,0.35)';this.style.transform='translateY(-3px)'"
-      onmouseout="this.style.borderColor='';this.style.transform=''"
-      onclick="openAnimePage(${a.id})">
-      <div style="position:relative;aspect-ratio:2/3;overflow:hidden;background:var(--card2);">
-        ${a.poster?`<img src="${a.poster}" alt="${a.title}" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block;" onerror="this.style.display='none'">`:'<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:32px;opacity:.18;">📺</div>'}
-        ${isNewEp(a.mal_id)?'<div class="new-ep-badge">NEW</div>':''}
-        <div style="position:absolute;bottom:0;left:0;right:0;padding:6px 8px;background:linear-gradient(0deg,rgba(0,0,0,0.85),transparent);">
-          ${statusBadge(a.status)}
+  // Group alphabetically
+  const groups={};
+  list.forEach(a=>{
+    const first=(a.title||'#')[0].toUpperCase();
+    const key=/[A-Z]/.test(first)?first:'#';
+    if(!groups[key])groups[key]=[];
+    groups[key].push(a);
+  });
+  const sortedKeys=Object.keys(groups).sort((a,b)=>a==='#'?1:b==='#'?-1:a.localeCompare(b));
+  let html='';
+  sortedKeys.forEach(letter=>{
+    // Letter header spans full width
+    html+=`<div style="grid-column:1/-1;font-family:'Poppins',sans-serif;font-size:18px;font-weight:900;color:var(--pink);padding:12px 0 4px;border-bottom:1px solid var(--border);margin-top:8px;">${letter}</div>`;
+    groups[letter].forEach(a=>{
+      html+=`<div style="background:var(--card);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;cursor:pointer;transition:all .2s;"
+        onmouseover="this.style.borderColor='rgba(155,93,229,0.35)';this.style.transform='translateY(-3px)'"
+        onmouseout="this.style.borderColor='';this.style.transform=''"
+        onclick="browseClose();openAnimePage(${a.id})">
+        <div style="position:relative;aspect-ratio:2/3;overflow:hidden;background:var(--card2);">
+          ${a.poster?`<img src="${a.poster}" alt="${a.title}" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block;" onerror="this.style.display='none'">`:'<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:32px;opacity:.18;">📺</div>'}
+          <div style="position:absolute;bottom:0;left:0;right:0;padding:6px 8px;background:linear-gradient(0deg,rgba(0,0,0,0.85),transparent);">
+            ${statusBadge(a.status)}
+          </div>
         </div>
-      </div>
-      <div style="padding:8px 10px;">
-        <div style="font-size:11px;font-weight:700;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${a.title}">${a.title}</div>
-        <div style="font-size:10px;color:var(--text3);margin-top:2px;">${a.release_year||''}${a.score?' · ⭐'+a.score:''}</div>
-      </div>
-    </div>`).join('');
+        <div style="padding:8px 10px;">
+          <div style="font-size:11px;font-weight:700;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${a.title}">${a.title}</div>
+          <div style="font-size:10px;color:var(--text3);margin-top:2px;">${a.release_year||''}${a.score?' · ⭐'+a.score:''}</div>
+        </div>
+      </div>`;
+    });
+  });
+  grid.innerHTML=html;
+}
+
+function browseClose(){
+  const sec=document.getElementById('browseSection');
+  const trSec=document.getElementById('trendingSection');
+  if(sec) sec.style.display='none';
+  if(trSec) trSec.style.display='block';
 }
 
 // ── MISC ──

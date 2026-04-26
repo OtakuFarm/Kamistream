@@ -1794,35 +1794,35 @@ async function renderStats(){
   const spots  = 50-(db.spots||0);
   const winners= (db.winners||[]).length;
 
-  let users=0, totalAnime=0, totalEps=0, premiumCount=0, totalSources=0, totalWatches=0;
+  // Start with localStorage data
+  let users       = Object.keys(db.users||{}).length;
+  let totalAnime  = jaiGetAll().length;
+  let totalEps    = jaiGetAll().reduce((s,a)=>s+(a.episodes||[]).length,0);
+  let premiumCount= 0;
 
+  // Upgrade with real Supabase counts (non-blocking)
   const sb = getSB();
   if(sb){
     try{
-      const [uRes,aRes,eRes,pRes,srcRes,whRes] = await Promise.all([
+      const [uRes, aRes, eRes, pRes] = await Promise.all([
         sb.from('profiles').select('*',{count:'exact',head:true}),
         sb.from('anime').select('*',{count:'exact',head:true}),
         sb.from('episodes').select('*',{count:'exact',head:true}),
         sb.from('profiles').select('*',{count:'exact',head:true}).eq('is_premium',true),
-        sb.from('embed_sources').select('*',{count:'exact',head:true}),
-        sb.from('watch_history').select('*',{count:'exact',head:true}),
       ]);
-      users        = uRes.count||0;
-      totalAnime   = aRes.count||0;
-      totalEps     = eRes.count||0;
-      premiumCount = pRes.count||0;
-      totalSources = srcRes.count||0;
-      totalWatches = whRes.count||0;
-    }catch(e){}
+      if(uRes.count != null) users        = uRes.count;
+      if(aRes.count != null) totalAnime   = aRes.count;
+      if(eRes.count != null) totalEps     = eRes.count;
+      if(pRes.count != null) premiumCount = pRes.count;
+    }catch(e){ /* silently use localStorage fallback */ }
   }
 
   const cards=[
-    {icon:'👥',val:users,        label:'Total Users',         delta:premiumCount+' premium',      cls:'s-pink'},
-    {icon:'📺',val:totalAnime,   label:'Anime in Library',    delta:totalEps+' episodes',         cls:'s-blue'},
-    {icon:'▶️', val:totalWatches, label:'Total Watch Events',  delta:'All time views',             cls:'s-green'},
-    {icon:'🎬',val:totalSources, label:'Embed Sources',       delta:'Video links in DB',          cls:'s-purple'},
-    {icon:'👑',val:premiumCount, label:'Premium Users',       delta:'Active subscriptions',       cls:'s-gold'},
-    {icon:'🏆',val:vids,         label:'Videos This Week',    delta:spots+' spots remaining',     cls:'s-red'},
+    {icon:'👥',val:users,        label:'Total Users',       delta:premiumCount+' premium',        cls:'s-pink',  deltaType:'up'},
+    {icon:'🎬',val:vids,         label:'Videos This Week',  delta:spots+' spots remaining',       cls:'s-gold',  deltaType:spots>10?'up':'dn'},
+    {icon:'🏆',val:winners,      label:'Past Winners',      delta:'Challenge history',             cls:'s-green', deltaType:'up'},
+    {icon:'📺',val:totalAnime,   label:'Anime in Library',  delta:totalEps+' total episodes',     cls:'s-blue',  deltaType:'up'},
+    {icon:'👑',val:premiumCount, label:'Premium Users',     delta:'Active subscriptions',         cls:'s-purple',deltaType:'up'},
   ];
   const grid=document.getElementById('statsRow');
   if(!grid) return;
@@ -1831,51 +1831,8 @@ async function renderStats(){
       <div class="sc-icon">${c.icon}</div>
       <div class="sc-val">${fmtN(c.val)}</div>
       <div class="sc-label">${c.label}</div>
-      <div class="sc-delta up">${c.delta}</div>
+      <div class="sc-delta ${c.deltaType}">${c.delta}</div>
     </div>`).join('');
-
-  // Load most watched anime below stats
-  loadMostWatched(sb);
-}
-
-async function loadMostWatched(sb){
-  if(!sb) return;
-  try{
-    // Get top anime by watch_history count
-    const {data:wh} = await sb.from('watch_history').select('anime_id').limit(500);
-    if(!wh||!wh.length) return;
-    const counts={};
-    wh.forEach(r=>{ if(r.anime_id) counts[r.anime_id]=(counts[r.anime_id]||0)+1; });
-    const sorted=Object.entries(counts).sort((a,b)=>b[1]-a[1]).slice(0,5);
-    if(!sorted.length) return;
-    const ids=sorted.map(e=>e[0]);
-    const {data:animes} = await sb.from('anime').select('id,title_english,title_romaji,poster').in('id',ids);
-    if(!animes) return;
-    const ranked=sorted.map(([id,cnt])=>({...animes.find(a=>String(a.id)===String(id)),watches:cnt})).filter(a=>a.id);
-    // Inject most watched section after statsRow
-    let mwEl=document.getElementById('mostWatchedSection');
-    if(!mwEl){
-      mwEl=document.createElement('div');
-      mwEl.id='mostWatchedSection';
-      mwEl.style.cssText='margin-top:20px;';
-      const statsRow=document.getElementById('statsRow');
-      if(statsRow) statsRow.parentNode.insertBefore(mwEl,statsRow.nextSibling);
-    }
-    mwEl.innerHTML=`
-      <div style="font-family:'Poppins',sans-serif;font-size:14px;font-weight:800;color:#fff;margin-bottom:12px;">🔥 Most Watched Anime</div>
-      <div style="display:flex;flex-direction:column;gap:8px;">
-        ${ranked.map((a,i)=>`
-          <div style="display:flex;align-items:center;gap:12px;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px 14px;">
-            <div style="font-size:18px;font-weight:900;color:var(--${i===0?'gold':i===1?'text3':'text3'});min-width:24px;">#${i+1}</div>
-            ${a.poster?`<img src="${a.poster}" style="width:36px;height:50px;object-fit:cover;border-radius:6px;" loading="lazy">`:'<div style="width:36px;height:50px;background:var(--bg3);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:16px;">📺</div>'}
-            <div style="flex:1;min-width:0;">
-              <div style="font-size:13px;font-weight:700;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${a.title_english||a.title_romaji||'—'}</div>
-              <div style="font-size:11px;color:var(--text3);">${a.watches} watch event${a.watches!==1?'s':''}</div>
-            </div>
-            <div style="background:linear-gradient(135deg,var(--pink),var(--purple));color:#fff;font-size:10px;font-weight:800;padding:4px 10px;border-radius:20px;">${a.watches}×</div>
-          </div>`).join('')}
-      </div>`;
-  }catch(e){ console.warn('[MostWatched]',e.message); }
 }
 // ── TOP CHART ──
 function renderTopChart(){
@@ -3785,11 +3742,14 @@ async function sbInsertAnime(sb, anime, malId, rawJikan){
 
   // ── Insert episode rows (skip existing) ──
   const epCount = anime.episodes_total || 0;
-  let epIdMap = {}; // episode_number → episode id
+  let epIdMap = {};
   if(epCount > 0){
+    // Fetch existing episodes first
     const {data:existingEps} = await sb.from('episodes').select('id,episode_number').eq('anime_id',animeId);
     existingEps?.forEach(e=>{ epIdMap[e.episode_number]=e.id; });
     const existingNums = new Set(Object.keys(epIdMap).map(Number));
+
+    // Insert only missing episodes
     const newEps = [];
     for(let i=1;i<=epCount;i++){
       if(!existingNums.has(i)) newEps.push({anime_id:animeId,episode_number:i,title:'Episode '+i});
@@ -3797,11 +3757,16 @@ async function sbInsertAnime(sb, anime, malId, rawJikan){
     if(newEps.length){
       for(let i=0;i<newEps.length;i+=100){
         const chunk = newEps.slice(i,i+100);
-        const {data:inserted,error:epErr} = await sb.from('episodes').insert(chunk).select('id,episode_number');
+        const {error:epErr} = await sb.from('episodes').insert(chunk);
         if(epErr) console.warn('[JAI] episode insert warning:',epErr.message);
-        else inserted?.forEach(e=>{ epIdMap[e.episode_number]=e.id; });
       }
     }
+
+    // ⚠️ Always re-fetch ALL episode IDs after inserts so epIdMap is complete
+    // This prevents embed_sources getting episode_id=null and all sharing the same row
+    const {data:allEps} = await sb.from('episodes').select('id,episode_number').eq('anime_id',animeId);
+    epIdMap = {};
+    allEps?.forEach(e=>{ epIdMap[e.episode_number]=e.id; });
   }
 
   // ── AUTO-GENERATE EMBED SOURCES FOR ALL CONFIGURED PROVIDERS ──
