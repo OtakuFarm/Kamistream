@@ -1162,6 +1162,7 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;disp
 
 /* 18. SKELETON LOADING */
 @keyframes shimmer{0%{background-position:-200% 0}100%{background-position:200% 0}}
+@keyframes spin{to{transform:rotate(360deg)}}
 .skel{background:linear-gradient(90deg,var(--card) 25%,var(--card2) 50%,var(--card) 75%);background-size:200% 100%;animation:shimmer 1.4s infinite;border-radius:var(--radius);}
 
 /* 19. HOVER EFFECTS */
@@ -7035,6 +7036,38 @@ let _bfvGenre = '';
 let _bfvAllAnime = [];
 const ANILIST_GQL = 'https://graphql.anilist.co';
 
+// Central AniList fetch — matches the working pattern used by malToAnilist()
+// Adds Accept header, handles 429 rate limit with retry, returns null on failure
+async function anilistFetch(query, variables={}){
+  const MAX_RETRIES = 2;
+  for(let attempt = 0; attempt <= MAX_RETRIES; attempt++){
+    try{
+      const res = await fetch(ANILIST_GQL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({ query, variables })
+      });
+      // Rate limited — wait and retry
+      if(res.status === 429){
+        const wait = parseInt(res.headers.get('Retry-After') || '60') * 1000;
+        if(attempt < MAX_RETRIES){ await new Promise(r=>setTimeout(r, Math.min(wait, 10000))); continue; }
+        throw new Error('Rate limited');
+      }
+      if(!res.ok) throw new Error('HTTP '+res.status);
+      const json = await res.json();
+      if(json.errors && !json.data) throw new Error(json.errors[0]?.message || 'GraphQL error');
+      return json;
+    }catch(e){
+      if(attempt === MAX_RETRIES) throw e;
+      await new Promise(r=>setTimeout(r, 1000 * (attempt+1)));
+    }
+  }
+  return null;
+}
+
 async function openBrowseFull(){
   const view = document.getElementById('browseFullView');
   if(!view) return;
@@ -7070,38 +7103,116 @@ function bfvShowSkeletons(){
 }
 
 async function bfvLoadAniList(genre){
-  const query = `query($page:Int,$genre:String){
-    Page(page:$page,perPage:50){
-      media(type:ANIME,sort:POPULARITY_DESC${genre?',genre:"'+genre+'"':''}){
+  const query = `query($page:Int,$perPage:Int,$genre:String,$sort:[MediaSort]){
+    Page(page:$page,perPage:$perPage){
+      pageInfo{hasNextPage}
+      media(type:ANIME,sort:$sort,genre:$genre){
         id title{romaji english} coverImage{large} genres averageScore format status episodes startDate{year}
       }
     }
   }`;
+
+  const allItems = [];
+  const maxPages = genre ? 2 : 4;
+
   try{
-    const res = await fetch(ANILIST_GQL,{
-      method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({query,variables:{page:1,genre:genre||null}})
-    });
-    const json = await res.json();
-    const items = (json.data?.Page?.media || []).map(m=>({
-      id: m.id,
-      title: m.title?.english || m.title?.romaji || '—',
-      poster: m.coverImage?.large || '',
-      genres: m.genres || [],
-      score: m.averageScore ? (m.averageScore/10).toFixed(1) : null,
-      format: m.format,
-      status: m.status,
-      year: m.startDate?.year || '',
-      episodes: m.episodes
-    }));
-    if(!genre) _bfvAllAnime = items;
-    bfvRender(items);
+    for(let page = 1; page <= maxPages; page++){
+      const json = await anilistFetch(query, {
+        page,
+        perPage: 50,
+        genre: genre || null,
+        sort: ['POPULARITY_DESC']
+      });
+
+      const media = json?.data?.Page?.media || [];
+      if(!media.length && page === 1) throw new Error('No results from AniList');
+
+      const mapped = media.map(m=>({
+        id: m.id,
+        anilistId: m.id,
+        title: m.title?.english || m.title?.romaji || '—',
+        poster: m.coverImage?.large || '',
+        genres: m.genres || [],
+        score: m.averageScore ? (m.averageScore/10).toFixed(1) : null,
+        format: m.format,
+        status: m.status,
+        year: m.startDate?.year || '',
+        episodes: m.episodes
+      }));
+      allItems.push(...mapped);
+
+      // Show results after first page immediately
+      if(page === 1) bfvRender(allItems);
+      if(!json?.data?.Page?.pageInfo?.hasNextPage) break;
+    }
+
+    if(allItems.length){
+      if(!genre) _bfvAllAnime = allItems;
+      bfvRender(allItems);
+    }
+
   }catch(e){
-    // fallback to local library
-    const local = getAnimeList().map(normaliseAnime);
+    console.warn('[Browse] AniList unavailable:', e.message);
+    // Show local Supabase library — this is valid data the admin imported
+    await bfvLoadLocalLibrary(genre);
+  }
+}
+
+async function bfvLoadLocalLibrary(genre){
+  const grid = document.getElementById('bfvGrid');
+  const cnt  = document.getElementById('bfvCnt');
+
+  // Try Supabase first for full library
+  if(supabase){
+    try{
+      let q = supabase.from('anime').select('id,title_english,title_romaji,cover_image,genres,score,format,status,episodes,season_year').order('popularity', {ascending:false});
+      if(genre) q = q.contains('genres', [genre]);
+      const {data, error} = await q.limit(200);
+      if(!error && data?.length){
+        const mapped = data.map(m=>({
+          id: m.id,
+          anilistId: m.anilist_id || null,
+          title: m.title_english || m.title_romaji || '—',
+          poster: m.cover_image || '',
+          genres: m.genres || [],
+          score: m.score ? parseFloat(m.score).toFixed(1) : null,
+          format: m.format,
+          status: m.status,
+          year: m.season_year || '',
+          episodes: m.episodes,
+          inDB: true
+        }));
+        if(!genre) _bfvAllAnime = mapped;
+        bfvRender(mapped);
+        // Show a subtle notice that we're showing local library
+        if(cnt) cnt.textContent = mapped.length + ' titles (local library)';
+        return;
+      }
+    }catch(e){ console.warn('[Browse] Supabase fetch failed:', e.message); }
+  }
+
+  // Last resort: in-memory getAnimeList()
+  let local = getAnimeList().map(normaliseAnime);
+  if(genre) local = local.filter(a=>(a.genres||[]).some(g=>g.toLowerCase()===genre.toLowerCase()));
+  if(local.length){
     if(!genre) _bfvAllAnime = local;
     bfvRender(local);
+    if(cnt) cnt.textContent = local.length + ' titles (local library)';
+    return;
   }
+
+  // Nothing at all
+  if(grid) grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:60px 20px;color:var(--text3);">
+    <div style="font-size:48px;margin-bottom:12px;">📡</div>
+    <div style="font-size:14px;font-weight:700;color:#fff;margin-bottom:6px;">Could not connect to AniList</div>
+    <div style="font-size:12px;max-width:300px;margin:0 auto 16px;">Check your internet connection or try again in a moment.</div>
+    <button onclick="bfvRetry()" style="background:linear-gradient(135deg,var(--pink),var(--purple));border:none;color:#fff;padding:9px 20px;border-radius:9px;cursor:pointer;font-size:12px;font-weight:700;">↻ Retry</button>
+  </div>`;
+}
+
+async function bfvRetry(){
+  bfvShowSkeletons();
+  await bfvLoadAniList(_bfvGenre || '');
 }
 
 let _bfvFilterTimer = null;
@@ -7142,8 +7253,8 @@ function bfvRender(list){
   if(cnt) cnt.textContent = list.length + ' titles';
   grid.innerHTML = list.map(a=>{
     const clickFn = a.id && !isNaN(a.id)
-      ? `openAnimePage(${a.id})`
-      : `tryOpenAnime('${(a.title||'').replace(/'/g,"\\'").replace(/"/g,'&quot;')}')`;
+      ? `openAniListAnime(${a.id},'${(a.title||'').replace(/'/g,"\\'").replace(/"/g,'')}')`
+      : `openAniListAnime(null,'${(a.title||'').replace(/'/g,"\\'").replace(/"/g,'')}')`;
     const genreStr = (a.genres||[]).slice(0,3).join(' • ') || a.format || 'Anime';
     return `<div class="bfv-card" onclick="${clickFn}">
       ${a.poster
@@ -7163,6 +7274,14 @@ browseOpen = function(){
   openBrowseFull();
 };
 
+// Pre-warm browse cache silently in background after page loads
+// so when user clicks Browse, data is already ready
+setTimeout(async ()=>{
+  if(!_bfvAllAnime.length){
+    try{ await bfvLoadAniList(''); }catch(e){}
+  }
+}, 2000);
+
 // ════════════════════════════════════════════════════════════════
 // ███ HERO CAROUSEL — AniList trending anime (real data + images)
 // ════════════════════════════════════════════════════════════════
@@ -7179,9 +7298,8 @@ async function heroAniListLoad(){
     }
   }`;
   try{
-    const res = await fetch(ANILIST_GQL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({query})});
-    const json = await res.json();
-    const items = (json.data?.Page?.media||[]).filter(m=>m.bannerImage||m.coverImage?.extraLarge).map(m=>({
+    const json = await anilistFetch(query);
+    const items = (json?.data?.Page?.media||[]).filter(m=>m.bannerImage||m.coverImage?.extraLarge).map(m=>({
       id: m.id,
       title: m.title?.english || m.title?.romaji || '—',
       banner: m.bannerImage || m.coverImage?.extraLarge || m.coverImage?.large || '',
@@ -7236,12 +7354,13 @@ function heroRender(idx){
     watchBtn.style.padding = '10px 22px';
     watchBtn.style.fontSize = '13px';
     watchBtn.style.fontWeight = '800';
-    watchBtn.onclick = ()=>{ if(item.id) openAnimePage(item.id); };
+    // Use smart opener: tries Supabase by anilist_id, then by title, then AniList detail page
+    watchBtn.onclick = ()=>{ openAniListAnime(item.id, item.title); };
   }
 
-  if(wlBtn && item.id){
+  if(wlBtn){
     wlBtn.title = 'Add to Watchlist';
-    wlBtn.onclick = ()=>{ toggleWatchlist(item.id, wlBtn); };
+    wlBtn.onclick = ()=>{ wlAddAniList({anilistId:item.id, title:item.title, cover:item.cover, genres:item.genres}, wlBtn); };
   }
 
   // Update dots
@@ -7277,9 +7396,8 @@ setTimeout(heroAniListLoad, 500);
 async function trendingAniListLoad(){
   const query = `{Page(page:1,perPage:15){media(type:ANIME,sort:TRENDING_DESC){id title{romaji english}coverImage{large}averageScore startDate{year}genres status}}}`;
   try{
-    const res = await fetch(ANILIST_GQL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({query})});
-    const json = await res.json();
-    const items = (json.data?.Page?.media||[]).map(m=>({
+    const json = await anilistFetch(query);
+    const items = (json?.data?.Page?.media||[]).map(m=>({
       id: m.id, title: m.title?.english||m.title?.romaji||'—',
       poster: m.coverImage?.large||'',
       score: m.averageScore?(m.averageScore/10).toFixed(1):null,
@@ -7298,7 +7416,7 @@ function renderAniListTrending(list){
   const icons=['🗡️','🔥','🌊','⚡','⚔️','👁️','✨','⛓️','💀','🎭','🌙','🐉','💫','🎌','🏹'];
   const rankColors=['var(--pink)','var(--gold)','var(--purple)'];
   grid.innerHTML = list.slice(0,15).map((a,i)=>`
-    <div class="tr-card" onclick="openAnimePage(${a.id})" title="${a.title}">
+    <div class="tr-card" onclick="openAniListAnime(${a.anilistId||a.id},'${(a.title||'').replace(/'/g,"\\'").replace(/"/g,'')}')" title="${a.title}">
       <div class="tr-thumb" style="position:relative;overflow:hidden;">
         ${a.poster
           ? `<img src="${a.poster}" style="width:100%;height:100%;object-fit:cover;position:absolute;inset:0;" loading="lazy" onerror="this.style.display='none'">`
@@ -7310,11 +7428,213 @@ function renderAniListTrending(list){
       </div>
       <div class="tr-info">
         <div class="tr-name" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${a.title}">${a.title}</div>
-        <div class="tr-meta">${a.year}</div>
+        <div class="tr-meta">${a.year||''}</div>
         ${a.score?`<div class="tr-rating">⭐ ${a.score}</div>`:''}
       </div>
     </div>`).join('');
 }
+
+// ════════════════════════════════════════════════════════════════
+// ███ SMART ANIME OPENER
+// Priority: 1) Supabase by anilist_id  2) Supabase by title  3) AniList detail page
+// This means trending/browse cards ALWAYS open something useful
+// ════════════════════════════════════════════════════════════════
+async function openAniListAnime(anilistId, title){
+  // Show loading indicator immediately so user knows something is happening
+  showToast('Loading…','info');
+
+  if(supabase){
+    // 1. Match by anilist_id column
+    if(anilistId){
+      try{
+        const {data} = await supabase.from('anime').select('id').eq('anilist_id',anilistId).single();
+        if(data){ openAnimePage(data.id); return; }
+      }catch(e){}
+    }
+    // 2. Match by title text
+    if(title){
+      try{
+        const q = title.replace(/['"]/g,'').trim();
+        const {data} = await supabase.from('anime')
+          .select('id')
+          .or(`title_english.ilike.%${q}%,title_romaji.ilike.%${q}%`)
+          .limit(1).single();
+        if(data){ openAnimePage(data.id); return; }
+      }catch(e){}
+    }
+  }
+
+  // 3. Not in DB — show AniList-powered detail page
+  if(anilistId){
+    await openAniListDetailPage(anilistId);
+  } else if(title){
+    // Search AniList by title to get the ID first
+    try{
+      const sq = `query($q:String){Page(perPage:1){media(search:$q,type:ANIME){id}}}`;
+      const sj = await anilistFetch(sq, {q: title});
+      const fid = sj?.data?.Page?.media?.[0]?.id;
+      if(fid){ await openAniListDetailPage(fid); return; }
+    }catch(e){}
+    showToast('Anime not found — try searching manually','warn');
+  }
+}
+
+// Fully AniList-powered detail page — no Supabase needed
+async function openAniListDetailPage(anilistId){
+  const page = document.getElementById('animePageView');
+  page.innerHTML = `<div style="height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;">
+    <div style="width:40px;height:40px;border:3px solid var(--purple);border-top-color:var(--pink);border-radius:50%;animation:spin 0.8s linear infinite;"></div>
+    <div style="color:var(--text3);font-size:13px;">Loading from AniList…</div>
+  </div>`;
+  page.style.display='flex';
+  page.style.flexDirection='column';
+  document.getElementById('homeView').style.display='none';
+  if(document.getElementById('browseFullView')) document.getElementById('browseFullView').classList.remove('open');
+  history.pushState({anilistId},'',location.pathname+'?al='+anilistId);
+
+  const query=`query($id:Int){Media(id:$id,type:ANIME){
+    id title{romaji english native} bannerImage coverImage{extraLarge large}
+    description(asHtml:false) genres averageScore popularity episodes status format
+    startDate{year} season seasonYear duration
+    studios{nodes{name isMain}}
+    trailer{id site}
+    nextAiringEpisode{episode timeUntilAiring}
+    relations{edges{relationType node{id title{english romaji}coverImage{large}type}}}
+  }}`;
+
+  try{
+    const json = await anilistFetch(query, {id: anilistId});
+    const m = json?.data?.Media;
+    if(!m){
+      page.innerHTML=`<div style="padding:40px;text-align:center;">
+        <div style="font-size:48px;margin-bottom:12px;">😕</div>
+        <div style="color:var(--red);font-size:14px;">Could not load anime details.</div>
+        <button onclick="closeAnimePage()" style="margin-top:16px;background:var(--card);border:1px solid var(--border2);color:var(--text);padding:8px 18px;border-radius:9px;cursor:pointer;">← Back</button>
+      </div>`; return;
+    }
+
+    const title=m.title?.english||m.title?.romaji||'—';
+    const studio=m.studios?.nodes?.find(s=>s.isMain)?.name||'';
+    const desc=(m.description||'').replace(/<[^>]+>/g,'').replace(/&amp;/g,'&').replace(/&#039;/g,"'").replace(/&lt;/g,'<').replace(/&gt;/g,'>');
+    const score=m.averageScore?(m.averageScore/10).toFixed(1):null;
+    const statusColor=m.status==='RELEASING'?'ap-badge-green':m.status==='FINISHED'?'ap-badge-gray':'ap-badge-blue';
+    const genresHTML=(m.genres||[]).map(g=>`<div class="ap-genre">${g}</div>`).join('');
+    const trailerUrl=m.trailer?.site==='youtube'?`https://www.youtube.com/watch?v=${m.trailer.id}`:'';
+    const related=(m.relations?.edges||[]).filter(e=>e.node?.type==='ANIME'&&['SEQUEL','PREQUEL','SIDE_STORY','ALTERNATIVE'].includes(e.relationType)).slice(0,6);
+
+    page.innerHTML=`
+      <div class="ap-banner" style="${m.bannerImage?'':'background:linear-gradient(135deg,#1a0030,#0a001a,#200030);'}">
+        ${m.bannerImage?`<img src="${m.bannerImage}" alt="${title}" style="width:100%;height:100%;object-fit:cover;" onerror="this.style.display='none'">` :''}
+        <div class="ap-banner-ov"></div>
+        <button class="ap-back" onclick="closeAnimePage()">← Back</button>
+      </div>
+      <div class="ap-hero">
+        ${(m.coverImage?.extraLarge||m.coverImage?.large)
+          ?`<img class="ap-cover" src="${m.coverImage?.extraLarge||m.coverImage?.large}" alt="${title}" onerror="this.outerHTML='<div class=ap-cover-ph>📺</div>'">`
+          :`<div class="ap-cover-ph">📺</div>`}
+        <div class="ap-info">
+          <div class="ap-title">${title}</div>
+          ${m.title?.native?`<div class="ap-title-native">${m.title.native}</div>`:''}
+          <div class="ap-badges">
+            <span class="ap-badge ${statusColor}">${m.status||'UNKNOWN'}</span>
+            ${m.format?`<span class="ap-badge ap-badge-blue">${m.format}</span>`:''}
+            ${m.seasonYear?`<span class="ap-badge ap-badge-gray">${m.season||''} ${m.seasonYear}</span>`:''}
+            ${studio?`<span class="ap-badge ap-badge-purple">${studio}</span>`:''}
+          </div>
+          <div class="ap-stats">
+            ${score?`<div class="ap-stat"><div class="ap-stat-val" style="color:var(--gold);">⭐ ${score}</div><div class="ap-stat-label">Score</div></div>`:''}
+            ${m.episodes?`<div class="ap-stat"><div class="ap-stat-val">${m.episodes}</div><div class="ap-stat-label">Episodes</div></div>`:''}
+            ${m.duration?`<div class="ap-stat"><div class="ap-stat-val">${m.duration}m</div><div class="ap-stat-label">Duration</div></div>`:''}
+            ${m.popularity?`<div class="ap-stat"><div class="ap-stat-val">${fmtN(m.popularity)}</div><div class="ap-stat-label">Popularity</div></div>`:''}
+          </div>
+          <div class="ap-action-row">
+            ${trailerUrl
+              ?`<button class="ap-btn-watch" onclick="window.open('${trailerUrl}','_blank')">▶ Watch Trailer</button>`
+              :`<button class="ap-btn-watch" style="opacity:.5;cursor:not-allowed;" disabled>▶ Not in Library</button>`}
+            <button class="ap-btn-watchlist" id="alWlBtn-${m.id}"
+              onclick="wlAddAniList({anilistId:${m.id},title:'${title.replace(/'/g,"\\'").replace(/"/g,'')}',cover:'${m.coverImage?.large||''}',genres:${JSON.stringify(m.genres||[])}},this)">
+              + Watchlist
+            </button>
+          </div>
+          ${m.nextAiringEpisode?`<div style="margin-top:10px;font-size:12px;color:var(--green);">📅 Ep ${m.nextAiringEpisode.episode} airs in ${Math.floor(m.nextAiringEpisode.timeUntilAiring/86400)}d ${Math.floor((m.nextAiringEpisode.timeUntilAiring%86400)/3600)}h</div>`:''}
+        </div>
+      </div>
+      <div class="ap-body">
+        ${desc?`<div class="ap-section"><div class="ap-section-title">📖 Synopsis</div><div class="ap-desc">${desc}</div></div>`:''}
+        ${genresHTML?`<div class="ap-section"><div class="ap-section-title">🏷️ Genres</div><div class="ap-genres">${genresHTML}</div></div>`:''}
+        ${related.length?`<div class="ap-section">
+          <div class="ap-section-title">🔗 Related</div>
+          <div class="related-grid">${related.map(e=>`
+            <div class="rel-card" onclick="openAniListAnime(${e.node.id},'${(e.node.title?.english||e.node.title?.romaji||'').replace(/'/g,"\\'").replace(/"/g,'')}')">
+              ${e.node.coverImage?.large?`<img class="rel-poster" src="${e.node.coverImage.large}" loading="lazy" onerror="this.outerHTML='<div class=rel-poster-ph>📺</div>'">`:'<div class="rel-poster-ph">📺</div>'}
+              <div class="rel-info">
+                <div class="rel-title">${e.node.title?.english||e.node.title?.romaji||'—'}</div>
+                <div class="rel-score" style="font-size:9px;color:var(--text3);">${e.relationType}</div>
+              </div>
+            </div>`).join('')}
+          </div>
+        </div>`:''}
+      </div>`;
+  }catch(e){
+    page.innerHTML=`<div style="padding:40px;text-align:center;">
+      <div style="font-size:48px;margin-bottom:12px;">⚠️</div>
+      <div style="color:var(--red);font-size:14px;">Failed to load. Check your connection.</div>
+      <button onclick="closeAnimePage()" style="margin-top:16px;background:var(--card);border:1px solid var(--border2);color:var(--text);padding:8px 18px;border-radius:9px;cursor:pointer;">← Back</button>
+    </div>`;
+  }
+}
+
+// Add to watchlist from AniList detail page
+function wlAddAniList({anilistId,title,cover,genres},btn){
+  const WL = 'an_wl';
+  const wl = JSON.parse(localStorage.getItem(WL)||'{}');
+  const key = 'al_'+anilistId;
+  if(wl[key]){ showToast('Already in Watchlist','warn'); return; }
+  wl[key]={anilist_id:anilistId,title,cover_image:cover,genres,status:'plan',added:Date.now()};
+  localStorage.setItem(WL,JSON.stringify(wl));
+  showToast('Added to Watchlist 🔖','ok');
+  if(btn){btn.textContent='✓ In Watchlist';btn.disabled=true;btn.style.opacity='.6';}
+}
+
+// Patch trendingNowRender (Jikan) to also use smart opener
+const _origTNR = typeof trendingNowRender==='function' ? trendingNowRender : null;
+if(_origTNR){
+  trendingNowRender = function(list){
+    const grid=document.getElementById('trendingGrid');
+    if(!grid) return;
+    const icons=['🗡️','🔥','🌊','⚡','⚔️','👁️','✨','⛓️','💀','🎭','🌙','🐉','💫','🎌','🏹'];
+    const rankColors=['var(--pink)','var(--gold)','var(--purple)'];
+    grid.innerHTML=list.slice(0,15).map((m,i)=>{
+      const title=m.title_english||m.title||'—';
+      const poster=m.images?.jpg?.large_image_url||m.images?.jpg?.image_url||'';
+      const year=m.year||(m.aired?.from?new Date(m.aired.from).getFullYear():'');
+      const score=m.score?'⭐ '+m.score:'';
+      const malId=m.mal_id;
+      const localAnime=getAnimeList().find(a=>(a.mal_id||a.id)===malId);
+      const clickFn=localAnime
+        ?`openAnimePage(${localAnime.id||localAnime.mal_id})`
+        :`openAniListAnime(null,'${title.replace(/'/g,"\\'").replace(/"/g,'')}')`;
+      return `<div class="tr-card" onclick="${clickFn}" title="${title}">
+        <div class="tr-thumb" style="position:relative;overflow:hidden;">
+          ${poster?`<img src="${poster}" style="width:100%;height:100%;object-fit:cover;position:absolute;inset:0;" loading="lazy" onerror="this.style.display='none'">`:`<div class="tr-art" style="background:linear-gradient(135deg,var(--card2),var(--bg3));"></div>`}
+          <div class="tr-ico">${icons[i%icons.length]}</div>
+          <div class="tr-rank" style="background:${i<3?rankColors[i]:'rgba(0,0,0,0.55)'};color:${i<3?'#fff':'var(--text2)'};">
+            ${i<3?['🥇','🥈','🥉'][i]:'TOP '+(i+1)}
+          </div>
+          ${localAnime?'<div style="position:absolute;top:6px;right:6px;background:rgba(6,214,160,0.85);border-radius:6px;padding:2px 6px;font-size:8px;font-weight:800;color:#000;">IN LIB</div>':''}
+        </div>
+        <div class="tr-info">
+          <div class="tr-name" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${title}">${title}</div>
+          <div class="tr-meta">${year}</div>
+          ${score?`<div class="tr-rating">${score}</div>`:''}
+        </div>
+      </div>`;
+    }).join('');
+  };
+}
+
+// Also patch bfvRender cards and old browseGrid cards to use smart opener
+// (already uses openAniListAnime via bfvRender — no change needed there)
 
 // Fire AniList trending load alongside Jikan (whichever responds first wins)
 setTimeout(trendingAniListLoad, 600);
