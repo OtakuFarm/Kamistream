@@ -176,7 +176,6 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;disp
   .sidebar-overlay{display:none !important;}
   #sidebarToggleBtn{display:none !important;}
   .layout{padding-left:var(--sidebar);}
-  .kami-pages-strip{padding-left:calc(var(--sidebar) + 18px);}
   #adblockBanner{margin-left:calc(var(--sidebar) + 20px);}
   #adSlotTop{margin-left:calc(var(--sidebar) + 20px);}
   .bottom-banner,.site-footer-bar{padding-left:calc(var(--sidebar) + 24px);}
@@ -1568,27 +1567,10 @@ values (
 
   <!-- ── KAMI PAGES NAV STRIP ── -->
   <style>
-    .kami-pages-strip{background:var(--bg2);border-bottom:1px solid var(--border);padding:8px 18px;display:flex;align-items:center;gap:6px;overflow-x:auto;scrollbar-width:none;position:sticky;top:60px;z-index:99;}
-    .kami-pages-strip::-webkit-scrollbar{display:none;}
-    .kami-pages-strip a{flex-shrink:0;display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,0.04);border:1px solid var(--border2);color:var(--text2);padding:6px 14px;border-radius:8px;font-family:'Poppins',sans-serif;font-size:11px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;text-decoration:none;transition:all .2s;white-space:nowrap;}
-    .kami-pages-strip a:hover{background:rgba(255,45,120,0.12);border-color:rgba(255,45,120,0.3);color:#fff;}
-    .kami-pages-strip a.kp-cta{background:linear-gradient(135deg,var(--pink),var(--purple));border:none;color:#fff;}
-    .kami-pages-strip a.kp-cta:hover{filter:brightness(1.1);}
-    .kami-pages-label{font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text3);letter-spacing:1.5px;margin-right:4px;flex-shrink:0;}
-    @media(max-width:640px){
-      .kami-pages-strip{padding:8px 12px;gap:5px;}
-      .kami-pages-label{display:none;}
-      .kami-pages-strip a{font-size:10px;padding:5px 10px;}
-    }
+     .kami-pages-strip{display:none !important;}
+    .kami-pages-label{display:none;}
   </style>
-  <div class="kami-pages-strip">
-    <span class="kami-pages-label">CHALLENGE ›</span>
-    <a href="#ks/discover">🔥 Discover</a>
-    <a href="#ks/leaderboard">🏆 Leaderboard</a>
-    <a href="#ks/follows">👥 Following</a>
-    <a href="#ks/notifications">🔔 Activity</a>
-    <a href="#ks/account" class="kp-cta">⚙ My Account</a>
-  </div>
+  <!-- kami-pages-strip removed -->
 
   <!-- HOME LAYOUT -->
 <div id="homeView" style="display:flex;flex-direction:column;flex:1;overflow:hidden;">
@@ -1862,17 +1844,6 @@ values (
   </div>
 
   <!-- BOTTOM BANNER -->
-  <div class="bottom-banner">
-    <div class="bb-item"><div class="bb-icon">🛡️</div><div><div class="bb-pct">100%</div><div class="bb-label">Legal Streaming</div></div></div>
-    <div class="bb-div"></div>
-    <div class="bb-item"><div class="bb-icon">👥</div><div><div class="bb-pct">Built For</div><div class="bb-label">Anime Fans</div></div></div>
-    <div class="bb-div"></div>
-    <div class="bb-item"><div class="bb-icon">🏆</div><div><div class="bb-pct">Weekly</div><div class="bb-label">Challenge</div></div></div>
-    <div class="bb-div"></div>
-    <div class="bb-item"><div class="bb-icon">❤️</div><div><div class="bb-pct">Watch. Create.</div><div class="bb-label">Belong.</div></div></div>
-    <div class="bb-div"></div>
-    <div class="bb-item"><div class="bb-jp">アニメの力を、みんなのつながりに。<span>ANIME POWERED. COMMUNITY DRIVEN</span></div></div>
-  </div>
   <!-- FOOTER BAR -->
   <div class="site-footer-bar">
     <div class="footer-bar-links">
@@ -2031,18 +2002,18 @@ values (
         <div class="pm-plans">
           <div class="pm-plan selected" id="pmPlan1Month" onclick="pmSelectPlan('1month',this)">
             <div class="pm-plan-name">Monthly</div>
-            <div class="pm-plan-price">₦1,500<small>/mo</small></div>
+            <div class="pm-plan-price">$4.99<small>/mo</small></div>
             <div class="pm-plan-dur">Billed monthly</div>
           </div>
           <div class="pm-plan popular" id="pmPlan3Month" onclick="pmSelectPlan('3month',this)">
             <div class="pm-pop-badge">BEST VALUE</div>
             <div class="pm-plan-name">3 Months</div>
-            <div class="pm-plan-price">₦3,500<small>/3mo</small></div>
+            <div class="pm-plan-price">$11.99<small>/3mo</small></div>
             <div class="pm-plan-dur">Save 22%</div>
           </div>
         </div>
-        <button class="pm-pay-btn" id="pmPayBtn" onclick="pmInitPaystack()">Pay with Paystack →</button>
-        <div class="pm-note">Secure payment via Paystack. Cards, bank transfer, USSD &amp; more.<br>Auto-activates after payment.</div>
+        <button class="pm-pay-btn" id="pmPayBtn" onclick="pmInitPaystack()">Pay with Card →</button>
+        <div class="pm-note">Secure payment via Paystack. USD cards accepted.<br>Auto-activates after payment.</div>
       </div>
     </div>
     <div class="pm-success" id="pmSuccessView">
@@ -3565,6 +3536,8 @@ async function playEpisode(epId, epNum, embedUrl, sourceName){
     </button>`).join('');
 
   if(embedUrl){
+    iframe.src = 'about:blank';          // force browser to reset the iframe
+    await new Promise(r=>setTimeout(r,0)); // let browser process the blank
     iframe.src = embedUrl;
     iframe.style.display='block';
     placeholder.style.display='none';
@@ -6140,8 +6113,8 @@ function pmUpdateUI(){
 
 let _pmSelectedPlan='1month';
 const PM_PLANS={
-  '1month':{label:'1 Month',months:1,amount:150000,display:'₦1,500'},
-  '3month':{label:'3 Months',months:3,amount:350000,display:'₦3,500'}
+  '1month':{label:'1 Month',months:1,amount:499,display:'$4.99'},
+  '3month':{label:'3 Months',months:3,amount:1199,display:'$11.99'}
 };
 
 function openPremiumModal(){
@@ -6177,7 +6150,7 @@ async function pmInitPaystack(){
   btn.disabled=true; btn.textContent='Opening payment…';
   try{
     const handler=window.PaystackPop.setup({
-      key:pkey, email:currentUser.email, amount:plan.amount, currency:'NGN',
+      key:pkey, email:currentUser.email, amount:plan.amount, currency:'USD',
       ref:'KS_'+Date.now()+'_'+currentUser.id.slice(0,8),
       metadata:{plan:_pmSelectedPlan,user_id:currentUser.id},
       callback:async(res)=>{
@@ -6186,7 +6159,7 @@ async function pmInitPaystack(){
           document.getElementById('pmPlansView').style.display='none';
           document.getElementById('pmSuccessView').style.display='block';
           if(supabase) supabase.from('payments').insert({
-            user_id:currentUser.id,amount:plan.amount/100,currency:'NGN',
+            user_id:currentUser.id,amount:plan.amount/100,currency:'USD',
             plan:_pmSelectedPlan,reference:res.reference,status:'success',
             created_at:new Date().toISOString()
           }).then(()=>{});
