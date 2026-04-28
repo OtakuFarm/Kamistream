@@ -1804,15 +1804,32 @@ async function renderStats(){
   const sb = getSB();
   if(sb){
     try{
-      const [uRes, aRes, eRes, pRes] = await Promise.all([
+      const [uRes, eRes] = await Promise.all([
         sb.from('profiles').select('*',{count:'exact',head:true}),
-        sb.from('anime').select('*',{count:'exact',head:true}),
         sb.from('episodes').select('*',{count:'exact',head:true}),
-        sb.from('profiles').select('*',{count:'exact',head:true}).eq('is_premium',true),
       ]);
-      if(uRes.count != null) users        = uRes.count;
-      if(aRes.count != null) totalAnime   = aRes.count;
-      if(eRes.count != null) totalEps     = eRes.count;
+      if(uRes.count != null) users    = uRes.count;
+      if(eRes.count != null) totalEps = eRes.count;
+
+      // Use animeLibrary if already loaded (guaranteed same count as library grid)
+      // Otherwise do a paginated count so it matches loadLibrary's result
+      if(animeLibrary.length > 0){
+        totalAnime = animeLibrary.length;
+      } else {
+        // Paginated count — same logic as loadLibrary
+        let cnt = 0, pg = 0;
+        while(true){
+          const {data:rows, error:re} = await sb.from('anime').select('id').order('imported_at',{ascending:false}).range(pg*1000, pg*1000+999);
+          if(re || !rows || !rows.length) break;
+          cnt += rows.length;
+          if(rows.length < 1000) break;
+          pg++;
+        }
+        totalAnime = cnt;
+      }
+
+      // Premium count
+      const pRes = await sb.from('profiles').select('*',{count:'exact',head:true}).eq('is_premium',true);
       if(pRes.count != null) premiumCount = pRes.count;
     }catch(e){ /* silently use localStorage fallback */ }
   }
@@ -2628,10 +2645,26 @@ async function loadLibrary(){
     return;
   }
   grid.innerHTML = '<div style="color:var(--text3);font-size:13px;grid-column:1/-1;">⏳ Loading…</div>';
-  const {data, error} = await client.from('anime').select('*').order('imported_at',{ascending:false});
-  if(error){ grid.innerHTML='<div style="color:var(--red);grid-column:1/-1;">Error: '+error.message+'</div>'; return; }
-  animeLibrary = data || [];
-  document.getElementById('libCount').textContent = animeLibrary.length+' anime';
+
+  // Fetch ALL rows — use range to bypass Supabase default 1000 row limit
+  let allRows = [];
+  const PAGE = 1000;
+  let from = 0;
+  while(true){
+    const {data, error} = await client
+      .from('anime')
+      .select('*')
+      .order('imported_at', {ascending:false})
+      .range(from, from + PAGE - 1);
+    if(error){ grid.innerHTML='<div style="color:var(--red);grid-column:1/-1;">Error: '+error.message+'</div>'; return; }
+    if(!data || data.length === 0) break;
+    allRows = allRows.concat(data);
+    if(data.length < PAGE) break; // last page
+    from += PAGE;
+  }
+
+  animeLibrary = allRows;
+  document.getElementById('libCount').textContent = animeLibrary.length + ' anime';
   renderLibraryGrid(animeLibrary);
 }
 
@@ -5074,14 +5107,23 @@ async function jaiBulkRegenerateAllEmbeds(){
   const btn = document.getElementById('jaiBulkRegenBtn');
   const orig = btn ? btn.textContent : '';
 
-  // Pull every anime row in the library
-  const {data:animeList, error} = await sb
-    .from('anime')
-    .select('id,mal_id,anilist_id,title_english,title_romaji,episodes_total')
-    .order('id',{ascending:true});
+  // Always ensure library is loaded first so count matches what admin sees
+  if(!animeLibrary.length){
+    showToast('Loading library first…','warn');
+    await loadLibrary();
+  }
 
-  if(error){ showToast('Fetch failed: '+error.message,'err'); return; }
-  if(!animeList?.length){ showToast('Library is empty','warn'); return; }
+  // Use animeLibrary — same data shown in the library grid, no re-fetch discrepancy
+  const animeList = animeLibrary.map(a=>({
+    id: a.id,
+    mal_id: a.mal_id,
+    anilist_id: a.anilist_id,
+    title_english: a.title_english,
+    title_romaji: a.title_romaji,
+    episodes_total: a.episodes_total
+  }));
+
+  if(!animeList.length){ showToast('Library is empty','warn'); return; }
 
   if(!confirm('Regenerate embeds for ALL '+animeList.length+' anime?\n\nThis fills every episode × every server ('+ADMIN_EMBED_PROVIDERS.length+' servers) with a fresh embed URL. Existing URLs are overwritten.\n\nMay take a few minutes.')) return;
 
@@ -5107,7 +5149,6 @@ async function jaiBulkRegenerateAllEmbeds(){
       failed++;
       console.warn('[BulkRegen] '+title+':', e.message);
     }
-    // Small pause to be polite to AniList + supabase
     await new Promise(r=>setTimeout(r,250));
   }
 
