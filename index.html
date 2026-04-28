@@ -152,8 +152,6 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;disp
 .tn-bar{width:16px;height:2px;background:var(--pink);border-radius:2px;opacity:0;}
 .tn.active .tn-bar{opacity:1;}
 .tb-right{display:flex;align-items:center;gap:8px;margin-left:auto;}
-.btn-premium{background:linear-gradient(135deg,var(--pink),var(--purple));border:none;color:#fff;padding:7px 15px;border-radius:9px;font-family:'Poppins',sans-serif;font-size:11px;font-weight:700;cursor:pointer;transition:all .2s;white-space:nowrap;}
-.btn-premium:hover{filter:brightness(1.1);}
 .notif-btn{width:34px;height:34px;background:var(--bg3);border:1px solid var(--border2);border-radius:9px;display:flex;align-items:center;justify-content:center;cursor:pointer;position:relative;}
 .notif-dot{position:absolute;top:5px;right:6px;width:7px;height:7px;background:var(--pink);border-radius:50%;border:2px solid var(--bg2);}
 .user-chip{display:flex;align-items:center;gap:8px;background:var(--bg3);border:1px solid var(--border2);border-radius:9px;padding:4px 10px 4px 5px;cursor:pointer;transition:all .2s;}
@@ -486,7 +484,7 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;disp
 .psc-icon{font-size:20px;flex-shrink:0;}
 .psc-val{font-family:'Poppins',sans-serif;font-size:22px;font-weight:900;color:#fff;line-height:1;}
 .psc-lbl{font-size:10px;font-weight:700;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin-top:2px;}
-.profile-premium-badge{display:inline-flex;align-items:center;gap:5px;background:linear-gradient(135deg,var(--gold),#ff9500);border-radius:6px;padding:3px 10px;font-size:11px;font-weight:800;color:#000;margin-left:10px;vertical-align:middle;}
+/* profile-premium-badge removed */
 /* watchlist grid in profile */
 .profile-wl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;}
 #animePageView{display:none;position:fixed;inset:0;z-index:550;background:var(--bg);overflow-y:auto;flex-direction:column;}
@@ -762,12 +760,9 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;disp
    ══════════════════════════════════════════ */
 
 /* ── Premium badge on user chip ── */
-.premium-crown{font-size:11px;margin-left:3px;vertical-align:middle;}
-.btn-premium.is-premium{background:linear-gradient(135deg,var(--gold),#ff9500);color:#000;}
+/* premium-crown removed */
 
 /* ── Premium Modal ── */
-#premiumModal{position:fixed;inset:0;z-index:8000;background:rgba(0,0,0,0.85);display:none;align-items:center;justify-content:center;backdrop-filter:blur(6px);}
-#premiumModal.open{display:flex;}
 .pm-box{background:var(--card2);border:1px solid var(--border2);border-radius:22px;padding:0;max-width:420px;width:92%;overflow:hidden;box-shadow:0 24px 80px rgba(0,0,0,0.7);}
 .pm-hero{background:linear-gradient(135deg,#1a003a,#2d0060,#1a0030);padding:32px 28px 24px;text-align:center;position:relative;overflow:hidden;}
 .pm-hero::before{content:'👑';position:absolute;font-size:120px;opacity:.06;top:-10px;right:-10px;}
@@ -778,20 +773,7 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;disp
 .pm-perks{display:flex;flex-direction:column;gap:9px;margin-bottom:20px;}
 .pm-perk{display:flex;align-items:center;gap:10px;font-size:13px;color:var(--text2);}
 .pm-perk span:first-child{font-size:16px;flex-shrink:0;}
-.pm-plans{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:18px;}
-.pm-plan{background:var(--bg3);border:2px solid var(--border2);border-radius:14px;padding:14px;text-align:center;cursor:pointer;transition:all .2s;}
-.pm-plan:hover,.pm-plan.selected{border-color:var(--purple);background:rgba(155,93,229,0.1);}
-.pm-plan.popular{border-color:var(--gold);}
-.pm-plan.popular.selected{background:rgba(255,214,10,0.08);}
 .pm-pop-badge{display:inline-block;background:var(--gold);color:#000;font-size:8px;font-weight:900;padding:2px 7px;border-radius:8px;margin-bottom:6px;letter-spacing:.5px;}
-.pm-plan-name{font-size:12px;font-weight:700;color:var(--text2);margin-bottom:4px;}
-.pm-plan-price{font-family:'Poppins',sans-serif;font-size:22px;font-weight:900;color:#fff;}
-.pm-plan-price small{font-size:11px;font-weight:500;color:var(--text3);}
-.pm-plan-dur{font-size:10px;color:var(--text3);margin-top:2px;}
-.pm-pay-btn{width:100%;background:linear-gradient(135deg,var(--pink),var(--purple));border:none;color:#fff;padding:14px;border-radius:12px;font-family:'Poppins',sans-serif;font-size:15px;font-weight:800;cursor:pointer;transition:all .25s;margin-bottom:10px;}
-.pm-pay-btn:hover{filter:brightness(1.1);transform:translateY(-1px);}
-.pm-pay-btn:disabled{opacity:.5;cursor:not-allowed;transform:none;}
-.pm-note{font-size:10px;color:var(--text3);text-align:center;line-height:1.6;}
 .pm-close{position:absolute;top:14px;right:14px;background:rgba(255,255,255,0.1);border:none;color:#fff;width:28px;height:28px;border-radius:50%;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;}
 .pm-success{padding:32px 24px;text-align:center;display:none;}
 .pm-success-icon{font-size:52px;margin-bottom:14px;}
@@ -920,8 +902,8 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;disp
 .ad-popup-label{padding:8px 14px;background:rgba(255,255,255,0.03);border-bottom:1px solid var(--border);font-size:9px;font-weight:700;color:var(--text3);letter-spacing:1px;text-transform:uppercase;}
 .ad-popup-content{padding:16px;min-height:120px;display:flex;align-items:center;justify-content:center;}
 .ad-popup-footer{padding:10px 14px;display:flex;align-items:center;justify-content:space-between;border-top:1px solid var(--border);}
-.ad-popup-premium{font-size:11px;color:var(--text3);}
-.ad-popup-premium button{background:none;border:none;color:var(--purple);font-weight:700;cursor:pointer;font-size:11px;text-decoration:underline;}
+/* ad-popup-premium removed */
+/* ad-popup-premium button removed */
 
 /* ── Adblock banner ── */
 #adblockBanner{display:none;align-items:center;gap:12px;background:rgba(255,214,10,0.07);border:1px solid rgba(255,214,10,0.2);border-radius:10px;padding:10px 16px;margin:8px 20px;font-size:12px;color:var(--text2);}
@@ -929,7 +911,6 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;disp
 .adb-ico{font-size:18px;flex-shrink:0;}
 .adb-msg{flex:1;line-height:1.5;}
 .adb-msg strong{color:#fff;}
-.adb-premium{background:linear-gradient(135deg,var(--pink),var(--purple));border:none;color:#fff;padding:5px 13px;border-radius:8px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;}
 .adb-dismiss{background:none;border:none;color:var(--text3);font-size:16px;cursor:pointer;flex-shrink:0;}
 .tr-card.sk { pointer-events:none; }
 .tr-card.sk .tr-art { animation: skShimmer 1.4s infinite; background: linear-gradient(90deg,var(--card2) 25%,rgba(255,255,255,0.04) 50%,var(--card2) 75%) !important; background-size:200% 100% !important; }
@@ -968,9 +949,10 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;disp
 @media(max-width:768px){
   .right-panel{display:none;}
   .topbar{padding:0 14px;}
-  .topbar-search,.tb-nav{display:none;}
-  .topbar .btn-premium{display:none;}
-  .content{padding:14px;}
+  .topbar-search{display:flex !important;max-width:160px;}
+  .topbar-search input{font-size:12px;padding:7px 10px 7px 30px;}
+  .tb-nav{display:none;}
+  .topbar   .content{padding:14px;}
   .cw-grid{grid-template-columns:repeat(2,1fr);}
   .tr-grid{grid-template-columns:repeat(3,1fr);}.tr-card:nth-child(n+4){display:none;}
   .hero{height:240px;}
@@ -985,12 +967,13 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;disp
   .bfv-header{flex-wrap:wrap;gap:8px;}
   .bfv-search-input{width:140px;}
 }
-.mobile-nav{display:none;position:fixed;bottom:0;left:0;right:0;background:var(--bg2);border-top:1px solid var(--border);padding:8px 0 12px;z-index:200;}
-.mn-item{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer;}
-.mn-ico{font-size:18px;}
-.mn-lbl{font-size:9px;font-weight:700;color:var(--text3);}
+.mobile-nav{display:none;position:fixed;bottom:0;left:0;right:0;background:rgba(15,5,25,0.97);border-top:1px solid var(--border);padding:6px 0 env(safe-area-inset-bottom,10px);z-index:200;backdrop-filter:blur(16px);}
+.mn-item{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:6px 2px;cursor:pointer;transition:all .2s;border-radius:10px;}
+.mn-ico{font-size:20px;line-height:1;transition:filter .2s;}
+.mn-lbl{font-size:10px;font-weight:700;color:var(--text3);letter-spacing:.3px;transition:color .2s;}
+.mn-item.active .mn-ico{filter:drop-shadow(0 0 5px var(--pink));}
 .mn-item.active .mn-lbl{color:var(--pink);}
-.mn-plus{width:36px;height:36px;background:linear-gradient(135deg,var(--pink),var(--purple));border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px;color:#fff;}
+.mn-item:active{transform:scale(.92);}
 
 /* ════════════════════════════════════════
    ADVANCED FEATURES CSS
@@ -1040,6 +1023,7 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;disp
 .wl-watching{background:rgba(6,214,160,0.12);color:var(--green);}
 .wl-completed{background:rgba(67,97,238,0.12);color:#748ffc;}
 .wl-plan{background:rgba(255,255,255,0.07);color:var(--text3);}
+.wl-status-select{background:var(--card2);border:1px solid var(--border2);border-radius:7px;color:var(--text2);font-size:9px;font-weight:700;padding:2px 6px;cursor:pointer;outline:none;font-family:'Nunito',sans-serif;width:100%;margin-top:3px;}
 .wl-rm{position:absolute;top:5px;right:5px;width:20px;height:20px;background:rgba(0,0,0,0.7);border:none;color:rgba(255,255,255,0.6);border-radius:50%;font-size:10px;cursor:pointer;display:none;align-items:center;justify-content:center;}
 .wl-card:hover .wl-rm{display:flex;}
 .wl-empty{text-align:center;padding:44px;color:var(--text3);grid-column:1/-1;font-size:14px;}
@@ -1065,11 +1049,14 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;disp
 .topbar-search{position:relative;}
 #searchDropdown{position:absolute;top:calc(100% + 6px);left:0;right:0;background:var(--card2);border:1px solid var(--border2);border-radius:12px;overflow:hidden;z-index:400;display:none;box-shadow:0 8px 28px rgba(0,0,0,0.5);max-height:320px;overflow-y:auto;}
 #searchDropdown.open{display:block;}
+@media(max-width:768px){
+  #searchDropdown{position:fixed;left:8px;right:8px;top:calc(var(--topbar) + 4px);border-radius:14px;max-height:60vh;}
+}
 #searchDropdown::-webkit-scrollbar{width:3px;}
 #searchDropdown::-webkit-scrollbar-thumb{background:rgba(155,93,229,0.4);}
 .sd-item{display:flex;align-items:center;gap:10px;padding:9px 13px;cursor:pointer;transition:background .15s;border-bottom:1px solid var(--border);}
 .sd-item:last-child{border-bottom:none;}
-.sd-item:hover{background:rgba(255,255,255,0.05);}
+.sd-item:hover,.sd-item.sd-focused{background:rgba(155,93,229,0.13);}
 .sd-poster{width:30px;height:43px;object-fit:cover;border-radius:5px;background:var(--bg3);flex-shrink:0;}
 .sd-poster-ph{width:30px;height:43px;background:var(--bg3);border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:12px;opacity:.3;flex-shrink:0;}
 .sd-title{font-size:12px;font-weight:700;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
@@ -1536,7 +1523,6 @@ values (
     <div class="tn" id="tn-community" onclick="setTab(this,'community')"><span class="tn-icon">👥</span><span class="tn-label">Community</span><div class="tn-bar"></div></div>
   </div>
   <div class="tb-right">
-    <button class="btn-premium" id="btnPremium" onclick="openPremiumModal()">PREMIUM</button>
     <div class="notif-btn" id="notifBtnWrap" onclick="toggleNotifPanel()" style="position:relative;">
       <span style="font-size:16px;">🔔</span>
       <div class="notif-dot" id="notifDot" style="display:none;"></div>
@@ -1833,8 +1819,7 @@ values (
   <!-- ADBLOCK SOFT BANNER -->
   <div id="adblockBanner">
     <div class="adb-ico">🛡️</div>
-    <div class="adb-msg"><strong>Ads keep KamiStream free.</strong> Please whitelist us or go Premium for a completely ad-free experience.</div>
-    <button class="adb-premium" onclick="openPremiumModal();adblockBannerDismiss()">👑 Go Premium</button>
+    <div class="adb-msg"><strong>Ads keep KamiStream free.</strong> Please whitelist us to support free streaming.</div>
     <button class="adb-dismiss" onclick="adblockBannerDismiss()" title="Dismiss">✕</button>
   </div>
 
@@ -1868,7 +1853,23 @@ values (
     <div class="bfv-search" style="margin-left:auto;">
       <span class="bfv-search-icon">🔍</span>
       <input class="bfv-search-input" id="bfvSearchInput" placeholder="Search titles…" oninput="bfvFilter()"/>
-      <button class="bfv-filter-btn" onclick="">⚙ Filter</button>
+      <select id="bfvSort" onchange="bfvApplyFilters()" style="background:var(--bg3);border:1px solid var(--border2);border-radius:10px;color:var(--text);padding:8px 10px;font-size:12px;font-family:'Nunito',sans-serif;cursor:pointer;outline:none;">
+        <option value="POPULARITY_DESC">Most Popular</option>
+        <option value="SCORE_DESC">Top Rated</option>
+        <option value="TRENDING_DESC">Trending</option>
+        <option value="START_DATE_DESC">Newest</option>
+        <option value="START_DATE">Oldest</option>
+      </select>
+      <select id="bfvStatus" onchange="bfvApplyFilters()" style="background:var(--bg3);border:1px solid var(--border2);border-radius:10px;color:var(--text);padding:8px 10px;font-size:12px;font-family:'Nunito',sans-serif;cursor:pointer;outline:none;">
+        <option value="">All Status</option>
+        <option value="RELEASING">Airing</option>
+        <option value="FINISHED">Finished</option>
+        <option value="NOT_YET_RELEASED">Upcoming</option>
+      </select>
+      <select id="bfvYear" onchange="bfvApplyFilters()" style="background:var(--bg3);border:1px solid var(--border2);border-radius:10px;color:var(--text);padding:8px 10px;font-size:12px;font-family:'Nunito',sans-serif;cursor:pointer;outline:none;">
+        <option value="">All Years</option>
+        ${[2025,2024,2023,2022,2021,2020,2019,2018,2017,2016,2015,2010,2005,2000].map(y=>`<option value="${y}">${y}</option>`).join('')}
+      </select>
     </div>
   </div>
   <div class="bfv-body">
@@ -1964,7 +1965,7 @@ values (
     </div>
     <div class="rad-fake-ad" id="radFakeAd">
       <strong>📢 Sponsored</strong><br>
-      KamiStream Premium — Watch unlimited anime with no ads.<br>
+      Watch more anime on KamiStream — free for everyone.<br>
       <em style="font-size:10px;color:var(--text3);">This ad supports free anime streaming.</em>
     </div>
     <button class="rad-skip" id="radSkipBtn" onclick="radSkip()">Skip →</button>
@@ -1981,50 +1982,6 @@ values (
     <div style="margin-top:12px;font-size:11px;color:var(--text3);">Only 1 ad every 30 minutes</div>
   </div>
 </div>
-<!-- ══ PREMIUM MODAL ══ -->
-<div id="premiumModal">
-  <div class="pm-box" style="position:relative;">
-    <button class="pm-close" onclick="closePremiumModal()">✕</button>
-    <div id="pmPlansView">
-      <div class="pm-hero">
-        <div class="pm-crown">👑</div>
-        <div class="pm-hero-title">KamiStream Premium</div>
-        <div class="pm-hero-sub">Watch unlimited anime with zero ads and exclusive perks.</div>
-      </div>
-      <div class="pm-body">
-        <div class="pm-perks">
-          <div class="pm-perk"><span>🚫</span><span>No ads — ever. Clean, fast experience.</span></div>
-          <div class="pm-perk"><span>⚡</span><span>No episode unlock gates or rewarded ads.</span></div>
-          <div class="pm-perk"><span>🏆</span><span>Premium badge on your profile.</span></div>
-          <div class="pm-perk"><span>🔔</span><span>Priority notifications for new episodes.</span></div>
-          <div class="pm-perk"><span>🎌</span><span>Support free anime for everyone.</span></div>
-        </div>
-        <div class="pm-plans">
-          <div class="pm-plan selected" id="pmPlan1Month" onclick="pmSelectPlan('1month',this)">
-            <div class="pm-plan-name">Monthly</div>
-            <div class="pm-plan-price">$4.99<small>/mo</small></div>
-            <div class="pm-plan-dur">Billed monthly</div>
-          </div>
-          <div class="pm-plan popular" id="pmPlan3Month" onclick="pmSelectPlan('3month',this)">
-            <div class="pm-pop-badge">BEST VALUE</div>
-            <div class="pm-plan-name">3 Months</div>
-            <div class="pm-plan-price">$11.99<small>/3mo</small></div>
-            <div class="pm-plan-dur">Save 22%</div>
-          </div>
-        </div>
-        <button class="pm-pay-btn" id="pmPayBtn" onclick="pmInitPaystack()">Pay with Card →</button>
-        <div class="pm-note">Secure payment via Paystack. USD cards accepted.<br>Auto-activates after payment.</div>
-      </div>
-    </div>
-    <div class="pm-success" id="pmSuccessView">
-      <div class="pm-success-icon">🎉</div>
-      <div class="pm-success-title">Welcome to Premium!</div>
-      <div class="pm-success-sub">All ads removed. Enjoy KamiStream ad-free!</div>
-      <button class="pm-pay-btn" style="margin-top:20px;" onclick="closePremiumModal()">Start Watching →</button>
-    </div>
-  </div>
-</div>
-
 <!-- ══ AD POPUP / INTERSTITIAL ══ -->
 <div id="adPopupOverlay">
   <div class="ad-popup-box">
@@ -2032,7 +1989,6 @@ values (
     <div class="ad-popup-label">Advertisement</div>
     <div class="ad-popup-content" id="adPopupContent"></div>
     <div class="ad-popup-footer">
-      <div class="ad-popup-premium">Tired of ads? <button onclick="adPopupClose();openPremiumModal()">Go Premium →</button></div>
       <div style="font-size:10px;color:var(--text3);">Ads support free streaming</div>
     </div>
   </div>
@@ -2062,11 +2018,21 @@ values (
 </div>
 
 <div class="mobile-nav" id="mobileNav">
-  <div class="mn-item active"><span class="mn-ico">🏠</span><span class="mn-lbl">Home</span></div>
-  <div class="mn-item" onclick="openChallengeTab()"><span class="mn-ico">📱</span><span class="mn-lbl">Shorts</span></div>
-  <div class="mn-item"><div class="mn-plus">+</div></div>
-  <div class="mn-item" onclick="openChallengeTab()"><span class="mn-ico">🏆</span><span class="mn-lbl" style="color:var(--pink)">Challenge</span></div>
-  <div class="mn-item" onclick="openAuth(currentUser?'profile':'login')"><span class="mn-ico">👤</span><span class="mn-lbl">Profile</span></div>
+  <div class="mn-item active" id="mn-home" onclick="mnSetActive(this);showHome()">
+    <span class="mn-ico">🏠</span><span class="mn-lbl">Home</span>
+  </div>
+  <div class="mn-item" id="mn-browse" onclick="mnSetActive(this);browseOpen()">
+    <span class="mn-ico">🔍</span><span class="mn-lbl">Browse</span>
+  </div>
+  <div class="mn-item" id="mn-challenge" onclick="mnSetActive(this);openChallengeTab()">
+    <span class="mn-ico">🏆</span><span class="mn-lbl" style="color:var(--pink)">Challenge</span>
+  </div>
+  <div class="mn-item" id="mn-watchlist" onclick="mnSetActive(this);wlOpen()">
+    <span class="mn-ico">🔖</span><span class="mn-lbl">Watchlist</span>
+  </div>
+  <div class="mn-item" id="mn-profile" onclick="mnSetActive(this);showProfile()">
+    <span class="mn-ico">👤</span><span class="mn-lbl">Profile</span>
+  </div>
 </div>
 
 </div><!-- /appShell -->
@@ -2745,7 +2711,7 @@ async function openProfilePage(username, isOwn=false){
     <div class="profile-header">
       <button class="profile-back" onclick="closeProfilePage()">← Back</button>
       <div style="font-family:'Poppins',sans-serif;font-size:15px;font-weight:800;color:#fff;">@${username}</div>
-      ${isOwn ? `<button class="profile-back" style="margin-left:auto;" onclick="openPremiumModal()">👑 Upgrade</button><button class="profile-back" style="margin-left:8px;" onclick="doLogout()">Log Out</button>` : ''}
+      ${isOwn ? `<button class="profile-back" style="margin-left:auto;" onclick="doLogout()">Log Out</button>` : ''}
     </div>
     <div class="profile-banner">
       <div class="profile-banner-char">⚡</div>
@@ -2755,61 +2721,75 @@ async function openProfilePage(username, isOwn=false){
       <div class="profile-meta">
         <div class="profile-username">
           @${username}
-          <span class="profile-premium-badge">PREMIUM</span>
+          
         </div>
         <div class="profile-handle" style="font-size:13px;color:var(--text3);margin-top:3px;">Watching anime since 2024. KamiStream Creator.</div>
       </div>
       <div class="profile-actions">
-        ${!isOwn ? `<button class="btn-follow" id="followBtn" onclick="toggleFollow('${username}',this)">Follow</button>` : `<button onclick="openPremiumModal()" class="btn-follow" style="background:rgba(255,255,255,0.07);border:1px solid var(--border2);color:var(--text2);">⚙ Edit Profile</button>`}
+        ${!isOwn ? `<button class="btn-follow" id="followBtn" onclick="toggleFollow('${username}',this)">Follow</button>` : ''  /* edit profile removed */}
       </div>
     </div>
-    <!-- STAT CARDS -->
-    <div class="profile-stat-cards">
-      <div class="profile-stat-card">
-        <div class="psc-icon">▶</div>
-        <div><div class="psc-val">${fmtN(Math.max(videos.length*12, 100))}</div><div class="psc-lbl">Episodes</div></div>
-      </div>
-      <div class="profile-stat-card">
-        <div class="psc-icon">🔖</div>
-        <div><div class="psc-val">${wlItems.length}</div><div class="psc-lbl">Watchlist</div></div>
-      </div>
-      <div class="profile-stat-card">
-        <div class="psc-icon">🏆</div>
-        <div><div class="psc-val">${wonCount>0?'Top 10%':'Viewer'}</div><div class="psc-lbl">Reviewer</div></div>
-      </div>
-      <div class="profile-stat-card">
-        <div class="psc-icon">🔥</div>
-        <div><div class="psc-val">${Math.floor(Math.random()*20)+1}</div><div class="psc-lbl">Day Streak</div></div>
-      </div>
+    <!-- STAT CARDS — populated async -->
+    <div class="profile-stat-cards" id="profileStatCards">
+      <div class="profile-stat-card"><div class="psc-icon">▶</div><div><div class="psc-val" id="pscEpisodes">…</div><div class="psc-lbl">Episodes</div></div></div>
+      <div class="profile-stat-card"><div class="psc-icon">🔖</div><div><div class="psc-val">${wlItems.length}</div><div class="psc-lbl">Watchlist</div></div></div>
+      <div class="profile-stat-card"><div class="psc-icon">🏆</div><div><div class="psc-val">${wonCount>0?'Top 10%':'Viewer'}</div><div class="psc-lbl">Reviewer</div></div></div>
+      <div class="profile-stat-card"><div class="psc-icon">🔥</div><div><div class="psc-val" id="pscStreak">…</div><div class="psc-lbl">Day Streak</div></div></div>
     </div>
     <div class="profile-tabs" style="margin-top:20px;">
       <button class="profile-tab active" onclick="profileSetTab(this,'wl')">My Watchlist</button>
       <button class="profile-tab" onclick="profileSetTab(this,'history')">Watch History</button>
       <button class="profile-tab" onclick="profileSetTab(this,'submissions')">My Submissions</button>
     </div>
-    <div class="profile-content" id="profileTabContent">
-      ${wlHTML}
-    </div>
+    <div class="profile-content" id="profileTabContent">${wlHTML}</div>
     <div id="profileTabVideos" style="display:none;" class="profile-content">${vidsHTML}</div>
+    <div id="profileTabHistory" style="display:none;" class="profile-content">
+      <div style="color:var(--text3);font-size:13px;padding:30px;text-align:center;">⏳ Loading watch history…</div>
+    </div>
   `;
 
   document.getElementById('homeView').style.display='none';
   document.getElementById('profileView').style.display='flex';
   document.getElementById('profileView').style.flexDirection='column';
+
+  // Load real stats (localStorage, instant)
+  if(isOwn){
+    const {episodes,streak} = whLoadStats();
+    const ep=document.getElementById('pscEpisodes'); if(ep) ep.textContent=episodes;
+    const st=document.getElementById('pscStreak');  if(st) st.textContent=streak;
+  } else {
+    const ep=document.getElementById('pscEpisodes'); if(ep) ep.textContent=fmtN(videos.length*12||0);
+    const st=document.getElementById('pscStreak');  if(st) st.textContent=0;
+  }
 }
 
 function profileSetTab(btn, tab){
   document.querySelectorAll('.profile-tab').forEach(t=>t.classList.remove('active'));
   btn.classList.add('active');
-  const wl = document.getElementById('profileTabContent');
+  const wl  = document.getElementById('profileTabContent');
   const vid = document.getElementById('profileTabVideos');
-  if(tab==='submissions'){
-    if(wl) wl.style.display='none';
-    if(vid) vid.style.display='block';
-  } else {
-    if(wl) wl.style.display='block';
-    if(vid) vid.style.display='none';
+  const his = document.getElementById('profileTabHistory');
+  [wl,vid,his].forEach(el=>{ if(el) el.style.display='none'; });
+  if(tab==='submissions'){ if(vid) vid.style.display='block'; }
+  else if(tab==='history'){
+    if(his){ his.style.display='block'; }
+    const rows = whLoadHistory(30);
+    if(!his) return;
+    if(!rows.length){
+      his.innerHTML='<div class="profile-empty"><div class="profile-empty-icon">📺</div><div class="profile-empty-text">No watch history yet — start watching!</div></div>';
+    } else {
+      his.innerHTML=`<div class="profile-wl-grid">${rows.map(r=>`
+        <div class="wl-card" onclick="openAniListAnime(null,'${(r.animeTitle||'').replace(/'/g,"\\'").replace(/"/g,'')}')">
+          ${r.coverImage?`<img class="wl-poster" src="${r.coverImage}" loading="lazy" onerror="this.outerHTML='<div class=wl-poster-ph>📺</div>'">`:'<div class="wl-poster-ph">📺</div>'}
+          <div class="wl-info">
+            <div class="wl-name">${r.animeTitle||'Unknown'}</div>
+            <span class="wl-status wl-watching">EP ${r.epNum||'?'} · ${new Date(r.watchedAt).toLocaleDateString()}</span>
+          </div>
+        </div>`).join('')}
+      </div>`;
+    }
   }
+  else { if(wl) wl.style.display='block'; }
 }
 
 function closeProfilePage(){
@@ -3285,16 +3265,26 @@ async function updateChallengeHeader(){
   if(te) te.textContent=`Resets in ${d}d ${h}h ${m}m`;
 }
 
-// ── TIMER ──
+// ── TIMER — always counts to next Sunday midnight ──
 function updateTimer(){
-  const now=new Date(),end=new Date(now);
-  end.setDate(end.getDate()+(7-end.getDay())%7||7);end.setHours(0,0,0,0);
-  const diff=Math.max(0,end-now);
-  const pad=n=>String(Math.floor(n)).padStart(2,'0');
-  document.getElementById('wt-d').textContent=pad(diff/86400000);
-  document.getElementById('wt-h').textContent=pad((diff%86400000)/3600000);
-  document.getElementById('wt-m').textContent=pad((diff%3600000)/60000);
-  document.getElementById('wt-s').textContent=pad((diff%60000)/1000);
+  const now = new Date();
+  const end = new Date(now);
+  // Days until next Sunday (always at least 1 day away, never 0)
+  const daysUntilSun = ((7 - now.getDay()) % 7) || 7;
+  end.setDate(now.getDate() + daysUntilSun);
+  end.setHours(0, 0, 0, 0);
+  const diff = Math.max(0, end - now);
+  const pad  = n => String(Math.floor(n)).padStart(2,'0');
+  const d = document.getElementById('wt-d');
+  const h = document.getElementById('wt-h');
+  const m = document.getElementById('wt-m');
+  const s = document.getElementById('wt-s');
+  if(d) d.textContent = pad(diff / 86400000);
+  if(h) h.textContent = pad((diff % 86400000) / 3600000);
+  if(m) m.textContent = pad((diff % 3600000) / 60000);
+  if(s) s.textContent = pad((diff % 60000) / 1000);
+  // When timer hits 0 reload challenge data for new week
+  if(diff < 1000) setTimeout(()=>{ cfLoad && cfLoad(); updateTimer(); }, 1500);
 }
 
 
@@ -3547,15 +3537,8 @@ async function playEpisode(epId, epNum, embedUrl, sourceName){
     placeholder.innerHTML = '<div style="font-size:40px;opacity:.2;margin-bottom:12px;">📺</div><div class="ap-no-src">No embed source for this episode yet.<br>Ask the admin to add one.</div>';
   }
 
-  // Track watch history
-  if(supabase && currentUser){
-    await supabase.from('watch_history').upsert({
-      user_id: currentUser.id,
-      anime_id: currentAnime.id,
-      episode_id: epId,
-      watched_at: new Date().toISOString()
-    },{onConflict:'user_id,episode_id'});
-  }
+  // Track watch history in localStorage (no new Supabase tables needed)
+  whSaveHistory(epId, epNum);
 }
 
 function switchSource(url, name, btn){
@@ -3595,10 +3578,29 @@ async function checkWatchlistStatus(animeId){
 function closeAnimePage(){
   history.pushState({}, '', location.pathname);
   document.getElementById('animePageView').style.display='none';
+  clearInterval(_progressInterval);
+  autoplayCancel();
   document.getElementById('homeView').style.display='flex';
   currentAnime=null; currentEpisode=null;
   const iframe = document.getElementById('apIframe');
   if(iframe) iframe.src='';
+}
+
+function closeAniListDetailPage(){
+  history.pushState({}, '', location.pathname);
+  document.getElementById('animePageView').style.display='none';
+  clearInterval(_progressInterval);
+  if(_aniDetailPrevView === 'browse'){
+    // Return to browse — it's still mounted, just re-show it
+    document.getElementById('browseFullView')?.classList.add('open');
+    document.getElementById('homeView').style.display='none';
+    document.querySelectorAll('.sb-item').forEach(i=>i.classList.remove('active'));
+    document.getElementById('sb-browse')?.classList.add('active');
+  } else {
+    document.getElementById('homeView').style.display='flex';
+    document.querySelectorAll('.sb-item').forEach(i=>i.classList.remove('active'));
+    document.getElementById('sb-home')?.classList.add('active');
+  }
 }
 
 // ── Hook anime cards on home page ──
@@ -4018,6 +4020,22 @@ function setTab(el, id){
     if(s){ s.scrollIntoView({behavior:'smooth'}); }
   }
 }
+function mnSetActive(el){
+  document.querySelectorAll('.mn-item').forEach(i=>i.classList.remove('active'));
+  el?.classList.add('active');
+}
+function showHome(){
+  if(document.getElementById('browseFullView')) document.getElementById('browseFullView').classList.remove('open');
+  if(document.getElementById('profileView'))    document.getElementById('profileView').style.display='none';
+  if(document.getElementById('animePageView'))  document.getElementById('animePageView').style.display='none';
+  document.getElementById('homeView').style.display='flex';
+  document.querySelectorAll('.sb-item').forEach(i=>i.classList.remove('active'));
+  document.getElementById('sb-home')?.classList.add('active');
+}
+function showProfile(){
+  if(currentUser) openProfile(currentUser.user_metadata?.username||currentUser.email?.split('@')[0]||'User', true);
+  else openAuth('login');
+}
 function setSb(el){
   document.querySelectorAll('.sb-item').forEach(i=>i.classList.remove('active'));
   el.classList.add('active');
@@ -4409,36 +4427,83 @@ function trailerInject(anime){
 // ════════════════════════════════════════
 // 3. CONTINUE WATCHING
 // ════════════════════════════════════════
-function cwSave(anime,epNum,pct){
-  const store=gls(CW_KEY);
-  const id=String(anime.anilist_id||anime.mal_id||anime.id||anime.slug||anime.title);
-  store[id]={id,slug:anime.slug||'',title:anime.title_english||anime.title_romaji||anime.title||'',
-    poster:anime.cover_image||anime.poster||'',epNum,pct:pct||0,ts:Date.now()};
-  sls(CW_KEY,store);
+function cwSave(anime, epNum, pct, timeSeconds){
+  const store = gls(CW_KEY);
+  const id = String(anime.anilist_id||anime.mal_id||anime.id||anime.slug||anime.title);
+  const existing = store[id] || {};
+  store[id] = {
+    id, slug: anime.slug||'',
+    title: anime.title_english||anime.title_romaji||anime.title||'',
+    poster: anime.cover_image||anime.poster||'',
+    epNum, pct: pct||0,
+    timeSeconds: timeSeconds||existing.timeSeconds||0,
+    ts: Date.now()
+  };
+  sls(CW_KEY, store);
   cwRender();
+}
+
+// Update progress % and timestamp without changing episode
+function cwUpdateProgress(pct, timeSeconds){
+  if(!currentAnime) return;
+  const store = gls(CW_KEY);
+  const id = String(currentAnime.anilist_id||currentAnime.mal_id||currentAnime.id||currentAnime.slug||currentAnime.title);
+  if(!store[id]) return;
+  store[id].pct = Math.min(100, Math.round(pct));
+  store[id].timeSeconds = timeSeconds||0;
+  store[id].ts = Date.now();
+  sls(CW_KEY, store);
+  // Update progress bar live without full re-render
+  const fills = document.querySelectorAll('.cw-prog-fill');
+  const pcts  = document.querySelectorAll('.cw-pct');
+  const items = Object.values(gls(CW_KEY)).sort((a,b)=>b.ts-a.ts).slice(0,4);
+  const idx   = items.findIndex(i=>i.id===id);
+  if(idx>=0 && fills[idx]) fills[idx].style.width = store[id].pct+'%';
+  if(idx>=0 && pcts[idx])  pcts[idx].textContent  = store[id].pct+'%';
 }
 function cwRemove(id){
   const s=gls(CW_KEY);delete s[id];sls(CW_KEY,s);cwRender();
 }
 function cwRender(){
-  const grid=document.getElementById('cwGrid');
-  if(!grid)return;
-  const items=Object.values(gls(CW_KEY)).sort((a,b)=>b.ts-a.ts).slice(0,4);
-  if(!items.length)return; // keep static placeholders
-  const arts=['cwt1','cwt2','cwt3','cwt4'],icons=['⚡','🔥','🌊','⚔️'];
-  grid.innerHTML=items.map((item,i)=>`
-    <div class="cw-card" onclick="tryOpenAnime('${(item.title||'').replace(/'/g,"\\'").replace(/"/g,'&quot;')}')">
+  const grid = document.getElementById('cwGrid');
+  if(!grid) return;
+  const items = Object.values(gls(CW_KEY)).sort((a,b)=>b.ts-a.ts).slice(0,4);
+  if(!items.length) return;
+  const arts  = ['cwt1','cwt2','cwt3','cwt4'];
+  const icons = ['⚡','🔥','🌊','⚔️'];
+  grid.innerHTML = items.map((item,i)=>{
+    const pct = Math.min(100, Math.round(item.pct||0));
+    const timeStr = item.timeSeconds > 0
+      ? `${Math.floor(item.timeSeconds/60)}:${String(Math.floor(item.timeSeconds%60)).padStart(2,'0')}`
+      : null;
+    const epLabel = timeStr ? `EP ${item.epNum} · ${timeStr}` : `Episode ${item.epNum}`;
+    return `
+    <div class="cw-card" onclick="cwResume('${item.id}')">
       <div class="cw-thumb" style="position:relative;">
         ${item.poster?`<img src="${item.poster}" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;" loading="lazy" onerror="this.style.display='none'">`:''}
         <div class="cw-art ${arts[i%4]}" style="${item.poster?'opacity:.35':''}"></div>
         <div class="cw-icon">${icons[i%4]}</div>
         <div class="cw-play"><div class="cw-pb"></div></div>
-        <div class="cw-prog"><div class="cw-prog-fill" style="width:${Math.min(100,Math.round(item.pct||0))}%"></div></div>
-        <div class="cw-pct">${Math.min(100,Math.round(item.pct||0))}%</div>
+        <div class="cw-prog"><div class="cw-prog-fill" style="width:${pct}%"></div></div>
+        <div class="cw-pct">${pct}%</div>
         <button class="cw-remove-btn" onclick="event.stopPropagation();cwRemove('${item.id}')">✕</button>
       </div>
-      <div class="cw-info"><div class="cw-name">${item.title}</div><div class="cw-ep">Episode ${item.epNum}</div></div>
-    </div>`).join('');
+      <div class="cw-info">
+        <div class="cw-name">${item.title}</div>
+        <div class="cw-ep">${epLabel}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// Navigate directly to the saved episode when clicking a CW card
+async function cwResume(id){
+  const store = gls(CW_KEY);
+  const item = store[id];
+  if(!item) return;
+  // Try opening by slug or title — smart opener handles the rest
+  if(item.slug) tryOpenAnime(item.slug);
+  else openAniListAnime(null, item.title);
 }
 
 // ════════════════════════════════════════
@@ -4473,25 +4538,41 @@ function wlFilter(f,btn){
   wlRender(f);
 }
 function wlRender(filter='all'){
-  const grid=document.getElementById('wlGrid');
-  if(!grid)return;
-  const all=Object.values(gls(WL_KEY));
-  const cnt=document.getElementById('wlCount');
-  if(cnt)cnt.textContent=all.length+' anime';
-  const list=filter==='all'?all:all.filter(a=>a.status===filter);
+  const grid = document.getElementById('wlGrid');
+  if(!grid) return;
+  const all  = Object.values(gls(WL_KEY));
+  const cnt  = document.getElementById('wlCount');
+  if(cnt) cnt.textContent = all.length + ' anime';
+  const list = filter === 'all' ? all : all.filter(a => a.status === filter);
   if(!list.length){
-    grid.innerHTML=`<div class="wl-empty">No anime in this list yet.<br><small style="font-size:12px;color:var(--text3);margin-top:6px;display:block;">Browse anime and click + Watchlist</small></div>`;
+    grid.innerHTML = `<div class="wl-empty">No anime in this list yet.<br><small style="font-size:12px;color:var(--text3);margin-top:6px;display:block;">Browse anime and click + Watchlist</small></div>`;
     return;
   }
-  grid.innerHTML=list.sort((a,b)=>b.ts-a.ts).map(a=>`
-    <div class="wl-card" onclick="tryOpenAnime('${(a.title||'').replace(/'/g,"\\'").replace(/"/g,'&quot;')}')">
-      ${a.poster?`<img class="wl-poster" src="${a.poster}" alt="${a.title}" loading="lazy" onerror="this.outerHTML='<div class=wl-poster-ph>📺</div>'">`:'<div class="wl-poster-ph">📺</div>'}
+  grid.innerHTML = list.sort((a,b)=>b.ts-a.ts).map(a=>`
+    <div class="wl-card" onclick="openAniListAnime(null,'${(a.title||'').replace(/'/g,"\\'").replace(/"/g,'')}')">
+      ${a.poster ? `<img class="wl-poster" src="${a.poster}" alt="${a.title}" loading="lazy" onerror="this.outerHTML='<div class=wl-poster-ph>📺</div>'">`:'<div class="wl-poster-ph">📺</div>'}
       <div class="wl-info">
         <div class="wl-name">${a.title}</div>
-        <span class="wl-status wl-${a.status.replace(/ /g,'')}">${a.status}</span>
+        <select class="wl-status-select" onclick="event.stopPropagation()" onchange="wlChangeStatus('${a.id}',this.value,'${filter}')">
+          <option value="watching"  ${a.status==='watching'  ?'selected':''}>Watching</option>
+          <option value="completed" ${a.status==='completed' ?'selected':''}>Completed</option>
+          <option value="plan"      ${(a.status==='plan'||!a.status)?'selected':''}>Plan to Watch</option>
+          <option value="dropped"   ${a.status==='dropped'   ?'selected':''}>Dropped</option>
+        </select>
       </div>
       <button class="wl-rm" onclick="event.stopPropagation();wlRemove('${a.id}');wlRender('${filter}')">✕</button>
     </div>`).join('');
+}
+
+function wlChangeStatus(id, newStatus, currentFilter){
+  const wl = gls(WL_KEY);
+  if(!wl[id]) return;
+  wl[id].status = newStatus;
+  wl[id].ts = Date.now();
+  sls(WL_KEY, wl);
+  // Only re-render if filtering by status (so card disappears from wrong tab)
+  if(currentFilter !== 'all') wlRender(currentFilter);
+  showToast(`Status updated: ${newStatus==='plan'?'Plan to Watch':newStatus.charAt(0).toUpperCase()+newStatus.slice(1)}`,'ok');
 }
 function wlUpdateCount(){
   const n=Object.keys(gls(WL_KEY)).length;
@@ -4655,86 +4736,135 @@ function clearFilters(){
 // ════════════════════════════════════════
 // 7. SEARCH AUTOCOMPLETE
 // ════════════════════════════════════════
-let _sdTimer=null,_sdCache={};
+let _sdTimer=null, _sdCache={}, _sdFocusIdx=-1;
 function sdInit(){
-  const input=document.querySelector('.topbar-search input');
-  const dd=document.getElementById('searchDropdown');
-  if(!input||!dd)return;
-  input.addEventListener('input',e=>{
+  const input = document.querySelector('.topbar-search input');
+  const dd    = document.getElementById('searchDropdown');
+  if(!input||!dd) return;
+
+  input.addEventListener('input', e=>{
     clearTimeout(_sdTimer);
-    const q=e.target.value.trim();
-    if(!q||q.length<2){dd.classList.remove('open');return;}
-    dd.innerHTML='<div class="sd-msg">⏳ Searching…</div>';dd.classList.add('open');
-    _sdTimer=setTimeout(()=>sdSearch(q),300);
+    _sdFocusIdx = -1;
+    const q = e.target.value.trim();
+    if(!q||q.length<2){ dd.classList.remove('open'); return; }
+    dd.innerHTML='<div class="sd-msg">⏳ Searching…</div>';
+    dd.classList.add('open');
+    _sdTimer = setTimeout(()=>sdSearch(q), 300);
   });
-  input.addEventListener('keydown',e=>{
-    if(e.key==='Escape')dd.classList.remove('open');
-    if(e.key==='Enter'){dd.classList.remove('open');if(typeof searchAndOpenAnime==='function')searchAndOpenAnime(e.target.value.trim());}
+
+  input.addEventListener('keydown', e=>{
+    const items = dd.querySelectorAll('.sd-item');
+    if(e.key==='ArrowDown'){
+      e.preventDefault();
+      _sdFocusIdx = Math.min(_sdFocusIdx+1, items.length-1);
+      items.forEach((el,i)=>el.classList.toggle('sd-focused', i===_sdFocusIdx));
+      items[_sdFocusIdx]?.scrollIntoView({block:'nearest'});
+    } else if(e.key==='ArrowUp'){
+      e.preventDefault();
+      _sdFocusIdx = Math.max(_sdFocusIdx-1, 0);
+      items.forEach((el,i)=>el.classList.toggle('sd-focused', i===_sdFocusIdx));
+      items[_sdFocusIdx]?.scrollIntoView({block:'nearest'});
+    } else if(e.key==='Enter'){
+      if(_sdFocusIdx>=0 && items[_sdFocusIdx]){
+        items[_sdFocusIdx].click();
+      } else {
+        dd.classList.remove('open');
+        const q = input.value.trim();
+        if(q) openBrowseFull(), setTimeout(()=>{ document.getElementById('bfvSearchInput').value=q; bfvFilter(); }, 400);
+      }
+    } else if(e.key==='Escape'){
+      dd.classList.remove('open');
+      _sdFocusIdx = -1;
+    }
   });
-  document.addEventListener('click',e=>{if(!e.target.closest('.topbar-search'))dd.classList.remove('open');});
+
+  document.addEventListener('click', e=>{ if(!e.target.closest('.topbar-search')){ dd.classList.remove('open'); _sdFocusIdx=-1; } });
 }
 async function sdSearch(q){
   const dd=document.getElementById('searchDropdown');
-  if(!dd)return;
-  // Search Supabase first for exact matches with ID
+  if(!dd) return;
+
+  // 1. Supabase first (has real IDs for direct navigation)
   if(window.supabase){
     try{
-      const {data:sbResults} = await window.supabase.from('anime')
-        .select('id,title_english,title_romaji,poster,release_year,format,score')
+      const {data} = await window.supabase.from('anime')
+        .select('id,title_english,title_romaji,cover_image,season_year,format,score,anilist_id')
         .or('title_english.ilike.%'+q+'%,title_romaji.ilike.%'+q+'%')
-        .limit(8);
-      if(sbResults&&sbResults.length){
-        sdRenderWithId(sbResults);
+        .limit(6);
+      if(data && data.length){
+        sdRenderResults(data.map(a=>({
+          id: a.id, anilistId: a.anilist_id,
+          title: a.title_english||a.title_romaji||'—',
+          poster: a.cover_image||'',
+          year: a.season_year, format: a.format,
+          score: a.score, inDB: true
+        })));
         return;
       }
     }catch(e){}
   }
-  // Fallback: local JAI library
-  const local=(typeof jaiGetAll==='function'?jaiGetAll():[])
-    .filter(a=>(a.title||'').toLowerCase().includes(q.toLowerCase())).slice(0,8);
-  if(local.length){
-    sdRenderWithId(local.map(a=>({...a, title_english:a.title_english||a.title})));
-    return;
-  }
-  if(_sdCache[q]){sdRender(_sdCache[q]);return;}
+
+  // 2. AniList search (real covers, always fresh)
   try{
-    const res=await fetch(`https://api.jikan.moe/v4/anime?q=${encodeURIComponent(q)}&limit=8&sfw=true`);
-    const data=await res.json();
-    const items=(data.data||[]).map(m=>({title:m.title_english||m.title,poster:m.images?.jpg?.image_url||'',release_year:m.year,format:m.type}));
-    _sdCache[q]=items;sdRender(items);
-  }catch(e){if(dd)dd.innerHTML='<div class="sd-msg">No results</div>';}
+    const alQ = `query($q:String){Page(perPage:8){media(search:$q,type:ANIME){
+      id title{romaji english} coverImage{medium} averageScore format startDate{year}
+    }}}`;
+    const json = await anilistFetch(alQ, {q});
+    const items = (json?.data?.Page?.media||[]).map(m=>({
+      id: null, anilistId: m.id,
+      title: m.title?.english||m.title?.romaji||'—',
+      poster: m.coverImage?.medium||'',
+      year: m.startDate?.year, format: m.format,
+      score: m.averageScore?(m.averageScore/10).toFixed(1):null,
+      inDB: false
+    }));
+    if(items.length){ sdRenderResults(items); return; }
+  }catch(e){}
+
+  // 3. Last resort: Jikan
+  try{
+    if(_sdCache[q]){ sdRenderResults(_sdCache[q]); return; }
+    const res = await fetch(`https://api.jikan.moe/v4/anime?q=${encodeURIComponent(q)}&limit=8&sfw=true`);
+    const data = await res.json();
+    const items = (data.data||[]).map(m=>({
+      id: null, anilistId: null,
+      title: m.title_english||m.title||'—',
+      poster: m.images?.jpg?.image_url||'',
+      year: m.year, format: m.type, score: m.score
+    }));
+    _sdCache[q] = items;
+    sdRenderResults(items);
+  }catch(e){
+    if(dd) dd.innerHTML='<div class="sd-msg">No results found</div>';
+  }
 }
-function sdRenderWithId(items){
+
+function sdRenderResults(items){
   const dd=document.getElementById('searchDropdown');
-  if(!dd)return;
-  if(!items.length){dd.innerHTML='<div class="sd-msg">No results found</div>';return;}
-  dd.innerHTML=items.map(it=>{
-    const title=it.title_english||it.title_romaji||it.title||'—';
-    const action=it.id
-      ? `document.getElementById('searchDropdown').classList.remove('open');openAnimePage(${it.id})`
-      : `document.getElementById('searchDropdown').classList.remove('open');tryOpenAnime('${title.replace(/'/g,"\\'").replace(/"/g,'&quot;')}')`;
+  if(!dd) return;
+  if(!items.length){ dd.innerHTML='<div class="sd-msg">No results found</div>'; return; }
+  dd.innerHTML = items.map(it=>{
+    const title = it.title||'—';
+    const scoreStr = it.score ? ` · ⭐${it.score}` : '';
+    const inDBBadge = it.inDB ? '<span style="font-size:9px;background:rgba(6,214,160,0.2);color:var(--green);border-radius:4px;padding:1px 5px;margin-left:4px;">IN LIB</span>' : '';
+    // Use smart opener so both DB and AniList-only results work
+    const action = `document.getElementById('searchDropdown').classList.remove('open');document.querySelector('.topbar-search input').value='';openAniListAnime(${it.anilistId||'null'},'${title.replace(/'/g,"\\'").replace(/"/g,'')}')`;
     return `<div class="sd-item" onclick="${action}">
-      ${it.poster?`<img class="sd-poster" src="${it.poster}" alt="" loading="lazy" onerror="this.outerHTML='<div class=sd-poster-ph>📺</div>'">`:'<div class="sd-poster-ph">📺</div>'}
-      <div>
-        <div class="sd-title">${title}</div>
-        <div class="sd-meta">${it.release_year||''}${it.format?' · '+it.format:''}</div>
+      ${it.poster
+        ? `<img class="sd-poster" src="${it.poster}" alt="" loading="lazy" onerror="this.outerHTML='<div class=sd-poster-ph>📺</div>'">`
+        : '<div class="sd-poster-ph">📺</div>'}
+      <div style="min-width:0;">
+        <div class="sd-title">${title}${inDBBadge}</div>
+        <div class="sd-meta">${it.year||''}${it.format?' · '+it.format:''}${scoreStr}</div>
       </div>
     </div>`;
   }).join('');
+  // Add "Search all results" footer
+  dd.innerHTML += `<div class="sd-item" style="justify-content:center;color:var(--purple);font-size:12px;font-weight:700;"
+    onclick="document.getElementById('searchDropdown').classList.remove('open');openBrowseFull();setTimeout(()=>{document.getElementById('bfvSearchInput').value='${items[0]?.title?.split(' ')[0]||''}';bfvFilter();},400)">
+    🔍 Browse all results →
+  </div>`;
   dd.classList.add('open');
-}
-function sdRender(items){
-  const dd=document.getElementById('searchDropdown');
-  if(!dd)return;
-  if(!items.length){dd.innerHTML='<div class="sd-msg">No results found</div>';return;}
-  dd.innerHTML=items.map(it=>`
-    <div class="sd-item" onclick="document.getElementById('searchDropdown').classList.remove('open');tryOpenAnime('${(it.title||'').replace(/'/g,"\\'").replace(/"/g,'&quot;')}')">
-      ${it.poster?`<img class="sd-poster" src="${it.poster}" alt="" loading="lazy" onerror="this.outerHTML='<div class=sd-poster-ph>📺</div>'">`:'<div class="sd-poster-ph">📺</div>'}
-      <div>
-        <div class="sd-title">${it.title||'—'}</div>
-        <div class="sd-meta">${it.release_year||''}${it.format?' · '+it.format:''}</div>
-      </div>
-    </div>`).join('');
 }
 
 // ════════════════════════════════════════
@@ -4811,22 +4941,127 @@ function autoplayCancel(){
   clearInterval(_apTimer);_apNextEp=null;
   const bar=document.getElementById('autoplayBar');if(bar)bar.classList.remove('show');
 }
-// Hook into playEpisode to save CW and setup autoplay
-const _origPlayEp=playEpisode;
-playEpisode=async function(epId,epNum,embedUrl,sourceName){
-  await _origPlayEp(epId,epNum,embedUrl,sourceName);
-  // Save continue watching
-  if(currentAnime)cwSave(currentAnime,epNum,25);
-  // Trigger trending view bump
-  if(currentAnime)viewsBump(currentAnime.anilist_id||currentAnime.id);
-  // Render server bar
-  if(currentAnime)srvRender(currentAnime.slug||'',epNum,embedUrl);
-  // Autoplay hint after 2s for demo (real would use postMessage from iframe)
+// Hook into playEpisode to save watch history and setup autoplay
+let _progressInterval = null;
+const _origPlayEp = playEpisode;
+playEpisode = async function(epId, epNum, embedUrl, sourceName){
+  // Cancel any running autoplay and progress tracker
   autoplayCancel();
+  clearInterval(_progressInterval);
+
+  await _origPlayEp(epId, epNum, embedUrl, sourceName);
+
+  // Save continue watching at 0% when episode starts
+  if(currentAnime) cwSave(currentAnime, epNum, 0, 0);
+
+  // Save watch history to localStorage
+  whSaveHistory(epId, epNum);
+
+  // Trigger views bump
+  if(currentAnime) viewsBump(currentAnime.anilist_id||currentAnime.id);
+
+  // Render server bar
+  if(currentAnime) srvRender(currentAnime.slug||'', epNum, embedUrl);
+
+  // Progress simulation: increment % over time since we can't read iframe state
+  // Typical episode = 24 mins. We update every 30s.
+  const EPISODE_DURATION_S = 24 * 60; // 1440s assumed
+  let elapsedS = 0;
+  _progressInterval = setInterval(()=>{
+    elapsedS += 30;
+    const pct = Math.min(95, Math.round((elapsedS / EPISODE_DURATION_S) * 100));
+    if(currentAnime) cwUpdateProgress(pct, elapsedS);
+    // At 90%+ schedule autoplay
+    if(pct >= 90 && currentAnime && autoplayEnabled()){
+      clearInterval(_progressInterval);
+      supabase && supabase.from('episodes')
+        .select('id,episode_number,embed_sources')
+        .eq('anime_id', currentAnime.id)
+        .order('episode_number',{ascending:true})
+        .then(({data:eps})=>{ if(eps&&eps.length) autoplaySchedule(eps, epNum); });
+    }
+  }, 30000);
 };
 
 // ════════════════════════════════════════
-// 10. KEYBOARD SHORTCUTS
+// WATCH HISTORY — localStorage only, no new Supabase tables
+// ════════════════════════════════════════
+// ════════════════════════════════════════
+// ERROR BOUNDARIES — user-visible feedback
+// ════════════════════════════════════════
+let _supabaseDown = false;
+
+async function checkSupabaseHealth(){
+  if(!supabase) return;
+  try{
+    await supabase.from('anime').select('id').limit(1);
+    if(_supabaseDown){
+      _supabaseDown = false;
+      const b = document.getElementById('supabaseErrorBanner');
+      if(b) b.style.display = 'none';
+    }
+  }catch(e){
+    if(!_supabaseDown){
+      _supabaseDown = true;
+      let b = document.getElementById('supabaseErrorBanner');
+      if(!b){
+        b = document.createElement('div');
+        b.id = 'supabaseErrorBanner';
+        b.style.cssText = 'position:fixed;top:var(--topbar);left:0;right:0;z-index:1000;background:rgba(180,20,20,0.93);color:#fff;font-size:12px;font-weight:700;text-align:center;padding:8px 16px;backdrop-filter:blur(8px);display:flex;align-items:center;justify-content:center;gap:12px;';
+        b.innerHTML = '⚠️ Connection issue — some features may be unavailable. <button onclick="checkSupabaseHealth()" style="background:rgba(255,255,255,0.2);border:none;color:#fff;padding:3px 10px;border-radius:6px;cursor:pointer;font-size:11px;font-weight:700;">↻ Retry</button><button onclick="this.parentElement.style.display=\'none\'" style="background:none;border:none;color:rgba(255,255,255,0.7);cursor:pointer;font-size:16px;margin-left:4px;">✕</button>';
+        document.body.appendChild(b);
+      }
+      b.style.display = 'flex';
+    }
+  }
+}
+// Check health 3s after load, then every 5 minutes
+setTimeout(checkSupabaseHealth, 3000);
+setInterval(checkSupabaseHealth, 300000);
+
+const WH_KEY = 'ks_watch_history';
+
+function whSaveHistory(epId, epNum){
+  if(!currentAnime) return;
+  try{
+    const history = JSON.parse(localStorage.getItem(WH_KEY)||'[]');
+    // Remove old entry for this episode if exists
+    const filtered = history.filter(r=>r.epId!==epId);
+    // Add new entry at front
+    filtered.unshift({
+      epId,
+      epNum,
+      animeId: currentAnime.id,
+      animeTitle: currentAnime.title_english||currentAnime.title_romaji||'',
+      coverImage: currentAnime.cover_image||currentAnime.poster||'',
+      watchedAt: new Date().toISOString()
+    });
+    // Keep last 100 entries
+    localStorage.setItem(WH_KEY, JSON.stringify(filtered.slice(0,100)));
+  }catch(e){ console.warn('[WH] save failed:',e.message); }
+}
+
+function whLoadHistory(limit=30){
+  try{
+    return JSON.parse(localStorage.getItem(WH_KEY)||'[]').slice(0,limit);
+  }catch(e){ return []; }
+}
+
+function whLoadStats(){
+  try{
+    const history = JSON.parse(localStorage.getItem(WH_KEY)||'[]');
+    const episodes = history.length;
+    // Calculate streak from unique days
+    const days = [...new Set(history.map(r=>r.watchedAt.slice(0,10)))].sort().reverse();
+    let streak = 0;
+    let check = new Date().toISOString().slice(0,10);
+    for(const day of days){
+      if(day===check){ streak++; const d=new Date(check); d.setDate(d.getDate()-1); check=d.toISOString().slice(0,10); }
+      else if(day<check) break;
+    }
+    return {episodes, streak};
+  }catch(e){ return {episodes:0, streak:0}; }
+}
 // ════════════════════════════════════════
 document.addEventListener('keydown',e=>{
   if(e.target.tagName==='INPUT'||e.target.tagName==='TEXTAREA')return;
@@ -6059,117 +6294,15 @@ const KS_MONETIZE_KEY = 'ks_monetize_cfg';
 function ksCfg(){ try{ return JSON.parse(localStorage.getItem(KS_MONETIZE_KEY)||'{}'); }catch(e){ return {}; } }
 function ksSetCfg(k,v){ const c=ksCfg(); c[k]=v; localStorage.setItem(KS_MONETIZE_KEY,JSON.stringify(c)); }
 
-// ── 1. PREMIUM SYSTEM ──
-const PM_CACHE_KEY = 'ks_premium_v1';
-const PM_CACHE_TTL = 60*60*1000;
-let _isPremiumCache = null;
 
-async function isPremium(){
-  if(_isPremiumCache!==null) return _isPremiumCache;
-  try{
-    const c=JSON.parse(localStorage.getItem(PM_CACHE_KEY)||'{}');
-    if(c.val!==undefined&&Date.now()-c.ts<PM_CACHE_TTL){ _isPremiumCache=c.val; return c.val; }
-  }catch(e){}
-  if(supabase&&currentUser){
-    try{
-      const {data}=await supabase.from('profiles').select('is_premium,premium_expiry').eq('id',currentUser.id).single();
-      const active=data?.is_premium&&(!data.premium_expiry||new Date(data.premium_expiry)>new Date());
-      _isPremiumCache=active||false;
-      localStorage.setItem(PM_CACHE_KEY,JSON.stringify({val:_isPremiumCache,ts:Date.now()}));
-      return _isPremiumCache;
-    }catch(e){}
-  }
-  const lp=localStorage.getItem('ks_pm_local');
-  if(lp){ const {exp}=JSON.parse(lp); if(!exp||new Date(exp)>new Date()){ _isPremiumCache=true; return true; } }
-  _isPremiumCache=false; return false;
-}
-
-function pmClearCache(){ _isPremiumCache=null; localStorage.removeItem(PM_CACHE_KEY); }
-
-async function pmActivate(months){
-  const expiry=new Date(); expiry.setMonth(expiry.getMonth()+months);
-  localStorage.setItem('ks_pm_local',JSON.stringify({exp:expiry.toISOString()}));
-  pmClearCache();
-  if(supabase&&currentUser){
-    await supabase.from('profiles').update({is_premium:true,premium_expiry:expiry.toISOString()}).eq('id',currentUser.id);
-  }
-  _isPremiumCache=true;
-  pmUpdateUI();
-  adEngineStop();
-  showToast('👑 Premium activated! No more ads.','ok');
-}
-
-function pmUpdateUI(){
-  const btn=document.getElementById('btnPremium');
-  if(!btn) return;
-  if(_isPremiumCache){
-    btn.innerHTML='👑 Premium'; btn.classList.add('is-premium');
-    btn.onclick=()=>showToast('You are a Premium member 👑','ok');
-  } else {
-    btn.innerHTML='👑 Go Premium'; btn.classList.remove('is-premium');
-    btn.onclick=openPremiumModal;
-  }
-}
-
-let _pmSelectedPlan='1month';
-const PM_PLANS={
-  '1month':{label:'1 Month',months:1,amount:499,display:'$4.99'},
-  '3month':{label:'3 Months',months:3,amount:1199,display:'$11.99'}
-};
-
-function openPremiumModal(){
-  if(!currentUser){ openAuth('login'); showToast('Log in first to go Premium','warn'); return; }
-  document.getElementById('premiumModal').classList.add('open');
-  document.getElementById('pmPlansView').style.display='block';
-  document.getElementById('pmSuccessView').style.display='none';
-  _pmSelectedPlan='1month';
-}
-function closePremiumModal(){ document.getElementById('premiumModal').classList.remove('open'); }
-document.addEventListener('click',e=>{ if(e.target.id==='premiumModal') closePremiumModal(); });
-
-function pmSelectPlan(plan,el){
-  _pmSelectedPlan=plan;
-  document.querySelectorAll('.pm-plan').forEach(p=>p.classList.remove('selected'));
-  el.classList.add('selected');
-}
-
-async function pmInitPaystack(){
-  if(!currentUser){ openAuth('login'); return; }
-  const plan=PM_PLANS[_pmSelectedPlan];
-  const pkey=ksCfg().paystackKey||'';
-  if(!pkey){ showToast('Paystack not configured — add key in admin settings','err'); return; }
-  if(!window.PaystackPop){
-    await new Promise((res,rej)=>{
-      const s=document.createElement('script');
-      s.src='https://js.paystack.co/v1/inline.js';
-      s.onload=res; s.onerror=rej;
-      document.head.appendChild(s);
-    });
-  }
-  const btn=document.getElementById('pmPayBtn');
-  btn.disabled=true; btn.textContent='Opening payment…';
-  try{
-    const handler=window.PaystackPop.setup({
-      key:pkey, email:currentUser.email, amount:plan.amount, currency:'USD',
-      ref:'KS_'+Date.now()+'_'+currentUser.id.slice(0,8),
-      metadata:{plan:_pmSelectedPlan,user_id:currentUser.id},
-      callback:async(res)=>{
-        if(res.status==='success'){
-          await pmActivate(plan.months);
-          document.getElementById('pmPlansView').style.display='none';
-          document.getElementById('pmSuccessView').style.display='block';
-          if(supabase) supabase.from('payments').insert({
-            user_id:currentUser.id,amount:plan.amount/100,currency:'USD',
-            plan:_pmSelectedPlan,reference:res.reference,status:'success',
-            created_at:new Date().toISOString()
-          }).then(()=>{});
-        }
-      },
-      onClose:()=>{ btn.disabled=false; btn.textContent='Pay with Paystack →'; }
-    });
-    handler.openIframe();
-  }catch(e){ showToast('Payment error: '+e.message,'err'); btn.disabled=false; btn.textContent='Pay with Paystack →'; }
-}
+// ── PREMIUM REMOVED ──
+function isPremium(){ return Promise.resolve(false); }
+function openPremiumModal(){ return; }
+function closePremiumModal(){ return; }
+function pmClearCache(){ return; }
+function pmActivate(){ return; }
+function pmUpdateUI(){ return; }
+window.ksPremium = { isPremium, pmActivate, pmClearCache, pmUpdateUI };
 
 // ── 2. AD ROTATION ENGINE ──
 // ════════════════════════════════════════════════════════════════
@@ -6299,7 +6432,7 @@ function adLazyLoad(slotId, position){
 // ── Engine start / stop ──
 async function adEngineStart(){
   _adEngineRunning=true;
-  if(await isPremium()){ adEngineStop(); return; }
+  /* premium removed */
   // Banner slots — lazy loaded
   adLazyLoad('adSlotTop','homepage_top');
   adLazyLoad('adSlotMid','homepage_mid');
@@ -6722,7 +6855,7 @@ function playerBannerClose(){
 const _origPlayEpMoney=playEpisode;
 playEpisode=async function(epId,epNum,embedUrl,sourceName){
   _adEpCount++;
-  if(_adEngineRunning && !(await isPremium())){
+  if(_adEngineRunning){
     // Pre-roll — frequency controlled (every N episodes)
     if(adCanShowPreroll()){
       await new Promise(res=>prerollShow(res));
@@ -6730,11 +6863,11 @@ playEpisode=async function(epId,epNum,embedUrl,sourceName){
   }
   await _origPlayEpMoney.apply(this,[epId,epNum,embedUrl,sourceName]);
   // Player banner — show 3s after episode starts (non-blocking)
-  if(_adEngineRunning && !(await isPremium()) && adCanShowBanner()){
+  if(_adEngineRunning && adCanShowBanner()){
     setTimeout(playerBannerShow, 3000);
   }
   // Mid-roll — schedule at 8 min mark if configured
-  if(_adEngineRunning && !(await isPremium()) && adCanShowMidroll()){
+  if(_adEngineRunning && adCanShowMidroll()){
     const midAt=(adGetAll().find(a=>a.position==='player_midroll')?.midroll_mins||8)*60*1000;
     setTimeout(()=>{
       const iframe=document.getElementById('apIframe');
@@ -6791,7 +6924,7 @@ if(_origRenderCfFeedAds){
 
 // ── 3. ADBLOCK DETECTION ──
 async function adblockDetect(){
-  if(await isPremium()) return;
+  /* premium removed */
   if(localStorage.getItem('ks_adb_dismissed')) return;
   const bait=document.createElement('div');
   bait.className='ad-bait adsbox ad-placement';
@@ -6816,7 +6949,7 @@ function adblockBannerDismiss(){
 const _origCheckSessionMoney=checkSession;
 checkSession=async function(){
   await _origCheckSessionMoney.apply(this,arguments);
-  await isPremium();
+  /* premium removed */
   pmUpdateUI();
   await adLoadFromSupabase(); // pull latest ads from admin
   adEngineStart();
@@ -7200,18 +7333,56 @@ function bfvFilter(){
   }, 250);
 }
 
+async function bfvApplyFilters(){
+  bfvShowSkeletons();
+  const sort   = document.getElementById('bfvSort')?.value   || 'POPULARITY_DESC';
+  const status = document.getElementById('bfvStatus')?.value || null;
+  const year   = parseInt(document.getElementById('bfvYear')?.value) || null;
+  const genre  = _bfvGenre || null;
+
+  const query = `query($page:Int,$perPage:Int,$genre:String,$sort:[MediaSort],$status:MediaStatus,$year:Int){
+    Page(page:$page,perPage:$perPage){
+      pageInfo{hasNextPage}
+      media(type:ANIME,sort:$sort,genre:$genre,status:$status,seasonYear:$year){
+        id title{romaji english} coverImage{large} genres averageScore format status episodes startDate{year}
+      }
+    }
+  }`;
+
+  const allItems = [];
+  try{
+    for(let page=1; page<=3; page++){
+      const json = await anilistFetch(query,{
+        page, perPage:50,
+        genre, sort:[sort],
+        status: status||undefined,
+        year: year||undefined
+      });
+      const media = json?.data?.Page?.media||[];
+      allItems.push(...media.map(m=>({
+        id:m.id, anilistId:m.id,
+        title:m.title?.english||m.title?.romaji||'—',
+        poster:m.coverImage?.large||'',
+        genres:m.genres||[],
+        score:m.averageScore?(m.averageScore/10).toFixed(1):null,
+        format:m.format, status:m.status,
+        year:m.startDate?.year||'', episodes:m.episodes
+      })));
+      if(page===1) bfvRender(allItems);
+      if(!json?.data?.Page?.pageInfo?.hasNextPage) break;
+    }
+    bfvRender(allItems);
+  }catch(e){
+    await bfvLoadLocalLibrary(genre||'');
+  }
+}
+
 async function bfvSetGenre(genre, el){
   _bfvGenre = genre;
   document.querySelectorAll('.bfv-pill').forEach(p=>p.classList.remove('active'));
   el?.classList.add('active');
   document.getElementById('bfvSearchInput').value = '';
-  bfvShowSkeletons();
-  if(genre){
-    await bfvLoadAniList(genre);
-  } else {
-    if(!_bfvAllAnime.length) await bfvLoadAniList('');
-    else bfvRender(_bfvAllAnime);
-  }
+  await bfvApplyFilters();
 }
 
 function bfvRender(list){
@@ -7284,10 +7455,17 @@ async function heroAniListLoad(){
       _heroItems = items;
       heroRender(0);
       heroStartCarousel();
+    } else {
+      heroDynamicUpdate(); // use local library fallback
     }
   }catch(e){
-    // Keep default hero if AniList fails
-    heroDynamicUpdate();
+    console.warn('[Hero] AniList failed:', e.message);
+    // Show retry button on hero
+    const heroContent = document.getElementById('heroGenreTags');
+    if(heroContent) heroContent.innerHTML = `
+      <span style="color:var(--text3);font-size:11px;">Could not load featured anime</span>
+      <button onclick="heroAniListLoad()" style="margin-left:8px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);color:#fff;padding:3px 10px;border-radius:6px;font-size:11px;cursor:pointer;">↻ Retry</button>`;
+    heroDynamicUpdate(); // still show local data if available
   }
 }
 
@@ -7453,7 +7631,13 @@ async function openAniListAnime(anilistId, title){
 }
 
 // Fully AniList-powered detail page — no Supabase needed
+let _aniDetailPrevView = 'home'; // track where user came from
+
 async function openAniListDetailPage(anilistId){
+  // Remember where we came from so back button is correct
+  const browseOpen = document.getElementById('browseFullView')?.classList.contains('open');
+  _aniDetailPrevView = browseOpen ? 'browse' : 'home';
+
   const page = document.getElementById('animePageView');
   page.innerHTML = `<div style="height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;">
     <div style="width:40px;height:40px;border:3px solid var(--purple);border-top-color:var(--pink);border-radius:50%;animation:spin 0.8s linear infinite;"></div>
@@ -7495,11 +7679,11 @@ async function openAniListDetailPage(anilistId){
     const trailerUrl=m.trailer?.site==='youtube'?`https://www.youtube.com/watch?v=${m.trailer.id}`:'';
     const related=(m.relations?.edges||[]).filter(e=>e.node?.type==='ANIME'&&['SEQUEL','PREQUEL','SIDE_STORY','ALTERNATIVE'].includes(e.relationType)).slice(0,6);
 
-    page.innerHTML=`
+  page.innerHTML = `
       <div class="ap-banner" style="${m.bannerImage?'':'background:linear-gradient(135deg,#1a0030,#0a001a,#200030);'}">
         ${m.bannerImage?`<img src="${m.bannerImage}" alt="${title}" style="width:100%;height:100%;object-fit:cover;" onerror="this.style.display='none'">` :''}
         <div class="ap-banner-ov"></div>
-        <button class="ap-back" onclick="closeAnimePage()">← Back</button>
+        <button class="ap-back" onclick="closeAniListDetailPage()">← Back</button>
       </div>
       <div class="ap-hero">
         ${(m.coverImage?.extraLarge||m.coverImage?.large)
