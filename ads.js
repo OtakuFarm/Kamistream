@@ -31,8 +31,18 @@
       vignetteCooldownMs: 5 * 60 * 1000,   // 5 min between vignettes
       vignetteHourlyMax:  3,                // max 3 vignettes/hour
       feedAdEvery:        3,                // 1 ad slide per 3 videos
-      pushDelayMs:        15 * 1000,        // delay push prompt 15s after first interaction
+      pushDelayMs:        15 * 1000,        // fallback delay if engagement trigger never fires
       enableOnAdmin:      false             // never load on admin.html
+    },
+
+    // Push opt-in optimizer — wait for ANY of these signals before prompting.
+    // Highest opt-in rates come from prompting AFTER the user is engaged.
+    pushOptimizer: {
+      enabled:           true,
+      minWatchSeconds:   30,        // 30s of player time → high-intent visitor
+      minPageDwellMs:    45 * 1000, // OR 45s on the site
+      minPageviews:      2,         // OR they navigated to a 2nd view
+      requireInteraction: true      // still require at least one click first
     }
   };
 
@@ -244,23 +254,119 @@
     try { maybeShowVignette('episode-change'); } catch (e) { _warn('onEpisodeChange', e); }
   }
 
-  /* ── 12. AUTO-WIRING ───────────────────────────────────────────────── */
+  /* ── 12. PUSH OPT-IN OPTIMIZER ─────────────────────────────────────── */
+  /*  Fires push prompt only when the visitor shows engagement signals —
+   *  typically 2-3x higher opt-in rate than prompting on first click.    */
+  const _engage = { dwellStart: 0, watchSec: 0, pageviews: 1, watchTimer: null, fired: false };
+
+  function _markPushReady(reason) {
+    if (_engage.fired) return;
+    if (!AD_CONFIG.pushOptimizer.enabled) return;
+    if (AD_CONFIG.pushOptimizer.requireInteraction && !_state.firstInteraction) return;
+    _engage.fired = true;
+    _log('push trigger:', reason);
+    try { initPush(); initInPagePush(); } catch (e) {}
+  }
+
+  /*  Public hook your <video>/<iframe> player can call once per second
+   *  while playing. Auto-wired to <video> elements below.               */
+  function reportWatchSecond() {
+    if (_engage.fired) return;
+    _engage.watchSec += 1;
+    if (_engage.watchSec >= AD_CONFIG.pushOptimizer.minWatchSeconds) {
+      _markPushReady('watch ' + _engage.watchSec + 's');
+    }
+  }
+
+  /*  Call when the SPA navigates to a new view (Home → Watch, etc).    */
+  function reportPageview() {
+    if (_engage.fired) return;
+    _engage.pageviews += 1;
+    if (_engage.pageviews >= AD_CONFIG.pushOptimizer.minPageviews) {
+      _markPushReady('pageviews ' + _engage.pageviews);
+    }
+  }
+
+  function _autoWatchTracking() {
+    /*  Auto-detect HTML5 video playback site-wide. Counts a "watched
+     *  second" each second any <video> is playing (not paused).         */
+    try {
+      if (_engage.watchTimer) return;
+      _engage.watchTimer = setInterval(() => {
+        try {
+          const vids = document.querySelectorAll('video');
+          let playing = false;
+          vids.forEach(v => { if (!v.paused && !v.ended && v.readyState > 2) playing = true; });
+          if (playing) reportWatchSecond();
+        } catch (e) {}
+      }, 1000);
+    } catch (e) {}
+  }
+
+  function _dwellTimer() {
+    /*  Fallback: prompt after N seconds on the site even without video. */
+    setTimeout(() => _markPushReady('dwell ' + AD_CONFIG.pushOptimizer.minPageDwellMs + 'ms'),
+               AD_CONFIG.pushOptimizer.minPageDwellMs);
+  }
+
+  /* ── 13. AUTO-WIRING ───────────────────────────────────────────────── */
   function _firstInteractionHandler() {
     if (_state.firstInteraction) return;
     _state.firstInteraction = true;
-    try { initPopunder(); } catch (e) {}
-    // Delay push & in-page push slightly so we don't hammer first-time visitors.
-    setTimeout(() => { try { initPush(); initInPagePush(); } catch (e) {} },
-               AD_CONFIG.caps.pushDelayMs);
+    try { initPopunder(); } catch (e) {}        // popunder fires immediately on first click
+
+    if (AD_CONFIG.pushOptimizer.enabled) {
+      // Push waits for engagement signals (watch time / dwell / pageviews)
+      _engage.dwellStart = _now();
+      _autoWatchTracking();
+      _dwellTimer();
+    } else {
+      // Old behaviour — fixed delay after first click
+      setTimeout(() => { try { initPush(); initInPagePush(); } catch (e) {} },
+                 AD_CONFIG.caps.pushDelayMs);
+    }
   }
   function _bootstrap() {
     if (_isAdmin() && !AD_CONFIG.caps.enableOnAdmin) { _log('skipped on admin'); return; }
-    // First user gesture loads popunder + (delayed) push.
     document.addEventListener('click',     _firstInteractionHandler, { once: true, capture: true, passive: true });
     document.addEventListener('touchstart', _firstInteractionHandler, { once: true, capture: true, passive: true });
     document.addEventListener('keydown',   _firstInteractionHandler, { once: true, capture: true });
-    // Native containers that already exist on first paint:
     ['home-ad', 'player-ad', 'sidebar-ad'].forEach(id => loadNativeAd(id));
+    if (/[?&]adsdebug=1/.test(location.search)) _showDebugOverlay();
+  }
+
+  /* ── 14. DEBUG OVERLAY  (?adsdebug=1) ──────────────────────────────── */
+  function _showDebugOverlay() {
+    try {
+      const box = document.createElement('div');
+      box.id = 'kami-ads-debug';
+      box.style.cssText = 'position:fixed;bottom:12px;right:12px;z-index:2147483647;background:rgba(0,0,0,0.92);color:#0f0;font:12px/1.5 monospace;padding:12px 14px;border-radius:8px;border:1px solid #0f0;max-width:320px;pointer-events:auto;';
+      document.body.appendChild(box);
+      const refresh = () => {
+        const dwell = _engage.dwellStart ? Math.floor((_now() - _engage.dwellStart) / 1000) : 0;
+        box.innerHTML = `
+          <div style="color:#fff;font-weight:bold;margin-bottom:6px;">KamiAds debug</div>
+          <div>SW supported: ${'serviceWorker' in navigator ? 'yes' : 'NO'}</div>
+          <div>HTTPS: ${location.protocol === 'https:' ? 'yes' : 'NO ⚠'}</div>
+          <div>First click: ${_state.firstInteraction ? 'yes' : 'waiting…'}</div>
+          <div>Push loaded: ${_state.pushLoaded ? '✓' : '—'}</div>
+          <div>Popunder loaded: ${_state.popunderLoaded ? '✓' : '—'}</div>
+          <div>InPage loaded: ${_state.inpageLoaded ? '✓' : '—'}</div>
+          <div>Vignette loaded: ${_state.vignetteLoaded ? '✓' : '—'}</div>
+          <div>Native zone set: ${AD_CONFIG.native.zone ? 'yes' : 'NO'}</div>
+          <div>Watch sec: ${_engage.watchSec}/${AD_CONFIG.pushOptimizer.minWatchSeconds}</div>
+          <div>Dwell: ${dwell}s/${AD_CONFIG.pushOptimizer.minPageDwellMs/1000}s</div>
+          <div>Pageviews: ${_engage.pageviews}/${AD_CONFIG.pushOptimizer.minPageviews}</div>
+          <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;">
+            <button onclick="window.KamiAds.initPush()"      style="background:#222;color:#0f0;border:1px solid #0f0;padding:3px 6px;font:11px monospace;cursor:pointer;">force push</button>
+            <button onclick="window.KamiAds.initPopunder()"  style="background:#222;color:#0f0;border:1px solid #0f0;padding:3px 6px;font:11px monospace;cursor:pointer;">force popunder</button>
+            <button onclick="window.KamiAds.maybeShowVignette('debug')" style="background:#222;color:#0f0;border:1px solid #0f0;padding:3px 6px;font:11px monospace;cursor:pointer;">force vignette</button>
+            <button onclick="document.getElementById('kami-ads-debug').remove()" style="background:#400;color:#f88;border:1px solid #f88;padding:3px 6px;font:11px monospace;cursor:pointer;">close</button>
+          </div>`;
+      };
+      refresh();
+      setInterval(refresh, 1000);
+    } catch (e) { _warn('debug overlay', e); }
   }
 
   if (document.readyState === 'loading') {
@@ -269,14 +375,20 @@
 
   /* ── 13. PUBLIC API ────────────────────────────────────────────────── */
   global.KamiAds = {
-    config:           AD_CONFIG,
-    initPush:         initPush,
-    initPopunder:     initPopunder,
-    initInPagePush:   initInPagePush,
-    loadNativeAd:     loadNativeAd,
-    loadSidebarAd:    loadSidebarAd,
-    injectFeedAd:     injectFeedAd,
+    config:            AD_CONFIG,
+    initPush:          initPush,
+    initPopunder:      initPopunder,
+    initInPagePush:    initInPagePush,
+    loadNativeAd:      loadNativeAd,
+    loadSidebarAd:     loadSidebarAd,
+    injectFeedAd:      injectFeedAd,
     maybeShowVignette: maybeShowVignette,
-    onEpisodeChange:  onEpisodeChange
+    onEpisodeChange:   onEpisodeChange,
+    // Push optimizer hooks — call these from your SPA router / video player:
+    reportPageview:    reportPageview,
+    reportWatchSecond: reportWatchSecond,
+    // Debug helpers:
+    showDebug:         _showDebugOverlay,
+    state:             _state
   };
 })(window);
