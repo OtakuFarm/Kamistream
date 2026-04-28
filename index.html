@@ -6331,11 +6331,10 @@ function adGetAll(){ try{return JSON.parse(localStorage.getItem(AD_STORE_KEY)||'
 
 let _adEngineRunning = false;
 let _adObservers     = [];
-let _adEpCount       = 0;  // episodes watched this session (for frequency)
-let _cfVideoAdCount  = 0;  // videos seen in challenge feed
+let _adEpCount       = 0;
+let _cfVideoAdCount  = 0;
 
 // ── Storage helpers ──
-function adGetAll(){ try{return JSON.parse(localStorage.getItem(AD_STORE_KEY)||'[]');}catch(e){return[];} }
 function adSaveAll(a){ localStorage.setItem(AD_STORE_KEY,JSON.stringify(a)); }
 function adGetStats(){ try{return JSON.parse(localStorage.getItem(AD_STATS_KEY)||'{}');}catch(e){return{};} }
 function adSaveStats(s){ localStorage.setItem(AD_STATS_KEY,JSON.stringify(s)); }

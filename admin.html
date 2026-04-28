@@ -837,12 +837,12 @@ tr:hover td{background:rgba(124,58,237,0.04);}
           </div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
             <div>
-              <div class="setting-label" style="margin-bottom:5px;">Monthly Price (₦)</div>
-              <input id="adPm1Price" class="setting-input" type="number" value="1500" min="100"/>
+              <div class="setting-label" style="margin-bottom:5px;">Monthly Price ($)</div>
+              <input id="adPm1Price" class="setting-input" type="number" value="499" min="1"/>
             </div>
             <div>
-              <div class="setting-label" style="margin-bottom:5px;">3-Month Price (₦)</div>
-              <input id="adPm3Price" class="setting-input" type="number" value="3500" min="100"/>
+              <div class="setting-label" style="margin-bottom:5px;">3-Month Price ($)</div>
+              <input id="adPm3Price" class="setting-input" type="number" value="1199" min="1"/>
             </div>
           </div>
           <button class="btn btn-primary btn-sm" onclick="adSavePaystackConfig()" style="align-self:flex-start;">💾 Save Config</button>
@@ -991,7 +991,7 @@ tr:hover td{background:rgba(124,58,237,0.04);}
       <!-- Summary cards -->
       <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-bottom:20px;" id="revCards">
         <div class="stat-card" style="border-top:3px solid var(--green);">
-          <div class="stat-val" id="revTotalRev">₦0</div><div class="stat-label">Total Revenue</div>
+          <div class="stat-val" id="revTotalRev">$0</div><div class="stat-label">Total Revenue</div>
         </div>
         <div class="stat-card" style="border-top:3px solid var(--gold);">
           <div class="stat-val" id="revPremiumCount">0</div><div class="stat-label">Premium Users</div>
@@ -1006,7 +1006,7 @@ tr:hover td{background:rgba(124,58,237,0.04);}
           <div class="stat-val" id="revAvgCTR">0%</div><div class="stat-label">Avg CTR</div>
         </div>
         <div class="stat-card" style="border-top:3px solid var(--orange);">
-          <div class="stat-val" id="revTodayRev">₦0</div><div class="stat-label">Today's Revenue</div>
+          <div class="stat-val" id="revTodayRev">$0</div><div class="stat-label">Today's Revenue</div>
         </div>
       </div>
 
@@ -5187,10 +5187,26 @@ function adFillNetwork(network){
   const nameEl = document.getElementById('adName');
   const advEl  = document.getElementById('adAdvertiser');
   const hint   = document.getElementById('adCodeHint');
+  const codeEl = document.getElementById('adCode');
   if(nameEl && !nameEl.value) nameEl.value = t.name;
   if(advEl)  advEl.value = t.advertiser;
-  if(hint)   hint.textContent = '💡 ' + t.hint;
-  showToast('✅ ' + t.advertiser + ' template loaded', 'ok');
+  if(hint)   hint.textContent = '\u{1F4A1} ' + t.hint;
+  const sc = '\x3c'+'script';
+  const esc = '\x3c'+'/script\x3e';
+  const TEMPLATES = {
+    adsterra:     '<!-- Adsterra Banner -->\n'+sc+' type="text/javascript">\n  atOptions = {\n    \'key\': \'YOUR_ADSTERRA_KEY\',\n    \'format\': \'iframe\',\n    \'height\': 90,\n    \'width\': 728,\n    \'params\': {}\n  };\n'+esc+'\n'+sc+' type="text/javascript" src="//www.topcreativeformat.com/YOUR_ADSTERRA_KEY/invoke.js">'+esc,
+    monetag:      '<!-- Monetag Banner -->\n'+sc+' src="//YOURZONE.com/invoke.js" data-cfasync="false" async>'+esc,
+    propellerads: '<!-- PropellerAds Banner -->\n'+sc+' async src="//whatsthis.pro/YOUR_ZONE_ID">'+esc,
+    hilltopads:   '<!-- HilltopAds Banner -->\n'+sc+' async src="//jsc.hilltopads.net/YOUR_ZONE_ID.js">'+esc,
+    popads:       '<!-- PopAds -->\n'+sc+' data-cfasync="false" src="//cdn.popads.net/pop.js" data-id="YOUR_ID" async>'+esc,
+    trafficjunky: '<!-- TrafficJunky -->\n'+sc+' src="//cdn.trafficjunky.net/tj-ads.js" data-zone="YOUR_ZONE_ID" async>'+esc,
+    adcash:       '<!-- Adcash -->\n'+sc+' type="text/javascript">\n  var acOptions = { zone: YOUR_ZONE_ID };\n'+esc+'\n'+sc+' type="text/javascript" src="//static.adcash.com/js/adcash.js" async>'+esc,
+    evadav:       '<!-- Evadav -->\n'+sc+' async src="//cdn.evadav.com/YOUR_EVADAV_ID.js">'+esc
+  };
+  if(codeEl && TEMPLATES[network] && !codeEl.value.trim()){
+    codeEl.value = TEMPLATES[network];
+  }
+  showToast('\u2705 ' + t.advertiser + ' template loaded \u2014 replace YOUR_*_ID with your real zone ID', 'ok');
 }
 
 function adminAdGetAll(){ try{ return JSON.parse(localStorage.getItem(ADMIN_AD_KEY)||'[]'); }catch(e){return[];} }
@@ -5209,8 +5225,8 @@ function adminAdStats(){ try{ return JSON.parse(localStorage.getItem(ADMIN_STAT_
 
 function adSavePaystackConfig(){
   const key=document.getElementById('adPaystackKey')?.value?.trim();
-  const p1=parseInt(document.getElementById('adPm1Price')?.value||'1500');
-  const p3=parseInt(document.getElementById('adPm3Price')?.value||'3500');
+  const p1=parseInt(document.getElementById('adPm1Price')?.value||'499');
+  const p3=parseInt(document.getElementById('adPm3Price')?.value||'1199');
   if(!key){ showToast('Enter your Paystack public key','err'); return; }
   const cfg=JSON.parse(localStorage.getItem('ks_monetize_cfg')||'{}');
   cfg.paystackKey=key; cfg.pm1price=p1; cfg.pm3price=p3;
@@ -5410,28 +5426,38 @@ async function revLoad(){
 
   let premiumCount=0,totalRev=0,todayRev=0;
   if(sb){
+    // Premium count — separate try so it never fails silently
     try{
       const {count}=await sb.from('profiles').select('*',{count:'exact',head:true}).eq('is_premium',true);
       premiumCount=count||0;
-      const {data:pays}=await sb.from('payments').select('amount,created_at,plan,reference,user_id').eq('status','success').order('created_at',{ascending:false}).limit(100);
-      if(pays){
-        totalRev=pays.reduce((s,p)=>s+(p.amount||0),0);
+    }catch(e){}
+    // Payments — graceful if table doesn't exist yet
+    try{
+      const {data:pays,error:payErr}=await sb.from('payments').select('amount,created_at,plan,reference,user_id').eq('status','success').order('created_at',{ascending:false}).limit(100);
+      if(!payErr && pays){
+        totalRev=pays.reduce((s,p)=>s+(parseFloat(p.amount)||0),0);
         const today=new Date().toDateString();
-        todayRev=pays.filter(p=>new Date(p.created_at).toDateString()===today).reduce((s,p)=>s+(p.amount||0),0);
+        todayRev=pays.filter(p=>new Date(p.created_at).toDateString()===today).reduce((s,p)=>s+(parseFloat(p.amount)||0),0);
         const ptbody=document.getElementById('revPayTable');
         if(ptbody) ptbody.innerHTML=pays.slice(0,20).map(p=>`
           <tr>
             <td style="font-size:11px;color:var(--text3);">${(p.user_id||'').slice(0,12)}…</td>
             <td><span style="font-size:10px;background:rgba(155,93,229,0.12);color:var(--purple);padding:2px 7px;border-radius:5px;">${p.plan||'—'}</span></td>
-            <td style="font-weight:700;color:var(--green);">₦${fmtN(p.amount||0)}</td>
+            <td style="font-weight:700;color:var(--green);">$${(parseFloat(p.amount)||0).toFixed(2)}</td>
             <td style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text3);">${(p.reference||'').slice(0,16)||'—'}</td>
             <td style="font-size:11px;color:var(--text3);">${new Date(p.created_at).toLocaleDateString()}</td>
           </tr>`).join('');
+      } else {
+        const ptbody=document.getElementById('revPayTable');
+        if(ptbody) ptbody.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--text3);padding:20px;font-size:12px;">No payment records yet.</td></tr>';
       }
-    }catch(e){ addLog('Revenue load error: '+e.message,'red'); }
+    }catch(e){
+      const ptbody=document.getElementById('revPayTable');
+      if(ptbody) ptbody.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--text3);padding:20px;font-size:12px;">Payments table not set up yet — no revenue data.</td></tr>';
+    }
   }
-  set('revTotalRev','₦'+fmtN(totalRev));
-  set('revTodayRev','₦'+fmtN(todayRev));
+  set('revTotalRev','$'+(totalRev).toFixed(2));
+  set('revTodayRev','$'+(todayRev).toFixed(2));
   set('revPremiumCount',premiumCount);
 
   const atbody=document.getElementById('revAdTable');
