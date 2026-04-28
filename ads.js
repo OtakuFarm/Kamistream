@@ -89,10 +89,26 @@
   }
 
   /* ── 4. PUSH NOTIFICATION ADS (always-on, load once) ───────────────── */
+  /*  Push ads need a service worker at the SITE ROOT (sw.js). We register
+   *  it ourselves to be explicit — Monetag's tag also auto-registers, but
+   *  doing it here surfaces failures cleanly in the console.            */
+  function _registerPushSW() {
+    try {
+      if (!('serviceWorker' in navigator)) { _warn('SW unsupported'); return; }
+      if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
+        _warn('SW requires HTTPS — push will not work on http://');
+        return;
+      }
+      navigator.serviceWorker.register('/sw.js', { scope: '/' })
+        .then(reg => _log('sw registered', reg.scope))
+        .catch(err => _warn('sw register failed', err));
+    } catch (e) { _warn('sw register exception', e); }
+  }
   function initPush() {
     if (_state.pushLoaded || !AD_CONFIG.push.enabled || _isAdmin()) return;
     _state.pushLoaded = true;
     try {
+      _registerPushSW();
       _injectScript(`${AD_CONFIG.push.src}?z=${AD_CONFIG.push.zone}`)
         .catch(() => { _state.pushLoaded = false; });
       _log('push loaded');
