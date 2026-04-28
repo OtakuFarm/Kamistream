@@ -7457,6 +7457,32 @@ async function heroAniListLoad(){
       }
     }
   }`;
+
+  // Helper: shape Jikan response into the hero's item format
+  async function _heroJikanFallback(){
+    try{
+      const res = await fetch('https://api.jikan.moe/v4/top/anime?filter=airing&limit=10');
+      if(!res.ok) throw new Error('Jikan HTTP '+res.status);
+      const j = await res.json();
+      const items = (j?.data||[])
+        .filter(m => m.images?.jpg?.large_image_url || m.images?.webp?.large_image_url)
+        .map(m => ({
+          id: m.mal_id,
+          title: m.title_english || m.title || '—',
+          banner: m.trailer?.images?.maximum_image_url
+                || m.images?.jpg?.large_image_url
+                || m.images?.webp?.large_image_url || '',
+          cover:  m.images?.jpg?.large_image_url || '',
+          desc:   (m.synopsis||'').slice(0,120) + ((m.synopsis||'').length>120?'…':''),
+          genres: (m.genres||[]).slice(0,3).map(g => g.name)
+        }));
+      return items;
+    }catch(e){
+      console.warn('[Hero] Jikan fallback failed:', e.message);
+      return [];
+    }
+  }
+
   try{
     const json = await anilistFetch(query);
     const items = (json?.data?.Page?.media||[]).filter(m=>m.bannerImage||m.coverImage?.extraLarge).map(m=>({
@@ -7471,17 +7497,33 @@ async function heroAniListLoad(){
       _heroItems = items;
       heroRender(0);
       heroStartCarousel();
+      return;
+    }
+    // AniList returned 0 usable items — try Jikan before giving up.
+    const jk = await _heroJikanFallback();
+    if(jk.length){
+      _heroItems = jk;
+      heroRender(0);
+      heroStartCarousel();
     } else {
-      heroDynamicUpdate(); // use local library fallback
+      heroDynamicUpdate(); // local library fallback
     }
   }catch(e){
-    console.warn('[Hero] AniList failed:', e.message);
-    // Show retry button on hero
+    console.warn('[Hero] AniList failed:', e.message, '— trying Jikan…');
+    // AniList errored (rate-limit, network, CORS). Try Jikan automatically.
+    const jk = await _heroJikanFallback();
+    if(jk.length){
+      _heroItems = jk;
+      heroRender(0);
+      heroStartCarousel();
+      return;
+    }
+    // Both APIs down — show retry + local fallback (last resort).
     const heroContent = document.getElementById('heroGenreTags');
     if(heroContent) heroContent.innerHTML = `
       <span style="color:var(--text3);font-size:11px;">Could not load featured anime</span>
       <button onclick="heroAniListLoad()" style="margin-left:8px;background:rgba(255,255,255,0.1);border:1px solid rgba(255,255,255,0.2);color:#fff;padding:3px 10px;border-radius:6px;font-size:11px;cursor:pointer;">↻ Retry</button>`;
-    heroDynamicUpdate(); // still show local data if available
+    heroDynamicUpdate();
   }
 }
 
