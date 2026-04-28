@@ -488,12 +488,13 @@ tr:hover td{background:rgba(124,58,237,0.04);}
       <div class="lg-badge">ADMIN PANEL</div>
     </div>
     <form onsubmit="doAdminLogin();return false;">
-    <label class="lg-label">Admin Username</label>
-    <input class="lg-input" id="lgUser" type="text" placeholder="admin" autocomplete="off"/>
-    <label class="lg-label">Admin Password</label>
-    <input class="lg-input" id="lgPass" type="password" placeholder="••••••••"/>
+    <label class="lg-label">Admin Email</label>
+    <input class="lg-input" id="lgUser" type="email" placeholder="you@kamistream.tv" autocomplete="username" required/>
+    <label class="lg-label">Password</label>
+    <input class="lg-input" id="lgPass" type="password" placeholder="••••••••" autocomplete="current-password" required/>
     <div class="lg-err" id="lgErr">Incorrect credentials. Try again.</div>
-    <button class="lg-btn" type="submit">Access Admin Panel →</button>
+    <button class="lg-btn" type="submit" id="lgBtn">Access Admin Panel →</button>
+    <div class="lg-hint">Sign in with your Supabase account. Admin access is granted via the <code>profiles.is_admin</code> flag.</div>
     </form>
   </div>
 </div>
@@ -1669,69 +1670,131 @@ function sadb(d){localStorage.setItem(ADK,JSON.stringify(d));}
 
 let db=ldb();
 let adb=ladb();
-let adminLoggedIn=sessionStorage.getItem('an_admin')==='1';
+let adminLoggedIn=false; // verified by Supabase session + is_admin check
 
 // ── AUTH with brute-force protection ──
+// Authentication is delegated to Supabase Auth. The admin gate ALSO requires
+// the signed-in user to have `profiles.is_admin = true`. The legacy localStorage
+// PIN/password is no longer trusted.
 let _loginFailCount = parseInt(sessionStorage.getItem('an_lf')||'0');
 let _loginLockedUntil = parseInt(sessionStorage.getItem('an_ll')||'0');
+let _adminSb = null; // dedicated Supabase client for the gate
 
-function doAdminLogin(){
-  // Check lockout
-  if(Date.now() < _loginLockedUntil){
-    const secs = Math.ceil((_loginLockedUntil - Date.now()) / 1000);
-    document.getElementById('lgErr').textContent = '⏳ Too many attempts. Try again in '+secs+'s.';
-    document.getElementById('lgErr').classList.add('show');
-    return;
-  }
-
-  adb = ladb();
-  const u   = document.getElementById('lgUser').value.trim();
-  const p   = document.getElementById('lgPass').value;
-  const err = document.getElementById('lgErr');
-  err.classList.remove('show');
-
-  if(u === adb.user && p === adb.pass){
-    // Success — clear fail count
-    _loginFailCount = 0;
-    sessionStorage.removeItem('an_lf');
-    sessionStorage.removeItem('an_ll');
-    sessionStorage.setItem('an_admin','1');
-    document.getElementById('loginGate').style.display='none';
-    document.getElementById('adminUI').style.display='flex';
-    document.getElementById('adminLayout').style.display='flex';
-    adminLoggedIn = true;
-    addLog('Admin logged in','green');
-    refreshAll();
-  } else {
-    _loginFailCount++;
-    sessionStorage.setItem('an_lf', _loginFailCount);
-    if(_loginFailCount >= 5){
-      // Lock for 5 minutes after 5 failures
-      _loginLockedUntil = Date.now() + 5 * 60 * 1000;
-      sessionStorage.setItem('an_ll', _loginLockedUntil);
-      err.textContent = '🔒 Too many failed attempts. Locked for 5 minutes.';
-    } else {
-      const left = 5 - _loginFailCount;
-      err.textContent = 'Incorrect credentials. '+left+' attempt'+(left===1?'':'s')+' remaining.';
-    }
-    err.classList.add('show');
-    // Shake the login box
-    const box = document.querySelector('.lg-box');
-    if(box){ box.style.animation='none'; requestAnimationFrame(()=>{ box.style.animation='lgShake .4s ease'; }); }
-  }
+function _getAdminSb(){
+  if(_adminSb) return _adminSb;
+  if(!window.supabase) return null;
+  try{
+    const {url, key} = (typeof getSbCfg === 'function') ? getSbCfg() : {url:SB_URL, key:SB_KEY};
+    _adminSb = window.supabase.createClient(url, key, {
+      auth:{ persistSession:true, autoRefreshToken:true, storageKey:'kamistream_admin_auth' }
+    });
+  }catch(e){ console.error('[Admin] Supabase init failed:', e.message); }
+  return _adminSb;
 }
 
-function adminLogout(){
-  sessionStorage.removeItem('an_admin');
-  location.reload();
+async function _verifyIsAdmin(client, userId){
+  // Reads profiles.is_admin for the signed-in user. RLS must allow a user
+  // to read their own row — see supabase/migrations/001_rls_policies.sql.
+  try{
+    const {data, error} = await client.from('profiles')
+      .select('is_admin').eq('id', userId).single();
+    if(error){ console.warn('[Admin] is_admin lookup failed:', error.message); return false; }
+    return !!(data && data.is_admin === true);
+  }catch(e){ console.warn('[Admin] is_admin lookup threw:', e.message); return false; }
 }
 
-if(adminLoggedIn){
+function _showAdminUI(){
   document.getElementById('loginGate').style.display='none';
   document.getElementById('adminUI').style.display='flex';
   document.getElementById('adminLayout').style.display='flex';
-  refreshAll();
+  adminLoggedIn = true;
+  if(typeof refreshAll === 'function') refreshAll();
 }
+
+function _showLoginError(msg){
+  const err = document.getElementById('lgErr');
+  err.textContent = msg;
+  err.classList.add('show');
+  const box = document.querySelector('.lg-box');
+  if(box){ box.style.animation='none'; requestAnimationFrame(()=>{ box.style.animation='lgShake .4s ease'; }); }
+}
+
+async function doAdminLogin(){
+  // Check lockout first
+  if(Date.now() < _loginLockedUntil){
+    const secs = Math.ceil((_loginLockedUntil - Date.now()) / 1000);
+    _showLoginError('⏳ Too many attempts. Try again in '+secs+'s.');
+    return;
+  }
+
+  const email = document.getElementById('lgUser').value.trim();
+  const pass  = document.getElementById('lgPass').value;
+  const btn   = document.getElementById('lgBtn');
+  document.getElementById('lgErr').classList.remove('show');
+
+  if(!email || !pass){ _showLoginError('Email and password required.'); return; }
+
+  const client = _getAdminSb();
+  if(!client){ _showLoginError('Supabase client not loaded — refresh and try again.'); return; }
+
+  if(btn){ btn.disabled = true; btn.textContent = 'Signing in…'; }
+  try{
+    const {data, error} = await client.auth.signInWithPassword({email, password: pass});
+    if(error || !data || !data.user){
+      throw new Error(error?.message || 'Invalid credentials');
+    }
+    const isAdmin = await _verifyIsAdmin(client, data.user.id);
+    if(!isAdmin){
+      // Sign out IMMEDIATELY so a non-admin session can't be used
+      try{ await client.auth.signOut(); }catch(_){}
+      throw new Error('This account does not have admin access.');
+    }
+    // Success
+    _loginFailCount = 0;
+    sessionStorage.removeItem('an_lf');
+    sessionStorage.removeItem('an_ll');
+    if(typeof addLog === 'function') addLog('Admin logged in: '+email, 'green');
+    _showAdminUI();
+  }catch(e){
+    _loginFailCount++;
+    sessionStorage.setItem('an_lf', _loginFailCount);
+    if(_loginFailCount >= 5){
+      _loginLockedUntil = Date.now() + 5 * 60 * 1000;
+      sessionStorage.setItem('an_ll', _loginLockedUntil);
+      _showLoginError('🔒 Too many failed attempts. Locked for 5 minutes.');
+    } else {
+      const left = 5 - _loginFailCount;
+      _showLoginError((e.message || 'Login failed') + ' — ' + left + ' attempt' + (left===1?'':'s') + ' remaining.');
+    }
+  }finally{
+    if(btn){ btn.disabled = false; btn.textContent = 'Access Admin Panel →'; }
+  }
+}
+
+async function adminLogout(){
+  try{
+    const client = _getAdminSb();
+    if(client) await client.auth.signOut();
+  }catch(e){ console.warn('[Admin] signOut failed:', e.message); }
+  location.reload();
+}
+
+// On page load, restore an existing Supabase session and re-verify is_admin.
+// Never trust sessionStorage flags alone — always re-check the role.
+(async function _bootAdminGate(){
+  const client = _getAdminSb();
+  if(!client) return;
+  try{
+    const {data:{session}} = await client.auth.getSession();
+    if(session && session.user){
+      const isAdmin = await _verifyIsAdmin(client, session.user.id);
+      if(isAdmin){ _showAdminUI(); return; }
+      // Logged in but not admin — kill the session
+      try{ await client.auth.signOut(); }catch(_){}
+    }
+  }catch(e){ console.warn('[Admin] session bootstrap failed:', e.message); }
+})();
+
 document.getElementById('lgPass').addEventListener('keydown',e=>{ if(e.key==='Enter') doAdminLogin(); });
 
 // ── NAVIGATION ──

@@ -48,10 +48,10 @@
      ╚══════════════════════════════════════════════════════════╝ -->
 <script>
   const SUPABASE_URL      = 'https://ojmbwnslkubsrloxkggo.supabase.co';
-  // ── RESEND EMAIL API KEY ──
-  // Get free key at resend.com → API Keys → Create key
-  // Free tier: 3,000 emails/month — more than enough
-  const RESEND_API_KEY = ''; // 're_xxxx...'
+  // ── EMAIL DELIVERY ──
+  // Resend is NEVER called from the browser. The Resend API key lives only
+  // inside the `send-email` Supabase Edge Function (set via `supabase secrets`).
+  // The client just invokes that function — see sendEmail() below.
   const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9qbWJ3bnNsa3Vic3Jsb3hrZ2dvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU3NjA5MjksImV4cCI6MjA5MTMzNjkyOX0.38YqteDix7toutmv5Fi2A_bp6xD7iIf2Bhu5GQm1vDU';
 
   // ── SITE CONFIG — update these before going live ──
@@ -2628,7 +2628,8 @@ async function doSignup(){
     if(error){ document.getElementById('sEErr').textContent=error.message; document.getElementById('sEErr').classList.add('show'); return; }
     // Update profile username
     if(data.user){
-      try { await supabase.from('profiles').upsert({id:data.user.id, username}).select(); } catch(e){}
+      try { await supabase.from('profiles').upsert({id:data.user.id, username}).select(); }
+      catch(e){ console.warn('[KamiStream] profile upsert failed:', e.message); showToast('Account created, but profile setup failed — you can fix it in Settings','warn'); }
     }
     // Show "verify your email" screen instead of closing
     _ksLastSignupEmail = email;
@@ -3171,7 +3172,7 @@ async function cfLike(id, el){
             const ownerEmail = (await supabase.auth.admin?.getUserById?.(vid.user_id))?.data?.user?.email;
             if(ownerEmail) sendLikeNotification(ownerEmail, vid.username, currentProfile?.username||'someone', vid.caption);
           }
-        } catch(e){}
+        } catch(e){ console.warn('[KamiStream] like notification failed:', e.message); }
       }
     }
   } else {
@@ -3233,7 +3234,7 @@ async function submitCfComment(){
         const ownerEmail = (await supabase.auth.admin?.getUserById?.(vid.user_id))?.data?.user?.email;
         if(ownerEmail) sendCommentNotification(ownerEmail, vid.username, username, text, vid.caption);
       }
-    } catch(e){}
+    } catch(e){ console.warn('[KamiStream] comment notification failed:', e.message); }
   }
 }
 
@@ -3705,24 +3706,20 @@ function openSubmitModal(){
 // EMAIL NOTIFICATIONS — Resend.com
 // ════════════════════════════════════════
 async function sendEmail({to, subject, html}){
-  if(!RESEND_API_KEY){
-    console.warn('[KamiStream] No Resend API key set — email not sent');
-    return {ok:false, reason:'No API key'};
+  // Email delivery goes through the Supabase `send-email` Edge Function.
+  // The Resend API key lives ONLY in the function's env (never in this file).
+  // See supabase/functions/send-email/index.ts.
+  if(!supabase){
+    console.warn('[KamiStream] Supabase not initialised — email not sent');
+    return {ok:false, reason:'Supabase not initialised'};
   }
   try{
-    const res = await fetch('https://api.resend.com/emails',{
-      method:'POST',
-      headers:{'Content-Type':'application/json','Authorization':'Bearer '+RESEND_API_KEY},
-      body: JSON.stringify({
-        from: 'KamiStream <'+SITE_EMAIL_FROM+'>',  // update to your verified domain
-        to: [to],
-        subject,
-        html
-      })
+    const {data, error} = await supabase.functions.invoke('send-email', {
+      body: {to, subject, html, from: SITE_EMAIL_FROM}
     });
-    const data = await res.json();
-    if(!res.ok) throw new Error(data.message||'Email failed');
-    return {ok:true, id:data.id};
+    if(error) throw new Error(error.message || 'Email failed');
+    if(data && data.ok === false) throw new Error(data.reason || 'Email failed');
+    return {ok:true, id:data?.id};
   } catch(e){
     console.error('[KamiStream] Email error:', e.message);
     return {ok:false, reason:e.message};
@@ -4314,8 +4311,27 @@ function srvSelect(btn, url, name){
   const iframe = document.getElementById('apIframe');
   if(iframe){
     iframe.src = 'about:blank';
+    // Cancel any prior load watchdog before starting a new attempt
+    if(window._srvLoadTimer){ clearTimeout(window._srvLoadTimer); }
+    let didLoad = false;
+    iframe.onload = () => {
+      didLoad = true;
+      if(window._srvLoadTimer){ clearTimeout(window._srvLoadTimer); window._srvLoadTimer = null; }
+    };
     setTimeout(() => { iframe.src = url; iframe.style.display='block'; }, 80);
     document.getElementById('apVideoPlaceholder').style.display = 'none';
+
+    // ── Watchdog: if the iframe doesn't fire `load` within 12s, treat the
+    // server as broken, mark it failed, and auto-advance to the next one.
+    // This is the only signal we get for cross-origin embeds — `onerror`
+    // almost never fires for blocked/down providers.
+    window._srvLoadTimer = setTimeout(() => {
+      if(didLoad) return;
+      console.warn('[Embed] Watchdog timeout for', url);
+      embedMarkFailed(url);
+      showToast('“'+name+'” is not responding — trying next server…','warn');
+      srvFallback();
+    }, 12000);
   }
   window._srvCurrentIdx = parseInt(btn.dataset.idx||'0');
   showToast('Switched to '+name);
@@ -4802,7 +4818,7 @@ async function sdSearch(q){
         })));
         return;
       }
-    }catch(e){}
+    }catch(e){ console.warn('[KamiStream] DB search failed, falling back to AniList:', e.message); }
   }
 
   // 2. AniList search (real covers, always fresh)
@@ -4820,7 +4836,7 @@ async function sdSearch(q){
       inDB: false
     }));
     if(items.length){ sdRenderResults(items); return; }
-  }catch(e){}
+  }catch(e){ console.warn('[KamiStream] AniList search failed, falling back to Jikan:', e.message); }
 
   // 3. Last resort: Jikan
   try{
