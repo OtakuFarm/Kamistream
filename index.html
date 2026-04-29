@@ -1293,6 +1293,67 @@ img.lazy.loaded{opacity:1;}
 .footer-bar-copy{text-align:center;font-size:11px;color:var(--text3);}
 .footer-bar-disclaimer{text-align:center;font-size:10px;color:var(--text3);margin-top:5px;line-height:1.6;max-width:580px;margin-left:auto;margin-right:auto;}
 
+/* ── COMMUNITY PAGE ── */
+#communityView{display:none;position:fixed;inset:0;z-index:490;background:var(--bg);overflow-y:auto;flex-direction:column;}
+#communityView.open{display:flex;}
+.cmv-header{background:var(--bg2);border-bottom:1px solid var(--border);padding:14px 28px;display:flex;align-items:center;gap:16px;flex-shrink:0;position:sticky;top:0;z-index:5;}
+.cmv-back{background:rgba(255,255,255,0.07);border:1px solid var(--border2);color:var(--text);padding:7px 14px;border-radius:9px;font-size:12px;font-weight:700;cursor:pointer;transition:all .2s;}
+.cmv-back:hover{background:rgba(255,255,255,0.12);}
+.cmv-title{font-family:'Poppins',sans-serif;font-size:18px;font-weight:900;color:#fff;}
+.cmv-online{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--green);font-weight:700;margin-left:auto;}
+.cmv-dot{width:7px;height:7px;border-radius:50%;background:var(--green);animation:lp 1.5s infinite;}
+.cmv-body{display:grid;grid-template-columns:1fr 340px;gap:0;flex:1;min-height:0;overflow:hidden;}
+@media(max-width:900px){.cmv-body{grid-template-columns:1fr;}.cmv-sidebar{display:none;}}
+.cmv-chat-wrap{display:flex;flex-direction:column;height:100%;border-right:1px solid var(--border);min-height:0;}
+.cmv-chat-tabs{display:flex;gap:0;border-bottom:1px solid var(--border);flex-shrink:0;}
+.cmv-chat-tab{flex:1;padding:12px 8px;font-size:12px;font-weight:800;color:var(--text3);cursor:pointer;text-align:center;border-bottom:2px solid transparent;transition:all .2s;background:none;border-top:none;border-left:none;border-right:none;}
+.cmv-chat-tab:hover{color:var(--text);background:rgba(255,255,255,0.03);}
+.cmv-chat-tab.active{color:var(--pink);border-bottom-color:var(--pink);}
+.cmv-messages{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:12px;min-height:0;}
+.cmv-messages::-webkit-scrollbar{width:3px;}
+.cmv-messages::-webkit-scrollbar-thumb{background:rgba(155,93,229,0.3);border-radius:3px;}
+.cmv-msg{display:flex;gap:10px;align-items:flex-start;}
+.cmv-msg-av{width:32px;height:32px;border-radius:9px;background:linear-gradient(135deg,var(--pink),var(--purple));display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:800;color:#fff;flex-shrink:0;font-family:'Poppins',sans-serif;}
+.cmv-msg-body{flex:1;min-width:0;}
+.cmv-msg-meta{display:flex;align-items:baseline;gap:7px;margin-bottom:3px;}
+.cmv-msg-user{font-size:12px;font-weight:800;color:#fff;}
+.cmv-msg-time{font-size:10px;color:var(--text3);}
+.cmv-msg-text{font-size:13px;color:var(--text2);line-height:1.5;word-break:break-word;}
+.cmv-msg.own .cmv-msg-av{order:2;}
+.cmv-msg.own .cmv-msg-body{text-align:right;}
+.cmv-msg.own .cmv-msg-meta{justify-content:flex-end;}
+.cmv-msg.own .cmv-msg-av{background:linear-gradient(135deg,var(--blue),var(--purple));}
+.cmv-system-msg{text-align:center;font-size:11px;color:var(--text3);padding:4px 12px;background:rgba(255,255,255,0.03);border-radius:20px;margin:4px auto;width:fit-content;}
+.cmv-input-row{padding:12px 16px;border-top:1px solid var(--border);display:flex;gap:8px;align-items:center;flex-shrink:0;background:var(--bg2);}
+.cmv-input{flex:1;background:var(--bg3);border:1px solid var(--border2);border-radius:10px;color:var(--text);padding:10px 14px;font-family:'Nunito',sans-serif;font-size:13px;outline:none;transition:border .2s;}
+.cmv-input:focus{border-color:rgba(155,93,229,0.45);}
+.cmv-input::placeholder{color:var(--text3);}
+.cmv-send{background:linear-gradient(135deg,var(--pink),var(--purple));border:none;color:#fff;width:38px;height:38px;border-radius:10px;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .2s;}
+.cmv-send:hover{filter:brightness(1.15);transform:scale(1.05);}
+.cmv-send:disabled{opacity:.4;cursor:not-allowed;transform:none;}
+.cmv-sidebar{padding:20px;display:flex;flex-direction:column;gap:16px;overflow-y:auto;}
+.cmv-sidebar::-webkit-scrollbar{width:3px;}
+.cmv-sidebar::-webkit-scrollbar-thumb{background:rgba(155,93,229,0.3);border-radius:3px;}
+.cmv-widget{background:var(--card);border:1px solid var(--border2);border-radius:var(--radius);overflow:hidden;}
+.cmv-widget-head{padding:12px 14px;border-bottom:1px solid var(--border);font-size:12px;font-weight:800;color:#fff;display:flex;align-items:center;gap:6px;}
+.cmv-widget-body{padding:14px;}
+.cmv-rule{display:flex;align-items:flex-start;gap:8px;margin-bottom:10px;font-size:12px;color:var(--text2);line-height:1.5;}
+.cmv-rule-num{width:20px;height:20px;border-radius:6px;background:rgba(155,93,229,0.15);color:var(--purple);font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.cmv-topic{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:9px;cursor:pointer;transition:all .2s;margin-bottom:4px;}
+.cmv-topic:hover{background:rgba(255,255,255,0.05);}
+.cmv-topic-icon{font-size:16px;flex-shrink:0;}
+.cmv-topic-name{font-size:12px;font-weight:700;color:#fff;}
+.cmv-topic-cnt{margin-left:auto;font-size:10px;color:var(--text3);}
+.cmv-online-list{display:flex;flex-direction:column;gap:6px;}
+.cmv-online-user{display:flex;align-items:center;gap:8px;}
+.cmv-online-av{width:26px;height:26px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:#fff;flex-shrink:0;}
+.cmv-online-name{font-size:12px;color:var(--text2);font-weight:600;}
+.cmv-online-status{width:6px;height:6px;border-radius:50%;background:var(--green);flex-shrink:0;margin-left:auto;}
+.cmv-load-msg{color:var(--text3);font-size:12px;text-align:center;padding:20px;}
+.cmv-msg-reactions{display:flex;gap:4px;margin-top:4px;flex-wrap:wrap;}
+.cmv-react{font-size:13px;cursor:pointer;padding:1px 5px;border-radius:6px;background:rgba(255,255,255,0.06);border:1px solid var(--border);transition:all .2s;}
+.cmv-react:hover{background:rgba(255,45,120,0.15);border-color:rgba(255,45,120,0.3);}
+
 </style>
 
   <style id="ks-footer-pin">
@@ -4079,9 +4140,7 @@ function setTab(el, id){
   } else if(id==='challenge'){
     openChallengeTab();
   } else if(id==='community'){
-    // Community tab — show a coming soon toast for now
-    showHome();
-    showToast('Community features coming soon 🎌','ok');
+    openCommunityPage();
   } else if(id==='schedule'){
     showHome();
     // Scroll to schedule section if it exists
@@ -7317,6 +7376,8 @@ async function openBrowseFull(){
   view.classList.add('open');
   document.getElementById('homeView').style.display = 'none';
   document.getElementById('sb-browse')?.classList.add('active');
+  // Push hash so refresh returns to Browse page
+  if(location.hash !== '#browse') history.pushState({page:'browse'}, '', '#browse');
   if(!_bfvAllAnime.length){
     bfvShowSkeletons();
     await bfvLoadAniList('');
@@ -7330,6 +7391,7 @@ function closeBrowseFull(){
   document.getElementById('homeView').style.display = 'flex';
   document.querySelectorAll('.sb-item').forEach(i=>i.classList.remove('active'));
   document.getElementById('sb-home')?.classList.add('active');
+  if(location.hash === '#browse') history.pushState({page:'home'}, '', location.pathname);
 }
 
 function bfvShowSkeletons(){
@@ -7978,6 +8040,100 @@ setTimeout(trendingAniListLoad, 600);
 </script>
 
 <!-- ═══════════════════════════════════════════════
+     COMMUNITY PAGE — chat, topics, online users
+     ═══════════════════════════════════════════════ -->
+<div id="communityView">
+  <!-- Header -->
+  <div class="cmv-header">
+    <button class="cmv-back" onclick="closeCommunityPage()">← Back</button>
+    <div class="cmv-title">👥 Community</div>
+    <div class="cmv-online">
+      <div class="cmv-dot"></div>
+      <span id="cmvOnlineCount">0 online</span>
+    </div>
+  </div>
+
+  <!-- Body: chat + sidebar -->
+  <div class="cmv-body" style="flex:1;overflow:hidden;">
+
+    <!-- Chat panel -->
+    <div class="cmv-chat-wrap">
+      <!-- Tab bar -->
+      <div class="cmv-chat-tabs">
+        <button class="cmv-chat-tab active" id="cmvTab-general" onclick="cmvSwitchRoom('general',this)">💬 General</button>
+        <button class="cmv-chat-tab" id="cmvTab-anime" onclick="cmvSwitchRoom('anime',this)">🎌 Anime Talk</button>
+        <button class="cmv-chat-tab" id="cmvTab-challenge" onclick="cmvSwitchRoom('challenge',this)">🏆 Challenge</button>
+        <button class="cmv-chat-tab" id="cmvTab-random" onclick="cmvSwitchRoom('random',this)">🎲 Random</button>
+      </div>
+
+      <!-- Messages -->
+      <div class="cmv-messages" id="cmvMessages">
+        <div class="cmv-load-msg">Loading messages…</div>
+      </div>
+
+      <!-- Input -->
+      <div class="cmv-input-row">
+        <input class="cmv-input" id="cmvInput" placeholder="Say something… (be kind 🙏)" maxlength="400"
+          onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();cmvSend();}"/>
+        <button class="cmv-send" id="cmvSendBtn" onclick="cmvSend()" title="Send">➤</button>
+      </div>
+    </div>
+
+    <!-- Sidebar -->
+    <div class="cmv-sidebar">
+
+      <!-- Rules -->
+      <div class="cmv-widget">
+        <div class="cmv-widget-head">📋 Chat Rules</div>
+        <div class="cmv-widget-body">
+          <div class="cmv-rule"><div class="cmv-rule-num">1</div>Be respectful — no hate speech or harassment.</div>
+          <div class="cmv-rule"><div class="cmv-rule-num">2</div>Keep spoilers tagged — warn before posting them.</div>
+          <div class="cmv-rule"><div class="cmv-rule-num">3</div>No spam or self-promotion.</div>
+          <div class="cmv-rule"><div class="cmv-rule-num">4</div>English preferred in General. Other languages in Random.</div>
+          <div class="cmv-rule"><div class="cmv-rule-num">5</div>Have fun and enjoy the anime community! 🎌</div>
+        </div>
+      </div>
+
+      <!-- Hot topics -->
+      <div class="cmv-widget">
+        <div class="cmv-widget-head">🔥 Hot Topics</div>
+        <div class="cmv-widget-body" style="padding:8px 10px;">
+          <div class="cmv-topic" onclick="cmvInsertTopic('What anime are you watching this season?')">
+            <div class="cmv-topic-icon">📺</div>
+            <div class="cmv-topic-name">Season picks?</div>
+          </div>
+          <div class="cmv-topic" onclick="cmvInsertTopic('Who is your all-time favourite anime character?')">
+            <div class="cmv-topic-icon">⚔️</div>
+            <div class="cmv-topic-name">Favourite character</div>
+          </div>
+          <div class="cmv-topic" onclick="cmvInsertTopic('Best anime opening of all time — go!')">
+            <div class="cmv-topic-icon">🎵</div>
+            <div class="cmv-topic-name">Best OP ever</div>
+          </div>
+          <div class="cmv-topic" onclick="cmvInsertTopic('Recommend me something to watch that isn\'t mainstream')">
+            <div class="cmv-topic-icon">💎</div>
+            <div class="cmv-topic-name">Hidden gems</div>
+          </div>
+          <div class="cmv-topic" onclick="cmvInsertTopic('Most hyped anime right now — worth the hype or not?')">
+            <div class="cmv-topic-icon">🚀</div>
+            <div class="cmv-topic-name">Hype check</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Online users -->
+      <div class="cmv-widget">
+        <div class="cmv-widget-head">🟢 Online Now</div>
+        <div class="cmv-widget-body" style="padding:8px 10px;" id="cmvOnlineList">
+          <div style="color:var(--text3);font-size:11px;text-align:center;padding:8px;">Loading…</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════
      LEGAL / INFO PAGES  — Privacy, Terms, About, Contact
      All rendered as fixed overlays, same pattern as profileView
      ═══════════════════════════════════════════════ -->
@@ -8597,6 +8753,319 @@ setTimeout(trendingAniListLoad, 600);
       }
     });
   })();
+</script>
+
+<!-- ═══ HASH-BASED SPA ROUTING (browse + community survive refresh) ═══ -->
+<script>
+(function(){
+  // Restore page from hash on initial load / refresh
+  function restoreFromHash(){
+    var h = location.hash;
+    if(h === '#browse'){
+      // Open browse page immediately after app init
+      var tries = 0;
+      var iv = setInterval(function(){
+        if(typeof openBrowseFull === 'function'){
+          clearInterval(iv);
+          openBrowseFull();
+        } else if(++tries > 40){ clearInterval(iv); }
+      }, 150);
+    } else if(h === '#community'){
+      var tries2 = 0;
+      var iv2 = setInterval(function(){
+        if(typeof openCommunityPage === 'function'){
+          clearInterval(iv2);
+          openCommunityPage();
+        } else if(++tries2 > 40){ clearInterval(iv2); }
+      }, 150);
+    }
+  }
+
+  // Handle browser back/forward
+  window.addEventListener('popstate', function(e){
+    var h = location.hash;
+    if(h === '#browse'){
+      if(typeof openBrowseFull === 'function') openBrowseFull();
+    } else if(h === '#community'){
+      if(typeof openCommunityPage === 'function') openCommunityPage();
+    } else {
+      // Go home — close any open views
+      if(typeof showHome === 'function') showHome();
+      var cmv = document.getElementById('communityView');
+      if(cmv) cmv.classList.remove('open');
+      var bfv = document.getElementById('browseFullView');
+      if(bfv) bfv.classList.remove('open');
+    }
+  });
+
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', restoreFromHash);
+  } else {
+    setTimeout(restoreFromHash, 200);
+  }
+})();
+</script>
+
+<!-- ═══ COMMUNITY PAGE — chat system ═══ -->
+<script>
+(function(){
+  'use strict';
+
+  /* ── State ── */
+  var _cmvRoom     = 'general';
+  var _cmvMessages = {};   // room → [{id,username,text,ts,color}]
+  var _cmvChannel  = null; // Supabase realtime channel
+  var _cmvOnlineTimer = null;
+  var _cmvOpen     = false;
+  var _cmvPresence = {};   // username → last_seen
+  var _anonymousColors = [
+    '#ff2d78','#9b5de5','#4361ee','#06d6a0','#ffd60a',
+    '#ff6eb4','#00b4d8','#f72585','#7209b7','#3a86ff'
+  ];
+
+  /* ── Helpers ── */
+  function _guestName(){
+    var name = localStorage.getItem('cmv_guest_name');
+    if(!name){
+      name = 'Viewer' + Math.floor(Math.random()*9000+1000);
+      localStorage.setItem('cmv_guest_name', name);
+    }
+    return name;
+  }
+  function _currentUsername(){
+    if(window.currentProfile && currentProfile.username) return currentProfile.username;
+    if(window.currentUser && currentUser.user_metadata?.username) return currentUser.user_metadata.username;
+    return _guestName();
+  }
+  function _colorForUser(name){
+    var idx = 0;
+    for(var i=0;i<name.length;i++) idx = (idx + name.charCodeAt(i)) % _anonymousColors.length;
+    return _anonymousColors[idx];
+  }
+  function _fmtTime(ts){
+    try{
+      var d = new Date(ts);
+      return d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+    }catch(e){ return ''; }
+  }
+  function _esc(s){
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  /* ── Render messages ── */
+  function cmvRender(){
+    var el = document.getElementById('cmvMessages');
+    if(!el) return;
+    var msgs = _cmvMessages[_cmvRoom] || [];
+    var me = _currentUsername();
+    if(!msgs.length){
+      el.innerHTML = '<div class="cmv-system-msg">Be the first to say something in #' + _cmvRoom + '! 👋</div>';
+      return;
+    }
+    el.innerHTML = msgs.map(function(m){
+      var isOwn = m.username === me;
+      var color = m.color || _colorForUser(m.username || '?');
+      var initial = (m.username||'?')[0].toUpperCase();
+      return '<div class="cmv-msg' + (isOwn?' own':'') + '">' +
+        '<div class="cmv-msg-av" style="background:linear-gradient(135deg,'+color+','+color+'cc);">'+_esc(initial)+'</div>' +
+        '<div class="cmv-msg-body">' +
+          '<div class="cmv-msg-meta">' +
+            '<span class="cmv-msg-user" style="color:'+color+';">'+_esc(m.username||'User')+'</span>' +
+            '<span class="cmv-msg-time">'+_fmtTime(m.ts)+'</span>' +
+          '</div>' +
+          '<div class="cmv-msg-text">'+_esc(m.text)+'</div>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+    // Scroll to bottom
+    el.scrollTop = el.scrollHeight;
+  }
+
+  /* ── Load messages from Supabase (or localStorage fallback) ── */
+  async function cmvLoadMessages(room){
+    var msgs = [];
+    if(window.supabase && typeof supabase.from === 'function'){
+      try{
+        var res = await supabase.from('community_chat')
+          .select('id,username,text,color,created_at')
+          .eq('room', room)
+          .order('created_at', {ascending: true})
+          .limit(80);
+        if(!res.error && res.data){
+          msgs = res.data.map(function(r){ return {id:r.id,username:r.username,text:r.text,color:r.color,ts:r.created_at}; });
+        }
+      }catch(e){}
+    }
+    // LocalStorage fallback (key: cmv_msgs_<room>)
+    if(!msgs.length){
+      try{
+        var stored = JSON.parse(localStorage.getItem('cmv_msgs_'+room)||'[]');
+        msgs = stored.slice(-60);
+      }catch(e){}
+    }
+    _cmvMessages[room] = msgs;
+    cmvRender();
+  }
+
+  /* ── Supabase realtime channel ── */
+  function cmvSubscribe(room){
+    if(_cmvChannel){ try{ supabase.removeChannel(_cmvChannel); }catch(e){} _cmvChannel=null; }
+    if(!window.supabase || typeof supabase.channel !== 'function') return;
+    try{
+      _cmvChannel = supabase
+        .channel('community_chat_'+room)
+        .on('postgres_changes',{event:'INSERT',schema:'public',table:'community_chat',filter:'room=eq.'+room},
+          function(payload){
+            var r = payload.new;
+            if(!r) return;
+            var msg = {id:r.id,username:r.username,text:r.text,color:r.color,ts:r.created_at};
+            if(!_cmvMessages[room]) _cmvMessages[room]=[];
+            // Avoid duplicates
+            var exists = _cmvMessages[room].some(function(m){ return m.id && m.id===msg.id; });
+            if(!exists){
+              _cmvMessages[room].push(msg);
+              if(_cmvRoom===room) cmvRender();
+            }
+          })
+        .subscribe();
+    }catch(e){}
+  }
+
+  /* ── Send message ── */
+  window.cmvSend = async function(){
+    var input = document.getElementById('cmvInput');
+    if(!input) return;
+    var text = input.value.trim();
+    if(!text) return;
+    if(text.length > 400) { showToast('Message too long (max 400 chars)','warn'); return; }
+
+    var username = _currentUsername();
+    var color    = _colorForUser(username);
+    var ts       = new Date().toISOString();
+    var msg      = {username:username, text:text, color:color, ts:ts, room:_cmvRoom};
+
+    // Optimistic UI
+    if(!_cmvMessages[_cmvRoom]) _cmvMessages[_cmvRoom]=[];
+    _cmvMessages[_cmvRoom].push(msg);
+    cmvRender();
+    input.value = '';
+
+    // Persist to Supabase
+    if(window.supabase && typeof supabase.from === 'function'){
+      try{
+        await supabase.from('community_chat').insert({
+          room: _cmvRoom, username: username, text: text,
+          color: color, user_id: window.currentUser?.id || null
+        });
+      }catch(e){
+        // Fall back to localStorage
+        _cmvLocalSave(_cmvRoom, msg);
+      }
+    } else {
+      _cmvLocalSave(_cmvRoom, msg);
+    }
+  };
+
+  function _cmvLocalSave(room, msg){
+    try{
+      var key = 'cmv_msgs_'+room;
+      var arr = JSON.parse(localStorage.getItem(key)||'[]');
+      arr.push(msg);
+      if(arr.length>80) arr=arr.slice(-80);
+      localStorage.setItem(key, JSON.stringify(arr));
+    }catch(e){}
+  }
+
+  /* ── Switch room ── */
+  window.cmvSwitchRoom = function(room, btn){
+    _cmvRoom = room;
+    document.querySelectorAll('.cmv-chat-tab').forEach(function(t){ t.classList.remove('active'); });
+    if(btn) btn.classList.add('active');
+    var el = document.getElementById('cmvMessages');
+    if(el) el.innerHTML = '<div class="cmv-load-msg">Loading…</div>';
+    if(!_cmvMessages[room]) cmvLoadMessages(room); else cmvRender();
+    cmvSubscribe(room);
+  };
+
+  /* ── Insert topic prompt ── */
+  window.cmvInsertTopic = function(text){
+    var input = document.getElementById('cmvInput');
+    if(input){ input.value = text; input.focus(); }
+  };
+
+  /* ── Online presence ── */
+  function cmvUpdatePresence(){
+    var username = _currentUsername();
+    var key = 'cmv_presence_'+username;
+    localStorage.setItem(key, Date.now());
+    // Collect all presence keys
+    var online = [];
+    try{
+      for(var i=0;i<localStorage.length;i++){
+        var k = localStorage.key(i);
+        if(k && k.startsWith('cmv_presence_')){
+          var ts = parseInt(localStorage.getItem(k)||'0');
+          if(Date.now()-ts < 90000){ // 90s = online
+            online.push(k.replace('cmv_presence_',''));
+          }
+        }
+      }
+    }catch(e){}
+    // Update counter
+    var cnt = document.getElementById('cmvOnlineCount');
+    if(cnt) cnt.textContent = online.length + (online.length===1?' online':' online');
+    // Update list
+    var list = document.getElementById('cmvOnlineList');
+    if(list){
+      if(!online.length){
+        list.innerHTML='<div style="color:var(--text3);font-size:11px;text-align:center;padding:8px;">Just you so far!</div>';
+      } else {
+        list.innerHTML = online.slice(0,8).map(function(u){
+          var c = _colorForUser(u);
+          return '<div class="cmv-online-user">' +
+            '<div class="cmv-online-av" style="background:linear-gradient(135deg,'+c+','+c+'cc);">'+_esc(u[0].toUpperCase())+'</div>' +
+            '<div class="cmv-online-name">'+_esc(u)+'</div>' +
+            '<div class="cmv-online-status"></div>' +
+          '</div>';
+        }).join('');
+      }
+    }
+  }
+
+  /* ── Open / close community page ── */
+  window.openCommunityPage = function(){
+    _cmvOpen = true;
+    var view = document.getElementById('communityView');
+    if(!view) return;
+    view.classList.add('open');
+    // Hide other views
+    var home = document.getElementById('homeView');
+    if(home) home.style.display='none';
+    var browse = document.getElementById('browseFullView');
+    if(browse) browse.classList.remove('open');
+    // Push hash
+    if(location.hash !== '#community') history.pushState({page:'community'},'','#community');
+    // Load messages for current room
+    cmvLoadMessages(_cmvRoom);
+    cmvSubscribe(_cmvRoom);
+    // Presence heartbeat
+    cmvUpdatePresence();
+    clearInterval(_cmvOnlineTimer);
+    _cmvOnlineTimer = setInterval(cmvUpdatePresence, 30000);
+  };
+
+  window.closeCommunityPage = function(){
+    _cmvOpen = false;
+    var view = document.getElementById('communityView');
+    if(view) view.classList.remove('open');
+    var home = document.getElementById('homeView');
+    if(home) home.style.display='flex';
+    clearInterval(_cmvOnlineTimer);
+    if(_cmvChannel){ try{ supabase.removeChannel(_cmvChannel); }catch(e){} _cmvChannel=null; }
+    if(location.hash === '#community') history.pushState({page:'home'},'',location.pathname);
+  };
+
+})();
 </script>
 
   </body>

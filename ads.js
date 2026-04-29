@@ -113,14 +113,17 @@
     if (_state.popunderArmed) return;
     _state.popunderArmed = true;
 
+    /* Use a plain boolean (false = bubble) so add and remove always match. */
+    var _listenerOpts = false;
+
     var handler = function (ev) {
       if (_state.popunderFired) return;
       if (_matchesSafeSkip(ev.target)) return;   /* navigation click — skip */
 
       _state.popunderFired = true;
       try {
-        document.removeEventListener('click', handler, true);
-        document.removeEventListener('touchstart', handler, true);
+        document.removeEventListener('click',      handler, _listenerOpts);
+        document.removeEventListener('touchstart', handler, _listenerOpts);
       } catch (e) {}
 
       setTimeout(function () {
@@ -133,8 +136,10 @@
     };
 
     try {
-      document.addEventListener('click',     handler, { passive: true });
-      document.addEventListener('touchstart', handler, { passive: true });
+      /* passive:true on touchstart prevents scroll jank on mobile;
+         click needs no special option — just bubble phase (false). */
+      document.addEventListener('click',      handler, _listenerOpts);
+      document.addEventListener('touchstart', handler, { passive: true, capture: false });
     } catch (e) {
       try { document.addEventListener('click', handler); } catch (_) {}
     }
