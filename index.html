@@ -131,39 +131,27 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;disp
 .conn-status.ok{background:rgba(6,214,160,0.1);color:var(--green);border:1px solid rgba(6,214,160,0.2);}
 .conn-status.err{background:rgba(255,71,87,0.1);color:var(--red);border:1px solid rgba(255,71,87,0.2);}
 
-/* ── AD CONTAINMENT — prevents Monetag widgets breaking scroll ── */
-#home-ad,
-#player-ad,
-#sidebar-ad {
-  overflow: hidden;
+/* ── AD CONTAINMENT ── */
+/* Slots are block-level, never grow unbounded, don't affect scroll */
+#home-ad, #player-ad, #sidebar-ad {
+  display: block;
+  width: 100%;
   max-width: 100%;
-  /* Never let an ad slot grow and push content off-screen */
-  max-height: 400px;
-  contain: layout style;
+  min-height: 0;
+  max-height: 320px;
+  overflow: hidden;
+  /* Isolate layout so the ad can NEVER push content outside the slot */
+  contain: layout;
+  position: relative;
+  z-index: 1;
 }
-#home-ad > *,
-#player-ad > *,
-#sidebar-ad > * {
-  max-width: 100% !important;
-  overflow: hidden !important;
-}
-/* Lock the scroll containers so ad injection can NEVER break them */
-.content {
+/* Force the scroll containers to always scroll — ads cannot override this */
+.content,
+#animePageView,
+#browseFullView,
+#profileView {
   overflow-y: auto !important;
-  overflow-x: hidden !important;
-}
-#animePageView {
-  overflow-y: auto !important;
-  overflow-x: hidden !important;
-}
-/* Monetag injects divs with fixed/absolute position — keep them inside their slot */
-#home-ad iframe,
-#player-ad iframe,
-#sidebar-ad iframe,
-#home-ad > div,
-#player-ad > div {
-  max-width: 100% !important;
-  position: relative !important;
+  -webkit-overflow-scrolling: touch !important;
 }
 
 /* ── TOPBAR ── */
@@ -3348,6 +3336,9 @@ async function openAnimePage(animeId){
   page.innerHTML = '<div style="height:100vh;display:flex;align-items:center;justify-content:center;color:var(--text3);font-size:14px;">⏳ Loading…</div>';
   page.style.display='flex';
   page.style.flexDirection='column';
+  // Always force scroll on the anime view — ad scripts can set overflow:hidden
+  page.style.overflowY='auto';
+  page.style.webkitOverflowScrolling='touch';
   document.getElementById('homeView').style.display='none';
 
   if(!supabase){ page.innerHTML='<div style="padding:40px;color:var(--text3);">Database not connected.</div>'; return; }
@@ -3539,17 +3530,9 @@ function renderAnimePage(anime, episodes, sources){
     </div>`;
 
   checkWatchlistStatus(anime.id);
-
-  // Trigger Monetag in-page push for the watch page 4s after anime page renders.
-  // Delay ensures the Supabase fetch + DOM render are fully done first.
-  setTimeout(function(){
-    try{
-      if(window.KamiAds){
-        window.KamiAds.initInPagePush();
-        window.KamiAds.reportPageview();
-      }
-    }catch(e){}
-  }, 4000);
+  // reportPageview for KamiAds engagement tracking (no ad injection here —
+  // in-page push is initialised once from launchApp, not on every page render)
+  try{ if(window.KamiAds) window.KamiAds.reportPageview(); }catch(e){}
 }
 
 async function playEpisode(epId, epNum, embedUrl, sourceName){
@@ -6954,9 +6937,13 @@ const _origPlayEpMoney=playEpisode;
 playEpisode=async function(epId,epNum,embedUrl,sourceName){
   _adEpCount++;
   if(_adEngineRunning){
-    // Pre-roll — frequency controlled (every N episodes)
+    // Pre-roll — frequency controlled (every N episodes).
+    // Hard timeout of 8s so a stalled ad never blocks episode loading.
     if(adCanShowPreroll()){
-      await new Promise(res=>prerollShow(res));
+      await Promise.race([
+        new Promise(res=>prerollShow(res)),
+        new Promise(res=>setTimeout(res, 8000))
+      ]);
     }
   }
   await _origPlayEpMoney.apply(this,[epId,epNum,embedUrl,sourceName]);
@@ -8482,20 +8469,24 @@ setTimeout(trendingAniListLoad, 600);
 })();
 </script>
 
-<!-- ═══ SCROLL-LOCK PROTECTION ═══
-     Monetag and other ad scripts sometimes set overflow:hidden on body/html
-     when their popunder or push renders. This guard watches for that and
-     immediately reverts it so the site stays scrollable at all times.    -->
+<!-- ═══ SCROLL-LOCK PROTECTION ═══ -->
 <script>
 (function(){
-  // MutationObserver watches body/html style attribute changes
+  // IDs of views that must always stay scrollable
+  var SCROLL_IDS = ['animePageView','browseFullView','profileView'];
+
+  function forceScrollable(el){
+    if(!el) return;
+    el.style.overflowY = 'auto';
+    el.style.webkitOverflowScrolling = 'touch';
+  }
+
   function guardScrollLock(){
-    var targets = [document.documentElement, document.body];
-    var observer = new MutationObserver(function(mutations){
+    // Watch body + html — revert any overflow:hidden an ad script sets
+    var bodyObserver = new MutationObserver(function(mutations){
       mutations.forEach(function(m){
         var el = m.target;
         if(el === document.body || el === document.documentElement){
-          // Only revert overflow:hidden set on body/html — not on ad containers
           if(el.style.overflow === 'hidden' || el.style.overflowY === 'hidden'){
             el.style.overflow = '';
             el.style.overflowY = '';
@@ -8503,15 +8494,41 @@ setTimeout(trendingAniListLoad, 600);
         }
       });
     });
-    targets.forEach(function(t){
-      if(t) observer.observe(t, { attributes: true, attributeFilter: ['style'] });
+    [document.documentElement, document.body].forEach(function(t){
+      if(t) bodyObserver.observe(t, { attributes:true, attributeFilter:['style'] });
+    });
+
+    // Watch the scroll views — if an ad sets overflow:hidden on them, revert it
+    var viewObserver = new MutationObserver(function(mutations){
+      mutations.forEach(function(m){
+        var el = m.target;
+        if(el.style.overflowY === 'hidden' || el.style.overflow === 'hidden'){
+          forceScrollable(el);
+        }
+      });
+    });
+    SCROLL_IDS.forEach(function(id){
+      var el = document.getElementById(id);
+      if(el){
+        viewObserver.observe(el, { attributes:true, attributeFilter:['style'] });
+        forceScrollable(el);
+      }
     });
   }
+
   if(document.body){
     guardScrollLock();
   } else {
     document.addEventListener('DOMContentLoaded', guardScrollLock);
   }
+
+  // Re-apply after any view becomes visible (e.g. anime page opens)
+  document.addEventListener('DOMContentLoaded', function(){
+    // Small delay so the view is shown before we observe it
+    setTimeout(function(){
+      SCROLL_IDS.forEach(function(id){ forceScrollable(document.getElementById(id)); });
+    }, 500);
+  });
 })();
 </script>
 

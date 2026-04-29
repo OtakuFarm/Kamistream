@@ -301,14 +301,32 @@
   }
 
   /* ── 13. AUTO-WIRING ───────────────────────────────────────────────── */
-  function _firstInteractionHandler() {
+  function _firstInteractionHandler(e) {
     if (_state.firstInteraction) return;
+
+    // Never trigger on episode cards, source buttons, or player controls —
+    // those clicks must go straight to the app with zero interference.
+    try {
+      var t = e && e.target;
+      while (t && t !== document.body) {
+        var cls = t.className || '';
+        if (typeof cls === 'string' && (
+          cls.indexOf('ep-card') >= 0 ||
+          cls.indexOf('ep-source-pill') >= 0 ||
+          cls.indexOf('ap-src-btn') >= 0 ||
+          cls.indexOf('ap-now-btn') >= 0 ||
+          cls.indexOf('ap-cancel-btn') >= 0 ||
+          cls.indexOf('cw-card') >= 0 ||
+          cls.indexOf('tr-card') >= 0
+        )) { return; } // bail — don't mark firstInteraction, let next click decide
+        t = t.parentElement;
+      }
+    } catch(ex) {}
+
     _state.firstInteraction = true;
 
-    // Delay popunder 1.5s so the click that triggered it (e.g. opening an anime)
-    // fully completes navigation BEFORE the ad script loads. Prevents the ad
-    // from freezing or hijacking the click the user intended for the app.
-    setTimeout(() => { try { initPopunder(); } catch (e) {} }, 3000);
+    // Delay popunder 4s — well after any navigation or render triggered by this click.
+    setTimeout(() => { try { initPopunder(); } catch (e) {} }, 4000);
 
     if (AD_CONFIG.pushOptimizer.enabled) {
       // Push waits for engagement signals (watch time / dwell / pageviews)
