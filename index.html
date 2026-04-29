@@ -131,6 +131,41 @@ body{background:var(--bg);color:var(--text);font-family:'Nunito',sans-serif;disp
 .conn-status.ok{background:rgba(6,214,160,0.1);color:var(--green);border:1px solid rgba(6,214,160,0.2);}
 .conn-status.err{background:rgba(255,71,87,0.1);color:var(--red);border:1px solid rgba(255,71,87,0.2);}
 
+/* ── AD CONTAINMENT — prevents Monetag widgets breaking scroll ── */
+#home-ad,
+#player-ad,
+#sidebar-ad {
+  overflow: hidden;
+  max-width: 100%;
+  /* Never let an ad slot grow and push content off-screen */
+  max-height: 400px;
+  contain: layout style;
+}
+#home-ad > *,
+#player-ad > *,
+#sidebar-ad > * {
+  max-width: 100% !important;
+  overflow: hidden !important;
+}
+/* Lock the scroll containers so ad injection can NEVER break them */
+.content {
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+}
+#animePageView {
+  overflow-y: auto !important;
+  overflow-x: hidden !important;
+}
+/* Monetag injects divs with fixed/absolute position — keep them inside their slot */
+#home-ad iframe,
+#player-ad iframe,
+#sidebar-ad iframe,
+#home-ad > div,
+#player-ad > div {
+  max-width: 100% !important;
+  position: relative !important;
+}
+
 /* ── TOPBAR ── */
 .topbar{height:var(--topbar);background:var(--bg2);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 20px;gap:12px;flex-shrink:0;z-index:100;position:relative;}
 .topbar::after{content:'';position:absolute;bottom:-2px;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--pink),var(--purple),var(--blue),transparent);background-size:200%;animation:tbLine 3s linear infinite;}
@@ -2313,6 +2348,12 @@ function launchApp(){
   shell.style.flexDirection='column';
   shell.style.height='100%';
   initApp();
+  // Signal to initAnimeRouting that the app shell + supabase are ready,
+  // so a refresh on an anime page can safely restore instead of going to home.
+  window._appReady = true;
+  // Load Monetag in-page push 5s after home loads — well after Supabase
+  // fetches and hero renders complete, so ads never block navigation.
+  setTimeout(function(){ try{ if(window.KamiAds) window.KamiAds.initInPagePush(); }catch(e){} }, 5000);
 }
 
 // Auto-connect on load
@@ -2477,12 +2518,13 @@ async function doUpdatePassword(){
     const params = new URLSearchParams(window.location.search);
     const animeId = params.get('anime');
     if(animeId && !isNaN(animeId)){
-      // Wait for supabase to be ready then open the page
+      // Wait for the app shell AND supabase to be fully ready before restoring.
+      // Polls until window._appReady flag is set by launchApp() below.
       const tryOpen = (attempts) => {
-        if(window.supabase || attempts <= 0){ openAnimePage(parseInt(animeId)); }
-        else { setTimeout(()=>tryOpen(attempts-1), 400); }
+        if(window._appReady && window.supabase){ openAnimePage(parseInt(animeId)); }
+        else if(attempts > 0){ setTimeout(()=>tryOpen(attempts-1), 300); }
       };
-      tryOpen(10);
+      tryOpen(30); // up to 9 seconds
     }
   }
   // Handle browser back/forward
@@ -2498,9 +2540,8 @@ async function doUpdatePassword(){
       const iframe=document.getElementById('apIframe'); if(iframe) iframe.src='';
     }
   });
-  // Restore on page load
+  // Restore once app is ready (triggered by launchApp via window._appReady)
   document.addEventListener('DOMContentLoaded', restoreFromUrl);
-  window.addEventListener('load', restoreFromUrl);
 })();
 
 function openAuth(type='login'){
@@ -3498,6 +3539,17 @@ function renderAnimePage(anime, episodes, sources){
     </div>`;
 
   checkWatchlistStatus(anime.id);
+
+  // Trigger Monetag in-page push for the watch page 4s after anime page renders.
+  // Delay ensures the Supabase fetch + DOM render are fully done first.
+  setTimeout(function(){
+    try{
+      if(window.KamiAds){
+        window.KamiAds.initInPagePush();
+        window.KamiAds.reportPageview();
+      }
+    }catch(e){}
+  }, 4000);
 }
 
 async function playEpisode(epId, epNum, embedUrl, sourceName){
@@ -8427,6 +8479,39 @@ setTimeout(trendingAniListLoad, 600);
       recordErr('(unhandled)', 'promise', r);
   });
   console.log('[KamiStream] Supabase error-visibility patch installed. Run __sbDebug() for recent errors.');
+})();
+</script>
+
+<!-- ═══ SCROLL-LOCK PROTECTION ═══
+     Monetag and other ad scripts sometimes set overflow:hidden on body/html
+     when their popunder or push renders. This guard watches for that and
+     immediately reverts it so the site stays scrollable at all times.    -->
+<script>
+(function(){
+  // MutationObserver watches body/html style attribute changes
+  function guardScrollLock(){
+    var targets = [document.documentElement, document.body];
+    var observer = new MutationObserver(function(mutations){
+      mutations.forEach(function(m){
+        var el = m.target;
+        if(el === document.body || el === document.documentElement){
+          // Only revert overflow:hidden set on body/html — not on ad containers
+          if(el.style.overflow === 'hidden' || el.style.overflowY === 'hidden'){
+            el.style.overflow = '';
+            el.style.overflowY = '';
+          }
+        }
+      });
+    });
+    targets.forEach(function(t){
+      if(t) observer.observe(t, { attributes: true, attributeFilter: ['style'] });
+    });
+  }
+  if(document.body){
+    guardScrollLock();
+  } else {
+    document.addEventListener('DOMContentLoaded', guardScrollLock);
+  }
 })();
 </script>
 
