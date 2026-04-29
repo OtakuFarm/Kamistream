@@ -2339,9 +2339,9 @@ function launchApp(){
   // Signal to initAnimeRouting that the app shell + supabase are ready,
   // so a refresh on an anime page can safely restore instead of going to home.
   window._appReady = true;
-  // Load Monetag in-page push 5s after home loads — well after Supabase
-  // fetches and hero renders complete, so ads never block navigation.
-  setTimeout(function(){ try{ if(window.KamiAds) window.KamiAds.initInPagePush(); }catch(e){} }, 5000);
+  // Mount the Home in-page push slot. The new ads.js lazy-loads via
+  // IntersectionObserver + 1.2s settle, so this is safe to call immediately.
+  try { window.KamiAds && window.KamiAds.loadInPagePush('home-ad'); } catch(e) {}
 }
 
 // Auto-connect on load
@@ -3142,6 +3142,13 @@ async function renderCfFeed(){
         </div>
       </div>`;
     feed.appendChild(slide);
+
+    // Insert a Sponsored ad slide after every 3rd real video.
+    try {
+      if (idx > 0 && (idx + 1) % 3 === 0 && window.KamiAds) {
+        feed.appendChild(window.KamiAds.createFeedAdNode());
+      }
+    } catch (e) { console.warn('[KamiAds] feed insert failed', e); }
     // Bump view
     setTimeout(async ()=>{
       if(supabase){
@@ -3530,9 +3537,8 @@ function renderAnimePage(anime, episodes, sources){
     </div>`;
 
   checkWatchlistStatus(anime.id);
-  // reportPageview for KamiAds engagement tracking (no ad injection here —
-  // in-page push is initialised once from launchApp, not on every page render)
-  try{ if(window.KamiAds) window.KamiAds.reportPageview(); }catch(e){}
+  // Mount the Watch in-page push slot — fresh load on each anime view (SPA-safe).
+  try { window.KamiAds && window.KamiAds.loadInPagePush('player-ad'); } catch(e) {}
 }
 
 async function playEpisode(epId, epNum, embedUrl, sourceName){
@@ -4685,11 +4691,57 @@ function statusBadge(status){
   return'';
 }
 
+// Jikan-backed trending fallback. The original code expected a `jaiGetAll()`
+// admin import store that doesn't exist on a fresh deploy, so trending stayed
+// empty forever. We now hit Jikan once and cache to localStorage for an hour.
+let _trendingJikanCache = null;
+let _trendingJikanLoading = false;
+async function _trendingFetchJikan(){
+  if(_trendingJikanCache) return _trendingJikanCache;
+  if(_trendingJikanLoading) return null;
+  _trendingJikanLoading = true;
+  try{
+    const raw = localStorage.getItem('kami_trending_jikan_v1');
+    if(raw){
+      const obj = JSON.parse(raw);
+      if(obj && obj.t && (Date.now()-obj.t) < 60*60*1000 && Array.isArray(obj.list)){
+        _trendingJikanCache = obj.list;
+        return obj.list;
+      }
+    }
+    const res = await fetch('https://api.jikan.moe/v4/top/anime?filter=airing&limit=10&sfw=true');
+    if(!res.ok) throw new Error('jikan '+res.status);
+    const j = await res.json();
+    const list = (j.data||[]).slice(0,5).map(a=>({
+      mal_id: a.mal_id,
+      anilist_id: null,
+      title: a.title_english || a.title || a.title_japanese,
+      poster: a.images?.webp?.large_image_url || a.images?.jpg?.large_image_url || '',
+      release_year: a.year || (a.aired?.from ? new Date(a.aired.from).getFullYear() : ''),
+      score: a.score || '',
+      status: a.status || ''
+    }));
+    _trendingJikanCache = list;
+    try{ localStorage.setItem('kami_trending_jikan_v1', JSON.stringify({t:Date.now(),list})); }catch(_){}
+    return list;
+  }catch(e){
+    console.warn('[Trending] Jikan fetch failed', e);
+    return [];
+  }finally{
+    _trendingJikanLoading = false;
+  }
+}
 function trendingRender(){
-  const all=typeof jaiGetAll==='function'?jaiGetAll():[];
-  if(!all.length)return;
+  const local = typeof jaiGetAll==='function' ? jaiGetAll() : [];
+  if(!local.length){
+    _trendingFetchJikan().then(list=>{ if(list && list.length) _trendingRenderList(list); });
+    return;
+  }
   const views=viewsGetAll();
-  const sorted=all.map(a=>({...a,v:views[a.mal_id||a.anilist_id]||0})).sort((a,b)=>b.v-a.v).slice(0,5);
+  const sorted=local.map(a=>({...a,v:views[a.mal_id||a.anilist_id]||0})).sort((a,b)=>b.v-a.v).slice(0,5);
+  _trendingRenderList(sorted);
+}
+function _trendingRenderList(sorted){
   const grid=document.querySelector('.tr-grid');
   if(!grid)return;
   const arts=['trt1','trt2','trt3','trt4','trt5'],icons=['🗡️','🔥','🌊','⚡','⚔️'];
@@ -8533,7 +8585,7 @@ setTimeout(trendingAniListLoad, 600);
 </script>
 
 <!-- ═══ KAMISTREAM ADS MANAGER ═══ -->
-<script src="ads.js"></script>
+<script src="ads.js" defer></script>
 <script>
   // Wire SPA hash navigation into KamiAds pageview tracker
   (function () {

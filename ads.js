@@ -1,416 +1,272 @@
 /* ════════════════════════════════════════════════════════════════════════
- * KamiStream — Ads Manager  (v1)
+ * KamiStream — Ads Manager (v4, clean + backward-compatible)
  * ────────────────────────────────────────────────────────────────────────
- * Single source of truth for every ad on the site. UI code never touches
- * an ad-network URL directly — it calls window.KamiAds.* helpers below.
+ * Two ad types only — Monetag Onclick (Popunder) + In-Page Push.
+ * No service worker. No vignette. No multitag. No push notifications.
  *
- * Networks supported out of the box:
- *   • Monetag Push           (zone 10936608)  — site-wide, loads once
- *   • Monetag OnClick/Popunder (zone 10936606) — first click, once per session
- *   • Monetag Vignette       (zone 10936591)  — episode change + feed milestones
- *   • Monetag In-Page Push   (zone 10937463)  — site-wide, loads once
- *   • Optional native/banner zones            — drop ID into AD_CONFIG.native
+ *   Popunder        zone 10936606   https://al5sm.com/tag.min.js
+ *   In-Page Push    zone 10937463   https://nap5k.com/tag.min.js
  *
- * Anything that fails is swallowed — ads MUST NEVER crash the player or feed.
+ * Highlights:
+ *   • Production-only — silent on localhost / *.replit.dev / preview hosts.
+ *   • Smart popunder — clicks on real app UI (.ep-card, .tr-card, .cf-action,
+ *     buttons, links, video, iframe, nav…) do NOT trigger the popunder script.
+ *     Only an "idle" click on a non-interactive area loads it.
+ *   • Deferred fire — popunder load wrapped in setTimeout so the user's own
+ *     click handler runs first.
+ *   • Lazy in-page push — each container waits until it scrolls ≥25% into
+ *     view, then injects after a 1.2s settle delay.
+ *   • Backward-compat shims — exposes the old v1 names (initInPagePush,
+ *     reportPageview, loadNativeAd, injectFeedAd…) so existing HTML keeps
+ *     working without edits.
+ *   • Kill switch:  window.__KAMI_ADS_DISABLE = true   (or KamiAds.disable())
+ *
+ * Public API (window.KamiAds.*):
+ *   initPopunderOnce()           — register one-time first-click loader
+ *   loadInPagePush(containerId)  — inject in-page push into an element
+ *   createFeedAdNode()           — return a DOM node for the feed loop
+ *   disable()                    — kill switch
+ *   _diag()                      — diagnostic snapshot
  * ════════════════════════════════════════════════════════════════════════ */
 (function (global) {
   'use strict';
 
-  /* ── 1. CONFIG ─────────────────────────────────────────────────────── */
-  const AD_CONFIG = {
-    push:       { zone: '10936608', src: 'https://5gvci.com/act/files/tag.min.js', enabled: false }, // SW-based — disabled per site policy
-    popunder:   { zone: '10936606', src: 'https://al5sm.com/tag.min.js',           enabled: true  },
-    vignette:   { zone: '10936591', src: 'https://n6wxm.com/vignette.min.js',      enabled: false }, // disabled per site policy
-    inpagePush: { zone: '10937463', src: 'https://nap5k.com/tag.min.js',           enabled: true  },
+  var POPUNDER = { zone: '10936606', src: 'https://al5sm.com/tag.min.js' };
+  var INPAGE   = { zone: '10937463', src: 'https://nap5k.com/tag.min.js' };
 
-    // Drop a Monetag native/banner zone here when you create one.
-    native:     { zone: '',         src: '',                                       enabled: false },
+  /* Production hosts where ads are allowed. */
+  var PROD_HOSTS = [
+    'kamistream.tv',     'www.kamistream.tv',
+    'kamistream.fun',    'www.kamistream.fun',
+    'kamistream.com',    'www.kamistream.com'
+  ];
 
-    // Frequency caps — tune for revenue ↔ UX balance.
-    caps: {
-      vignetteCooldownMs: 5 * 60 * 1000,   // 5 min between vignettes
-      vignetteHourlyMax:  3,                // max 3 vignettes/hour
-      feedAdEvery:        3,                // 1 ad slide per 3 videos
-      pushDelayMs:        15 * 1000,        // fallback delay if engagement trigger never fires
-      enableOnAdmin:      false             // never load on admin.html
-    },
+  /* Click targets that must NOT trigger the popunder script load.
+     Anything the user might click to *navigate* the app belongs here. */
+  var SAFE_CLICK_SKIP = [
+    'a', 'button', 'input', 'select', 'textarea', 'video', 'iframe', 'svg',
+    '.tn', '.sb-item', '.mn-item',
+    '.tr-card', '.ep-card', '.ep-source-pill',
+    '.ap-btn-watch', '.ap-btn-watchlist', '.ap-src-btn', '.ap-now-btn',
+    '.cf-action', '.cf-follow', '.cf-username',
+    '.lb-item', '.tc-item', '.cw-card',
+    '.rec-tab', '.view-all', '.adb-dismiss'
+  ].join(',');
 
-    // Push opt-in optimizer — wait for ANY of these signals before prompting.
-    // Highest opt-in rates come from prompting AFTER the user is engaged.
-    pushOptimizer: {
-      enabled:           true,
-      minWatchSeconds:   30,        // 30s of player time → high-intent visitor
-      minPageDwellMs:    45 * 1000, // OR 45s on the site
-      minPageviews:      2,         // OR they navigated to a 2nd view
-      requireInteraction: true      // still require at least one click first
-    }
+  var POPUNDER_DEFER_MS    = 250;     // run after user's own click handler
+  var INPAGE_SETTLE_MS     = 1200;    // wait after slot scrolls into view
+  var INPAGE_VISIBLE_RATIO = 0.25;    // inject when ≥25% of slot is visible
+
+  var _state = {
+    popunderArmed: false,
+    popunderFired: false,
+    inpageGlobalLoaded: false,
+    inpageContainers: {}    /* containerId → true once injected */
   };
 
-  /* ── 2. STATE & STORAGE ────────────────────────────────────────────── */
-  const _state = {
-    pushLoaded: false,
-    popunderLoaded: false,
-    vignetteLoaded: false,
-    inpageLoaded: false,
-    nativeLoaded: false,
-    firstInteraction: false
-  };
-  const _now = () => Date.now();
-  const _kKey = k => 'kami_ad_' + k;
-  const _read = k => { try { return JSON.parse(localStorage.getItem(_kKey(k)) || 'null'); } catch (e) { return null; } };
-  const _write = (k, v) => { try { localStorage.setItem(_kKey(k), JSON.stringify(v)); } catch (e) {} };
-  const _log  = (...a) => { try { console.debug('[KamiAds]', ...a); } catch (e) {} };
-  const _warn = (...a) => { try { console.warn('[KamiAds]', ...a); } catch (e) {} };
-
-  /* Skip everything when running on admin panel. */
   function _isAdmin() {
-    return /admin/i.test(location.pathname) || /admin/i.test(document.title || '');
+    try { return /admin/i.test(location.pathname || ''); } catch (e) { return false; }
+  }
+  function _isProd() {
+    try {
+      var h = (location.hostname || '').toLowerCase();
+      for (var i = 0; i < PROD_HOSTS.length; i++) if (h === PROD_HOSTS[i]) return true;
+      return false;
+    } catch (e) { return false; }
+  }
+  function _disabled() {
+    return !!global.__KAMI_ADS_DISABLE || _isAdmin() || !_isProd();
+  }
+  function _log(msg, extra) {
+    try { extra !== undefined ? console.log(msg, extra) : console.log(msg); } catch (e) {}
+  }
+  function _warn(msg, err) {
+    try { console.warn('[KamiAds] ' + msg, err || ''); } catch (e) {}
   }
 
-  /* ── 3. CORE: safe script injection ────────────────────────────────── */
-  function _injectScript(src, attrs) {
-    return new Promise((resolve, reject) => {
+  function _buildZoneScript(zone, src) {
+    var s = document.createElement('script');
+    s.src   = src;
+    s.async = true;
+    s.dataset.zone = zone;
+    s.setAttribute('data-cfasync', 'false');
+    s.onerror = function () { _warn('script blocked or failed: ' + src); };
+    return s;
+  }
+
+  /* Use closest() — handles SVG, text nodes, weird targets safely. */
+  function _matchesSafeSkip(node) {
+    try {
+      if (!node) return false;
+      /* SVG/text node click bubbles → use parentElement until we get an Element */
+      while (node && node.nodeType !== 1) node = node.parentNode;
+      if (!node) return false;
+      if (node.matches && node.matches(SAFE_CLICK_SKIP)) return true;
+      if (node.closest && node.closest(SAFE_CLICK_SKIP)) return true;
+      return false;
+    } catch (e) { return false; }
+  }
+
+  /* ── 1. Popunder (one click on idle area, once per session) ────────── */
+  function initPopunderOnce() {
+    if (_disabled())   return;
+    if (_state.popunderArmed) return;
+    _state.popunderArmed = true;
+
+    var handler = function (ev) {
+      if (_state.popunderFired) return;
+      if (_matchesSafeSkip(ev.target)) return;   /* navigation click — skip */
+
+      _state.popunderFired = true;
       try {
-        const s = document.createElement('script');
-        s.src = src;
-        s.async = true;
-        s.setAttribute('data-cfasync', 'false');
-        if (attrs) Object.keys(attrs).forEach(k => s.setAttribute(k, attrs[k]));
-        s.onload  = () => resolve(s);
-        s.onerror = (e) => { _warn('script failed', src); reject(e); };
-        (document.head || document.body || document.documentElement).appendChild(s);
-      } catch (e) { _warn('inject error', e); reject(e); }
-    });
+        document.removeEventListener('click', handler, true);
+        document.removeEventListener('touchstart', handler, true);
+      } catch (e) {}
+
+      setTimeout(function () {
+        try {
+          var s = _buildZoneScript(POPUNDER.zone, POPUNDER.src);
+          document.body.appendChild(s);
+          _log('Popunder loaded');
+        } catch (e) { _warn('popunder inject failed', e); _state.popunderFired = false; }
+      }, POPUNDER_DEFER_MS);
+    };
+
+    try {
+      document.addEventListener('click',     handler, { passive: true });
+      document.addEventListener('touchstart', handler, { passive: true });
+    } catch (e) {
+      try { document.addEventListener('click', handler); } catch (_) {}
+    }
   }
 
-  /* Monetag IIFE-style loader (used by popunder, vignette, in-page push). */
-  function _injectZoneScript(zone, src) {
+  /* ── 2. In-Page Push (renders inside an explicit container) ────────── */
+  function loadInPagePush(containerId) {
+    if (_disabled()) return;
     try {
-      const s = document.createElement('script');
-      s.dataset.zone = zone;
-      s.src = src;
-      s.setAttribute('data-cfasync', 'false');
-      s.async = true;
-      // Monetag's official one-liner appends to the LAST <script> on the page;
-      // mirror that behaviour so it works the same way:
-      const target = [document.documentElement, document.body].filter(Boolean).pop();
-      target.appendChild(s);
-    } catch (e) { _warn('zone-inject error', e); }
-  }
+      if (!containerId) return;
+      var el = document.getElementById(containerId);
+      if (!el) { _warn('container not found: ' + containerId); return; }
 
-  /* ── 4. PUSH NOTIFICATION ADS (always-on, load once) ───────────────── */
-  /*  Push ads need a service worker at the SITE ROOT (sw.js). We register
-   *  it ourselves to be explicit — Monetag's tag also auto-registers, but
-   *  doing it here surfaces failures cleanly in the console.            */
-  function _registerPushSW() {
-    // Push/SW ads disabled — no service worker used on this site.
-  }
-  function initPush() {
-    if (_state.pushLoaded || !AD_CONFIG.push.enabled || _isAdmin()) return;
-    _state.pushLoaded = true;
-    try {
-      _registerPushSW();
-      _injectScript(`${AD_CONFIG.push.src}?z=${AD_CONFIG.push.zone}`)
-        .catch(() => { _state.pushLoaded = false; });
-      _log('push loaded');
-    } catch (e) { _warn('initPush', e); _state.pushLoaded = false; }
-  }
-
-  /* ── 5. POPUNDER (first user click, once per session) ──────────────── */
-  function initPopunder() {
-    if (_state.popunderLoaded || !AD_CONFIG.popunder.enabled || _isAdmin()) return;
-    _state.popunderLoaded = true;
-    try {
-      _injectZoneScript(AD_CONFIG.popunder.zone, AD_CONFIG.popunder.src);
-      _log('popunder loaded');
-    } catch (e) { _warn('initPopunder', e); _state.popunderLoaded = false; }
-  }
-
-  /* ── 6. IN-PAGE PUSH (always-on, load once) ────────────────────────── */
-  function initInPagePush() {
-    if (_state.inpageLoaded || !AD_CONFIG.inpagePush.enabled || _isAdmin()) return;
-    _state.inpageLoaded = true;
-    try {
-      _injectZoneScript(AD_CONFIG.inpagePush.zone, AD_CONFIG.inpagePush.src);
-      _log('inpage-push loaded');
-    } catch (e) { _warn('initInPagePush', e); _state.inpageLoaded = false; }
-  }
-
-  /* ── 7. VIGNETTE (full-screen interstitial — rate-limited) ─────────── */
-  function _vignetteAllowed() {
-    const last = _read('vig_last') || 0;
-    if (_now() - last < AD_CONFIG.caps.vignetteCooldownMs) return false;
-    const log = _read('vig_log') || [];
-    const cutoff = _now() - 60 * 60 * 1000;
-    const recent = log.filter(t => t > cutoff);
-    if (recent.length >= AD_CONFIG.caps.vignetteHourlyMax) return false;
-    return true;
-  }
-  function _stampVignette() {
-    _write('vig_last', _now());
-    const log = (_read('vig_log') || []).filter(t => t > _now() - 60 * 60 * 1000);
-    log.push(_now());
-    _write('vig_log', log);
-  }
-  function maybeShowVignette(reason) {
-    if (!AD_CONFIG.vignette.enabled || _isAdmin()) return false;
-    if (!_vignetteAllowed()) { _log('vignette skipped (cooldown)', reason); return false; }
-    try {
-      if (!_state.vignetteLoaded) {
-        _injectZoneScript(AD_CONFIG.vignette.zone, AD_CONFIG.vignette.src);
-        _state.vignetteLoaded = true;
-      } else if (global.show_10936591 && typeof global.show_10936591 === 'function') {
-        // Some Monetag vignette zones expose a global trigger after first load;
-        // call it on subsequent triggers to avoid re-injecting the script.
-        try { global.show_10936591(); } catch (e) {}
-      }
-      _stampVignette();
-      _log('vignette fired', reason);
-      return true;
-    } catch (e) { _warn('vignette error', e); return false; }
-  }
-
-  /* ── 8. NATIVE / BANNER (only if you have a zone) ──────────────────── */
-  function loadNativeAd(containerId) {
-    if (!AD_CONFIG.native.enabled || !AD_CONFIG.native.zone || _isAdmin()) return;
-    const el = document.getElementById(containerId);
-    if (!el) return;
-    if (el.dataset.kamiAdLoaded === '1') return;          // dedupe per container
-    el.dataset.kamiAdLoaded = '1';
-    // Lazy-load via IntersectionObserver to keep first paint fast.
-    try {
-      const fire = () => {
+      var fire = function () {
         try {
           el.innerHTML = '';
-          const inner = document.createElement('div');
-          inner.className = 'kami-native-ad';
-          el.appendChild(inner);
-          _injectZoneScript(AD_CONFIG.native.zone, AD_CONFIG.native.src);
-        } catch (e) { _warn('native fire', e); }
+          var s = _buildZoneScript(INPAGE.zone, INPAGE.src);
+          el.appendChild(s);
+          _state.inpageContainers[containerId] = true;
+          _log('In-page ad injected:', containerId);
+        } catch (e) { _warn('inpage inject failed', e); }
       };
-      if ('IntersectionObserver' in global) {
-        const io = new IntersectionObserver((entries) => {
-          entries.forEach(en => { if (en.isIntersecting) { io.disconnect(); fire(); } });
-        }, { rootMargin: '200px' });
-        io.observe(el);
-      } else { fire(); }
-    } catch (e) { _warn('loadNativeAd', e); }
-  }
 
-  /* ── 9. IN-FEED AD CARD (Challenge / TikTok-style feed) ────────────── */
-  /*  Returns a DOM node sized like a cf-slide so it snap-scrolls in line
-   *  with real videos. If you have a native zone we render it inside; if
-   *  not, we use a vignette trigger when the slide becomes visible.    */
-  function injectFeedAd() {
-    const el = document.createElement('div');
-    el.className = 'cf-slide kami-feed-ad';
-    el.dataset.kamiAd = 'feed';
-    el.style.cssText = 'background:linear-gradient(160deg,#1a0030,#0a001a,#001428);position:relative;display:flex;align-items:center;justify-content:center;';
-    el.innerHTML = `
-      <div style="position:absolute;top:14px;left:14px;font-size:10px;letter-spacing:1px;text-transform:uppercase;color:rgba(255,255,255,0.45);font-weight:700;">Sponsored</div>
-      <div id="kami-feed-ad-${Math.random().toString(36).slice(2,8)}" style="width:100%;max-width:340px;min-height:260px;display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,0.55);font-size:13px;text-align:center;padding:24px;">
-        <div>Loading sponsored content…</div>
-      </div>`;
-    const slot = el.querySelector('[id^="kami-feed-ad-"]');
+      var schedule = function () {
+        try { setTimeout(fire, INPAGE_SETTLE_MS); } catch (e) { fire(); }
+      };
 
-    // When the slide becomes visible, either fill with native or fire vignette.
-    try {
       if ('IntersectionObserver' in global) {
-        const io = new IntersectionObserver((entries) => {
-          entries.forEach(en => {
-            if (en.isIntersecting && en.intersectionRatio > 0.6) {
-              io.disconnect();
-              if (AD_CONFIG.native.enabled && AD_CONFIG.native.zone) {
-                slot.innerHTML = '';
-                slot.id = 'kami-native-' + Date.now();
-                _injectZoneScript(AD_CONFIG.native.zone, AD_CONFIG.native.src);
-              } else {
-                maybeShowVignette('feed-card');
+        try {
+          var io = new IntersectionObserver(function (entries) {
+            for (var i = 0; i < entries.length; i++) {
+              if (entries[i].isIntersecting && entries[i].intersectionRatio >= INPAGE_VISIBLE_RATIO) {
+                io.disconnect();
+                schedule();
+                return;
               }
             }
-          });
-        }, { threshold: [0, 0.6, 1] });
-        io.observe(el);
+          }, { threshold: [0, INPAGE_VISIBLE_RATIO, 1] });
+          io.observe(el);
+          return;
+        } catch (e) { /* fall through */ }
       }
-    } catch (e) { _warn('feed ad observer', e); }
-    return el;
+      schedule();
+    } catch (e) { _warn('loadInPagePush failed', e); }
   }
 
-  /* ── 10. SIDEBAR AD (sticky native, optional) ──────────────────────── */
-  function loadSidebarAd() { loadNativeAd('sidebar-ad'); }
-
-  /* ── 11. EPISODE CHANGE TRIGGER ────────────────────────────────────── */
-  /*  Wire this into your "next episode" / episode-button click handler. */
-  function onEpisodeChange() {
-    try { maybeShowVignette('episode-change'); } catch (e) { _warn('onEpisodeChange', e); }
-  }
-
-  /* ── 12. PUSH OPT-IN OPTIMIZER ─────────────────────────────────────── */
-  /*  Fires push prompt only when the visitor shows engagement signals —
-   *  typically 2-3x higher opt-in rate than prompting on first click.    */
-  const _engage = { dwellStart: 0, watchSec: 0, pageviews: 1, watchTimer: null, fired: false };
-
-  function _markPushReady(reason) {
-    if (_engage.fired) return;
-    if (!AD_CONFIG.pushOptimizer.enabled) return;
-    if (AD_CONFIG.pushOptimizer.requireInteraction && !_state.firstInteraction) return;
-    _engage.fired = true;
-    _log('push trigger:', reason);
-    try { initPush(); initInPagePush(); } catch (e) {}
-  }
-
-  /*  Public hook your <video>/<iframe> player can call once per second
-   *  while playing. Auto-wired to <video> elements below.               */
-  function reportWatchSecond() {
-    if (_engage.fired) return;
-    _engage.watchSec += 1;
-    if (_engage.watchSec >= AD_CONFIG.pushOptimizer.minWatchSeconds) {
-      _markPushReady('watch ' + _engage.watchSec + 's');
-    }
-  }
-
-  /*  Call when the SPA navigates to a new view (Home → Watch, etc).    */
-  function reportPageview() {
-    if (_engage.fired) return;
-    _engage.pageviews += 1;
-    if (_engage.pageviews >= AD_CONFIG.pushOptimizer.minPageviews) {
-      _markPushReady('pageviews ' + _engage.pageviews);
-    }
-  }
-
-  function _autoWatchTracking() {
-    /*  Auto-detect HTML5 video playback site-wide. Counts a "watched
-     *  second" each second any <video> is playing (not paused).         */
+  /* ── 3. Feed ad node (Challenge feed every 3 items) ────────────────── */
+  function createFeedAdNode() {
+    var wrap = document.createElement('div');
     try {
-      if (_engage.watchTimer) return;
-      _engage.watchTimer = setInterval(() => {
-        try {
-          const vids = document.querySelectorAll('video');
-          let playing = false;
-          vids.forEach(v => { if (!v.paused && !v.ended && v.readyState > 2) playing = true; });
-          if (playing) reportWatchSecond();
-        } catch (e) {}
-      }, 1000);
-    } catch (e) {}
+      var slotId = 'kami-feed-ad-' + Math.random().toString(36).slice(2, 9);
+      wrap.className = 'cf-slide kami-feed-ad';
+      wrap.dataset.kamiAd = 'feed';
+      wrap.style.cssText = [
+        'background:linear-gradient(160deg,#1a0030,#0a001a,#001428)',
+        'position:relative',
+        'display:flex',
+        'align-items:center',
+        'justify-content:center',
+        'scroll-snap-align:start'
+      ].join(';');
+      wrap.innerHTML =
+        '<div style="position:absolute;top:14px;left:14px;font-size:10px;letter-spacing:1px;' +
+        'text-transform:uppercase;color:rgba(255,255,255,0.45);font-weight:700;">Sponsored</div>' +
+        '<div id="' + slotId + '" style="width:100%;max-width:340px;min-height:220px;' +
+        'display:flex;align-items:center;justify-content:center;padding:24px;color:rgba(255,255,255,0.45);' +
+        'font-size:12px;">Sponsored content</div>';
+
+      setTimeout(function () { loadInPagePush(slotId); }, 0);
+    } catch (e) { _warn('createFeedAdNode failed', e); }
+    return wrap;
   }
 
-  function _dwellTimer() {
-    /*  Fallback: prompt after N seconds on the site even without video. */
-    setTimeout(() => _markPushReady('dwell ' + AD_CONFIG.pushOptimizer.minPageDwellMs + 'ms'),
-               AD_CONFIG.pushOptimizer.minPageDwellMs);
+  /* ── 4. Kill switch & diagnostics ──────────────────────────────────── */
+  function disable() {
+    global.__KAMI_ADS_DISABLE = true;
+    _log('KamiAds disabled');
+  }
+  function _diag() {
+    return {
+      prod: _isProd(),
+      admin: _isAdmin(),
+      disabled: _disabled(),
+      host: location.hostname,
+      popunderArmed: _state.popunderArmed,
+      popunderFired: _state.popunderFired,
+      inpageContainers: Object.keys(_state.inpageContainers)
+    };
   }
 
-  /* ── 13. AUTO-WIRING ───────────────────────────────────────────────── */
-  function _firstInteractionHandler(e) {
-    if (_state.firstInteraction) return;
-
-    // Never trigger on episode cards, source buttons, or player controls —
-    // those clicks must go straight to the app with zero interference.
-    try {
-      var t = e && e.target;
-      while (t && t !== document.body) {
-        var cls = t.className || '';
-        if (typeof cls === 'string' && (
-          cls.indexOf('ep-card') >= 0 ||
-          cls.indexOf('ep-source-pill') >= 0 ||
-          cls.indexOf('ap-src-btn') >= 0 ||
-          cls.indexOf('ap-now-btn') >= 0 ||
-          cls.indexOf('ap-cancel-btn') >= 0 ||
-          cls.indexOf('cw-card') >= 0 ||
-          cls.indexOf('tr-card') >= 0
-        )) { return; } // bail — don't mark firstInteraction, let next click decide
-        t = t.parentElement;
-      }
-    } catch(ex) {}
-
-    _state.firstInteraction = true;
-
-    // Delay popunder 4s — well after any navigation or render triggered by this click.
-    setTimeout(() => { try { initPopunder(); } catch (e) {} }, 4000);
-
-    if (AD_CONFIG.pushOptimizer.enabled) {
-      // Push waits for engagement signals (watch time / dwell / pageviews)
-      _engage.dwellStart = _now();
-      _autoWatchTracking();
-      _dwellTimer();
-    } else {
-      // Old behaviour — fixed delay after first click
-      setTimeout(() => { try { initPush(); initInPagePush(); } catch (e) {} },
-                 AD_CONFIG.caps.pushDelayMs);
-    }
+  /* ── 5. Auto-init on DOM ready ─────────────────────────────────────── */
+  function _ready(fn) {
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', fn, { once: true });
+    } else { fn(); }
   }
-  function _bootstrap() {
-    if (_isAdmin() && !AD_CONFIG.caps.enableOnAdmin) { _log('skipped on admin'); return; }
+  _ready(function () { try { initPopunderOnce(); } catch (e) {} });
 
-    // Bubble phase only (no capture) — ad handler never intercepts clicks
-    // intended for app elements like anime cards or nav buttons.
-    document.addEventListener('click',      _firstInteractionHandler, { once: true, passive: true });
-    document.addEventListener('touchstart', _firstInteractionHandler, { once: true, passive: true });
-    document.addEventListener('keydown',    _firstInteractionHandler, { once: true });
-
-    ['home-ad', 'player-ad', 'sidebar-ad'].forEach(id => loadNativeAd(id));
-
-    // In-page push is triggered from the app AFTER pages finish rendering.
-    // See the KamiAds hooks in index.html — this prevents the ad script
-    // from racing with Supabase fetches and blocking navigation.
-
-    if (/[?&]adsdebug=1/.test(location.search)) _showDebugOverlay();
-  }
-
-  /* ── 14. DEBUG OVERLAY  (?adsdebug=1) ──────────────────────────────── */
-  function _showDebugOverlay() {
-    try {
-      const box = document.createElement('div');
-      box.id = 'kami-ads-debug';
-      box.style.cssText = 'position:fixed;bottom:12px;right:12px;z-index:2147483647;background:rgba(0,0,0,0.92);color:#0f0;font:12px/1.5 monospace;padding:12px 14px;border-radius:8px;border:1px solid #0f0;max-width:320px;pointer-events:auto;';
-      document.body.appendChild(box);
-      const refresh = () => {
-        const dwell = _engage.dwellStart ? Math.floor((_now() - _engage.dwellStart) / 1000) : 0;
-        box.innerHTML = `
-          <div style="color:#fff;font-weight:bold;margin-bottom:6px;">KamiAds debug</div>
-          <div>SW supported: ${'serviceWorker' in navigator ? 'yes' : 'NO'}</div>
-          <div>HTTPS: ${location.protocol === 'https:' ? 'yes' : 'NO ⚠'}</div>
-          <div>First click: ${_state.firstInteraction ? 'yes' : 'waiting…'}</div>
-          <div>Push loaded: ${_state.pushLoaded ? '✓' : '—'}</div>
-          <div>Popunder loaded: ${_state.popunderLoaded ? '✓' : '—'}</div>
-          <div>InPage loaded: ${_state.inpageLoaded ? '✓' : '—'}</div>
-          <div>Vignette loaded: ${_state.vignetteLoaded ? '✓' : '—'}</div>
-          <div>Native zone set: ${AD_CONFIG.native.zone ? 'yes' : 'NO'}</div>
-          <div>Watch sec: ${_engage.watchSec}/${AD_CONFIG.pushOptimizer.minWatchSeconds}</div>
-          <div>Dwell: ${dwell}s/${AD_CONFIG.pushOptimizer.minPageDwellMs/1000}s</div>
-          <div>Pageviews: ${_engage.pageviews}/${AD_CONFIG.pushOptimizer.minPageviews}</div>
-          <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;">
-            <button onclick="window.KamiAds.initPush()"      style="background:#222;color:#0f0;border:1px solid #0f0;padding:3px 6px;font:11px monospace;cursor:pointer;">force push</button>
-            <button onclick="window.KamiAds.initPopunder()"  style="background:#222;color:#0f0;border:1px solid #0f0;padding:3px 6px;font:11px monospace;cursor:pointer;">force popunder</button>
-            <button onclick="window.KamiAds.maybeShowVignette('debug')" style="background:#222;color:#0f0;border:1px solid #0f0;padding:3px 6px;font:11px monospace;cursor:pointer;">force vignette</button>
-            <button onclick="document.getElementById('kami-ads-debug').remove()" style="background:#400;color:#f88;border:1px solid #f88;padding:3px 6px;font:11px monospace;cursor:pointer;">close</button>
-          </div>`;
-      };
-      refresh();
-      setInterval(refresh, 1000);
-    } catch (e) { _warn('debug overlay', e); }
-  }
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', _bootstrap);
-  } else { _bootstrap(); }
-
-  /* ── 13. PUBLIC API ────────────────────────────────────────────────── */
+  /* ── 6. Public API + backward-compat shims for v1 callers ──────────── */
+  /*  The existing index.html still calls a few v1 names. We shim them so
+   *  no edits are required in the HTML for those calls to keep working. */
   global.KamiAds = {
-    config:            AD_CONFIG,
-    initPush:          initPush,
-    initPopunder:      initPopunder,
-    initInPagePush:    initInPagePush,
-    loadNativeAd:      loadNativeAd,
-    loadSidebarAd:     loadSidebarAd,
-    injectFeedAd:      injectFeedAd,
-    maybeShowVignette: maybeShowVignette,
-    onEpisodeChange:   onEpisodeChange,
-    // Push optimizer hooks — call these from your SPA router / video player:
-    reportPageview:    reportPageview,
-    reportWatchSecond: reportWatchSecond,
-    // Debug helpers:
-    showDebug:         _showDebugOverlay,
-    state:             _state
+    /* New (preferred) API */
+    initPopunderOnce: initPopunderOnce,
+    loadInPagePush:   loadInPagePush,
+    createFeedAdNode: createFeedAdNode,
+    disable:          disable,
+    _diag:            _diag,
+
+    /* v1 shims — map old names to new behaviour */
+    initPopunder:     initPopunderOnce,
+    initPush:         function () { /* push removed */ },
+    initInPagePush:   function () {
+      /* Old code expected a global injection. We instead populate the two
+         known slots if they exist on the page right now. */
+      try {
+        if (document.getElementById('home-ad'))   loadInPagePush('home-ad');
+        if (document.getElementById('player-ad')) loadInPagePush('player-ad');
+        if (document.getElementById('sidebar-ad'))loadInPagePush('sidebar-ad');
+      } catch (e) {}
+    },
+    loadNativeAd:     function (id) { try { loadInPagePush(id); } catch (e) {} },
+    loadSidebarAd:    function ()   { try { loadInPagePush('sidebar-ad'); } catch (e) {} },
+    injectFeedAd:     createFeedAdNode,
+    maybeShowVignette:function () { return false; /* vignette removed */ },
+    onEpisodeChange:  function () { /* vignette removed — no-op */ },
+    reportPageview:   function () { /* engagement push removed — no-op */ },
+    reportWatchSecond:function () { /* engagement push removed — no-op */ },
+    showDebug:        function () {
+      try { console.log('[KamiAds]', _diag()); } catch (e) {}
+    },
+    state:            _state,
+    config:           { popunder: POPUNDER, inpagePush: INPAGE }
   };
 })(window);
