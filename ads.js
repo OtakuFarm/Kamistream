@@ -304,7 +304,11 @@
   function _firstInteractionHandler() {
     if (_state.firstInteraction) return;
     _state.firstInteraction = true;
-    try { initPopunder(); } catch (e) {}        // popunder fires immediately on first click
+
+    // Delay popunder 1.5s so the click that triggered it (e.g. opening an anime)
+    // fully completes navigation BEFORE the ad script loads. Prevents the ad
+    // from freezing or hijacking the click the user intended for the app.
+    setTimeout(() => { try { initPopunder(); } catch (e) {} }, 1500);
 
     if (AD_CONFIG.pushOptimizer.enabled) {
       // Push waits for engagement signals (watch time / dwell / pageviews)
@@ -319,12 +323,23 @@
   }
   function _bootstrap() {
     if (_isAdmin() && !AD_CONFIG.caps.enableOnAdmin) { _log('skipped on admin'); return; }
-    document.addEventListener('click',     _firstInteractionHandler, { once: true, capture: true, passive: true });
-    document.addEventListener('touchstart', _firstInteractionHandler, { once: true, capture: true, passive: true });
-    document.addEventListener('keydown',   _firstInteractionHandler, { once: true, capture: true });
+
+    // Bubble phase only (no capture) — ad handler never intercepts clicks
+    // intended for app elements like anime cards or nav buttons.
+    document.addEventListener('click',      _firstInteractionHandler, { once: true, passive: true });
+    document.addEventListener('touchstart', _firstInteractionHandler, { once: true, passive: true });
+    document.addEventListener('keydown',    _firstInteractionHandler, { once: true });
+
     ['home-ad', 'player-ad', 'sidebar-ad'].forEach(id => loadNativeAd(id));
-    // Monetag in-page push — loads once globally
-    initInPagePush();
+
+    // Defer Monetag in-page push until browser is idle (3s hard fallback).
+    // Ensures the anime page finishes rendering before the ad script runs.
+    if ('requestIdleCallback' in window) {
+      requestIdleCallback(() => { try { initInPagePush(); } catch (e) {} }, { timeout: 3000 });
+    } else {
+      setTimeout(() => { try { initInPagePush(); } catch (e) {} }, 3000);
+    }
+
     if (/[?&]adsdebug=1/.test(location.search)) _showDebugOverlay();
   }
 
