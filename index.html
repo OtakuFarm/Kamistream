@@ -4663,11 +4663,59 @@ function statusBadge(status){
   return'';
 }
 
+// Jikan-backed trending fallback. The original code expected a `jaiGetAll()`
+// admin import store that doesn't exist on a fresh deploy, so trending stayed
+// empty forever. We now hit Jikan once and cache to localStorage for an hour.
+let _trendingJikanCache = null;
+let _trendingJikanLoading = false;
+async function _trendingFetchJikan(){
+  if(_trendingJikanCache) return _trendingJikanCache;
+  if(_trendingJikanLoading) return null;
+  _trendingJikanLoading = true;
+  try{
+    // Try cache first
+    const raw = localStorage.getItem('kami_trending_jikan_v1');
+    if(raw){
+      const obj = JSON.parse(raw);
+      if(obj && obj.t && (Date.now()-obj.t) < 60*60*1000 && Array.isArray(obj.list)){
+        _trendingJikanCache = obj.list;
+        return obj.list;
+      }
+    }
+    const res = await fetch('https://api.jikan.moe/v4/top/anime?filter=airing&limit=10&sfw=true');
+    if(!res.ok) throw new Error('jikan '+res.status);
+    const j = await res.json();
+    const list = (j.data||[]).slice(0,5).map(a=>({
+      mal_id: a.mal_id,
+      anilist_id: null,
+      title: a.title_english || a.title || a.title_japanese,
+      poster: a.images?.webp?.large_image_url || a.images?.jpg?.large_image_url || '',
+      release_year: a.year || (a.aired?.from ? new Date(a.aired.from).getFullYear() : ''),
+      score: a.score || '',
+      status: a.status || ''
+    }));
+    _trendingJikanCache = list;
+    try{ localStorage.setItem('kami_trending_jikan_v1', JSON.stringify({t:Date.now(),list})); }catch(_){}
+    return list;
+  }catch(e){
+    console.warn('[Trending] Jikan fetch failed', e);
+    return [];
+  }finally{
+    _trendingJikanLoading = false;
+  }
+}
 function trendingRender(){
-  const all=typeof jaiGetAll==='function'?jaiGetAll():[];
-  if(!all.length)return;
+  const local = typeof jaiGetAll==='function' ? jaiGetAll() : [];
+  if(!local.length){
+    // No local/admin data — populate from Jikan asynchronously, then re-render.
+    _trendingFetchJikan().then(list=>{ if(list && list.length) _trendingRenderList(list); });
+    return;
+  }
   const views=viewsGetAll();
-  const sorted=all.map(a=>({...a,v:views[a.mal_id||a.anilist_id]||0})).sort((a,b)=>b.v-a.v).slice(0,5);
+  const sorted=local.map(a=>({...a,v:views[a.mal_id||a.anilist_id]||0})).sort((a,b)=>b.v-a.v).slice(0,5);
+  _trendingRenderList(sorted);
+}
+function _trendingRenderList(sorted){
   const grid=document.querySelector('.tr-grid');
   if(!grid)return;
   const arts=['trt1','trt2','trt3','trt4','trt5'],icons=['🗡️','🔥','🌊','⚡','⚔️'];
