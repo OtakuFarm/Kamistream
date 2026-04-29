@@ -9068,5 +9068,112 @@ setTimeout(trendingAniListLoad, 600);
 })();
 </script>
 
+<!-- ═══════════════════════════════════════════════════════════════
+     PAGE ALIVE — revives all live elements when user returns from ad
+     Hooks: visibilitychange + window focus + periodic self-check
+     ═══════════════════════════════════════════════════════════════ -->
+<script>
+(function(){
+  'use strict';
+
+  var _lastActive   = Date.now();
+  var _wasHidden    = false;
+  var _reviveTimer  = null;
+
+  /* ── Things to refresh when user returns ── */
+  function revivePage(){
+    var gap = Date.now() - _lastActive;
+    _lastActive = Date.now();
+
+    /* 1. Hero carousel — restart so it doesn't feel frozen */
+    try{
+      if(typeof heroStartCarousel === 'function' && typeof _heroItems !== 'undefined' && _heroItems.length > 1){
+        heroStartCarousel();
+      }
+    }catch(e){}
+
+    /* 2. Challenge / countdown timer — re-sync */
+    try{ if(typeof updateTimer === 'function') updateTimer(); }catch(e){}
+    try{ if(typeof updateChallengeHeader === 'function') updateChallengeHeader(); }catch(e){}
+
+    /* 3. Sidebar leaderboard + top creators — refresh if stale > 2 min */
+    if(gap > 120000){
+      try{ if(typeof lbSidebarLoad === 'function') lbSidebarLoad(); }catch(e){}
+      try{ if(typeof topCreatorsSidebarLoad === 'function') topCreatorsSidebarLoad(); }catch(e){}
+    }
+
+    /* 4. Trending grid — refresh if stale > 5 min */
+    if(gap > 300000){
+      try{ if(typeof trendingAniListLoad === 'function') trendingAniListLoad(); }catch(e){}
+    }
+
+    /* 5. Community chat — reload latest messages if page is open */
+    try{
+      var cmv = document.getElementById('communityView');
+      if(cmv && cmv.classList.contains('open')){
+        if(typeof cmvLoadMessages === 'function' && typeof _cmvRoom !== 'undefined'){
+          cmvLoadMessages(_cmvRoom);
+        }
+      }
+    }catch(e){}
+
+    /* 6. In-page push ads — re-arm slots that were never visible */
+    try{
+      if(window.KamiAds){
+        if(document.getElementById('home-ad'))    window.KamiAds.loadInPagePush('home-ad');
+        if(document.getElementById('sidebar-ad')) window.KamiAds.loadInPagePush('sidebar-ad');
+        if(document.getElementById('player-ad'))  window.KamiAds.loadInPagePush('player-ad');
+      }
+    }catch(e){}
+
+    /* 7. Visual pulse — tiny flash on topbar gradient to signal "we're back" */
+    try{
+      var topbar = document.querySelector('.topbar');
+      if(topbar){
+        topbar.style.transition = 'opacity 0.15s';
+        topbar.style.opacity = '0.7';
+        setTimeout(function(){ topbar.style.opacity = '1'; }, 150);
+      }
+    }catch(e){}
+  }
+
+  /* ── Page Visibility API (tab switch / ad popunder return) ── */
+  document.addEventListener('visibilitychange', function(){
+    if(document.hidden){
+      _wasHidden = true;
+    } else {
+      if(_wasHidden){
+        _wasHidden = false;
+        revivePage();
+      }
+    }
+  });
+
+  /* ── Window focus (click back into the tab from another window) ── */
+  window.addEventListener('focus', function(){
+    if(_wasHidden || Date.now() - _lastActive > 5000){
+      _wasHidden = false;
+      revivePage();
+    }
+  });
+
+  /* ── Heartbeat — catch anything visibilitychange misses ── */
+  setInterval(function(){
+    if(!document.hidden){
+      _lastActive = Date.now();
+    }
+  }, 10000);
+
+  /* ── pageshow fires on bfcache restore (back button after ad) ── */
+  window.addEventListener('pageshow', function(e){
+    if(e.persisted){
+      _wasHidden = false;
+      revivePage();
+    }
+  });
+
+})();
+</script>
+
   </body>
 </html>
