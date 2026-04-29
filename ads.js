@@ -118,7 +118,8 @@
 
     var handler = function (ev) {
       if (_state.popunderFired) return;
-      if (_matchesSafeSkip(ev.target)) return;   /* navigation click — skip */
+      /* No skip list — every first click/tap fires the popunder while
+         the site's own handler runs normally (deferred by POPUNDER_DEFER_MS). */
 
       _state.popunderFired = true;
       try {
