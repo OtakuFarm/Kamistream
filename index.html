@@ -1725,6 +1725,9 @@ values (
         </div>
       </div>
 
+      <!-- AD SLOT — Home (in-page push, injected by ads.js) -->
+      <div id="home-ad" class="kami-ad-slot" style="margin:18px 0;min-height:90px;"></div>
+
       <!-- SEASONAL -->
       <div id="seasonalSection" style="display:none;">
         <div class="sec-row">
@@ -2693,7 +2696,7 @@ async function openProfilePage(username, isOwn=false){
         </div>
       </div>
       <div class="pv-card-info">
-        <div class="pv-card-caption">${v.caption||'No caption'}</div>
+        <div class="pv-card-caption">${esc(v.caption||'No caption')}</div>
         <div class="pv-card-date">${date}</div>
       </div>
     </div>`;
@@ -3081,7 +3084,7 @@ async function renderCfFeed(){
       ${isWinner?'<div class="cf-winner-badge">👑 #1 THIS WEEK</div>':''}
       <div class="cf-rank">#${idx+1} / ${videos.length}</div>
       <div class="cf-actions">
-        <div class="cf-u-av">${(v.username||'?')[0].toUpperCase()}</div>
+        <div class="cf-u-av">${esc((v.username||'?')[0].toUpperCase())}</div>
         <div class="cf-follow" onclick="cfFollow(this)" data-f="0">+</div>
         <div class="cf-action" onclick="cfLike('${v.id}',this)">
           <div class="cf-action-ico" id="li-${v.id}">🤍</div>
@@ -3101,15 +3104,23 @@ async function renderCfFeed(){
         </div>
       </div>
       <div class="cf-bottom">
-        <div class="cf-username" style="cursor:pointer;" onclick="openProfilePage('${v.username||'creator'}')" >@${v.username||'creator'}</div>
-        <div class="cf-caption">${v.caption||''}</div>
-        <div class="cf-sound">♫ ${v.sound||'Original Sound · @'+v.username}</div>
+        <div class="cf-username" style="cursor:pointer;" onclick="openProfilePage('${escJs(v.username||'creator')}')" >@${esc(v.username||'creator')}</div>
+        <div class="cf-caption">${esc(v.caption||'')}</div>
+        <div class="cf-sound">♫ ${esc(v.sound||('Original Sound · @'+(v.username||'')))}</div>
         <div class="cf-score-row">
           <div class="cf-pill">⭐ ${fmtN(score)}</div>
           <div class="cf-pill" style="border-color:rgba(255,45,120,0.3)">👁 ${fmtN(v.views||0)}</div>
         </div>
       </div>`;
     feed.appendChild(slide);
+
+    // Insert a sponsored ad slide after every 3rd real video.
+    try {
+      if (idx > 0 && (idx + 1) % 3 === 0 && window.KamiAds) {
+        feed.appendChild(window.KamiAds.createFeedAdNode());
+      }
+    } catch (e) { console.warn('[KamiAds] feed insert failed', e); }
+
     // Bump view
     setTimeout(async ()=>{
       if(supabase){
@@ -3200,8 +3211,8 @@ async function cfComments(id){
   }
   list.innerHTML = cmts.length ? cmts.map(c=>`
     <div class="cfc-item">
-      <div class="cfc-av">${(c.username||'?')[0].toUpperCase()}</div>
-      <div class="cfc-body"><div class="cfc-user">@${c.username||'user'}</div><div class="cfc-text">${c.content||c.t||''}</div></div>
+      <div class="cfc-av">${esc((c.username||'?')[0].toUpperCase())}</div>
+      <div class="cfc-body"><div class="cfc-user">@${esc(c.username||'user')}</div><div class="cfc-text">${esc(c.content||c.t||'')}</div></div>
     </div>`).join('') : '<div style="text-align:center;padding:28px;color:var(--text3);font-size:13px;">No comments yet. Be first! 💬</div>';
 }
 
@@ -3482,6 +3493,9 @@ function renderAnimePage(anime, episodes, sources){
         </div>
       </div>
 
+      <!-- AD SLOT — Watch (in-page push, populated when episode starts) -->
+      <div id="player-ad" class="kami-ad-slot ap-section" style="margin:8px 0 16px;min-height:90px;"></div>
+
       ${anime.description?`<div class="ap-section"><div class="ap-section-title">📖 Synopsis</div><div class="ap-desc">${anime.description}</div></div>`:''}
       ${anime.genres?.length?`<div class="ap-section"><div class="ap-section-title">🏷️ Genres</div><div class="ap-genres">${genresHTML}</div></div>`:''}
 
@@ -3492,6 +3506,9 @@ function renderAnimePage(anime, episodes, sources){
     </div>`;
 
   checkWatchlistStatus(anime.id);
+
+  // Mount the Watch in-page push ad on every Watch view entry (SPA-safe).
+  try { window.KamiAds && window.KamiAds.loadInPagePush('player-ad'); } catch(e) {}
 }
 
 async function playEpisode(epId, epNum, embedUrl, sourceName){
@@ -3994,6 +4011,30 @@ function browseRender(list){
 }
 
 // ── MISC ──
+// XSS guard: escape any user-generated text before it enters innerHTML.
+// Use esc() inside HTML body, escAttr() inside HTML attributes, escJs() inside
+// JS string literals (e.g. inline onclick="foo('${escJs(name)}')").
+function esc(s){
+  if(s==null) return '';
+  return String(s)
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;')
+    .replace(/'/g,'&#39;');
+}
+function escAttr(s){ return esc(s); } // alias — same rules cover attributes
+function escJs(s){
+  if(s==null) return '';
+  return String(s)
+    .replace(/\\/g,'\\\\')
+    .replace(/'/g,"\\'")
+    .replace(/"/g,'\\"')
+    .replace(/</g,'\\x3c')
+    .replace(/>/g,'\\x3e')
+    .replace(/\n/g,'\\n')
+    .replace(/\r/g,'\\r');
+}
 function fmtN(n){if(n>=1e6)return(n/1e6).toFixed(1)+'M';if(n>=1000)return(n/1000).toFixed(1)+'K';return''+Math.round(n||0);}
 function setTab(el, id){
   document.querySelectorAll('.tn').forEach(t=>t.classList.remove('active'));
@@ -4029,6 +4070,8 @@ function showHome(){
   document.getElementById('homeView').style.display='flex';
   document.querySelectorAll('.sb-item').forEach(i=>i.classList.remove('active'));
   document.getElementById('sb-home')?.classList.add('active');
+  // Re-mount the Home in-page push ad on every Home view entry (SPA-safe).
+  try { window.KamiAds && window.KamiAds.loadInPagePush('home-ad'); } catch(e) {}
 }
 function showProfile(){
   if(currentUser) openProfile(currentUser.user_metadata?.username||currentUser.email?.split('@')[0]||'User', true);
@@ -5570,7 +5613,7 @@ async function openCreatorProfile(username){
           <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;overflow:hidden;cursor:pointer;" onclick="closeChallengeTab();openChallengeTab()">
             <div style="aspect-ratio:9/16;max-height:180px;background:linear-gradient(160deg,#1a0030,#0a001a);display:flex;align-items:center;justify-content:center;font-size:32px;opacity:.4;">🎬</div>
             <div style="padding:8px 10px;">
-              <div style="font-size:11px;font-weight:700;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${v.caption||'Video'}</div>
+              <div style="font-size:11px;font-weight:700;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(v.caption||'Video')}</div>
               <div style="font-size:10px;color:var(--text3);margin-top:3px;">❤️ ${fmtN(v.likes||0)} · 👁 ${fmtN(v.views||0)}</div>
             </div>
           </div>`).join('')}
@@ -5978,10 +6021,10 @@ function lbRender(creators){
 
   podium.innerHTML = podOrder.map((c,i)=>c?`
     <div class="lb-pod">
-      <div class="lb-pod-av ${podClass[i]}">${(c.username||'?')[0].toUpperCase()}
+      <div class="lb-pod-av ${podClass[i]}">${esc((c.username||'?')[0].toUpperCase())}
         <div class="lb-pod-medal">${medals[i]}</div>
       </div>
-      <div class="lb-pod-name">@${c.username||'creator'}</div>
+      <div class="lb-pod-name">@${esc(c.username||'creator')}</div>
       <div class="lb-pod-score">${fmtN(lbScore(c))} pts</div>
       <div class="lb-pod-bar ${podH[i]}"></div>
     </div>`:'').join('');
@@ -5989,11 +6032,11 @@ function lbRender(creators){
   // Ranked list (4–10)
   const rankBadge = ['','🥇','🥈','🥉'];
   list.innerHTML = sorted.map((c,i)=>`
-    <div class="lb-row" onclick="openCreatorProfile('${c.username||''}')">
+    <div class="lb-row" onclick="openCreatorProfile('${escJs(c.username||'')}')">
       <div class="lb-rank">${rankBadge[i+1]||('#'+(i+1))}</div>
-      <div class="lb-av">${(c.username||'?')[0].toUpperCase()}</div>
+      <div class="lb-av">${esc((c.username||'?')[0].toUpperCase())}</div>
       <div class="lb-info">
-        <div class="lb-name">@${c.username||'creator'}</div>
+        <div class="lb-name">@${esc(c.username||'creator')}</div>
         <div class="lb-stats">❤️ ${fmtN(c.totalLikes)} likes · 👁 ${fmtN(c.totalViews)} views · 👥 ${fmtN(c.followers||0)} followers · 🎬 ${c.videoCount||0} videos</div>
       </div>
       <div class="lb-score-col">
@@ -7028,11 +7071,11 @@ async function lbSidebarLoad(){
   const rankLabels=['1','2','3','4','5'];
 
   el.innerHTML = creators.map((c,i)=>`
-    <div class="lb-item" style="cursor:pointer;" onclick="openCreatorProfile('${(c.username||'').replace(/'/g,"\\'")}')">
+    <div class="lb-item" style="cursor:pointer;" onclick="openCreatorProfile('${escJs(c.username||'')}')">
       <div class="lb-rank" style="color:${rankColors[i]};font-weight:900;font-size:13px;width:18px;text-align:center;flex-shrink:0;">${rankLabels[i]}</div>
-      <div class="lb-av" style="width:28px;height:28px;border-radius:7px;background:linear-gradient(135deg,var(--pink),var(--purple));display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:#fff;flex-shrink:0;">${(c.username||'?')[0].toUpperCase()}</div>
+      <div class="lb-av" style="width:28px;height:28px;border-radius:7px;background:linear-gradient(135deg,var(--pink),var(--purple));display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;color:#fff;flex-shrink:0;">${esc((c.username||'?')[0].toUpperCase())}</div>
       <div class="lb-info" style="flex:1;min-width:0;">
-        <div class="lb-name" style="font-size:12px;font-weight:700;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">@${c.username||'creator'}</div>
+        <div class="lb-name" style="font-size:12px;font-weight:700;color:#fff;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">@${esc(c.username||'creator')}</div>
         <div class="lb-handle" style="font-size:10px;color:var(--text3);">❤️ ${fmtN(c.totalLikes)}</div>
       </div>
       <div class="lb-score" style="font-size:11px;font-weight:800;color:var(--pink);">${fmtN(c.totalLikes*5+c.totalViews)}</div>
@@ -7098,14 +7141,14 @@ async function topCreatorsSidebarLoad(){
 
   el.innerHTML = creators.map((c,i)=>`
     <div class="tc-item" style="${i===creators.length-1?'border-bottom:none;':''} cursor:pointer;"
-      onclick="openCreatorProfile('${(c.username||'').replace(/'/g,"\\'")}')">
+      onclick="openCreatorProfile('${escJs(c.username||'')}')">
       <div class="tc-av" style="background:${gradients[i%3]};">
-        ${(c.username||'?')[0].toUpperCase()}
+        ${esc((c.username||'?')[0].toUpperCase())}
         <div class="tc-ring"></div>
       </div>
       <div class="tc-info">
-        <div class="tc-name">${c.username||'creator'}</div>
-        <div class="tc-handle">@${(c.username||'').toLowerCase().replace(/\s+/g,'')}</div>
+        <div class="tc-name">${esc(c.username||'creator')}</div>
+        <div class="tc-handle">@${esc((c.username||'').toLowerCase().replace(/\s+/g,''))}</div>
       </div>
       <div class="tc-followers">${c.followers>0 ? fmtN(c.followers)+'<span style="font-size:8px;color:var(--text3);"> followers</span>' : '❤️'+fmtN(c.totalLikes)}</div>
     </div>`).join('');
@@ -8399,6 +8442,13 @@ setTimeout(trendingAniListLoad, 600);
   console.log('[KamiStream] Supabase error-visibility patch installed. Run __sbDebug() for recent errors.');
 })();
 </script>
+
+<!-- ═══════════════════════════════════════════════════════════
+     ADS — Monetag (Popunder + In-Page Push only).
+     No service workers, no push notifications, no vignette.
+     Loaded last so it never blocks paint.
+     ═══════════════════════════════════════════════════════════ -->
+<script src="ads.js" defer></script>
 
   </body>
 </html>
