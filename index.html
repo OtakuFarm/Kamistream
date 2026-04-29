@@ -1725,9 +1725,6 @@ values (
         </div>
       </div>
 
-      <!-- AD SLOT — Home (in-page push, injected by ads.js) -->
-      <div id="home-ad" class="kami-ad-slot" style="margin:18px 0;min-height:90px;"></div>
-
       <!-- SEASONAL -->
       <div id="seasonalSection" style="display:none;">
         <div class="sec-row">
@@ -1819,6 +1816,9 @@ values (
   <div class="ad-slot ad-slot-top" id="adSlotTop" data-pos="homepage_top" data-loaded="false" style="margin:0 20px 8px;">
     <span class="ad-label">Advertisement</span>
   </div>
+
+  <!-- MONETAG IN-PAGE PUSH SLOT (Home) -->
+  <div id="home-ad" style="width:100%;min-height:0;margin:8px 20px;"></div>
 
   <!-- ADBLOCK SOFT BANNER -->
   <div id="adblockBanner">
@@ -3113,14 +3113,6 @@ async function renderCfFeed(){
         </div>
       </div>`;
     feed.appendChild(slide);
-
-    // Insert a sponsored ad slide after every 3rd real video.
-    try {
-      if (idx > 0 && (idx + 1) % 3 === 0 && window.KamiAds) {
-        feed.appendChild(window.KamiAds.createFeedAdNode());
-      }
-    } catch (e) { console.warn('[KamiAds] feed insert failed', e); }
-
     // Bump view
     setTimeout(async ()=>{
       if(supabase){
@@ -3493,8 +3485,8 @@ function renderAnimePage(anime, episodes, sources){
         </div>
       </div>
 
-      <!-- AD SLOT — Watch (in-page push, populated when episode starts) -->
-      <div id="player-ad" class="kami-ad-slot ap-section" style="margin:8px 0 16px;min-height:90px;"></div>
+      <!-- MONETAG IN-PAGE PUSH SLOT (Watch/Player) -->
+      <div id="player-ad" style="width:100%;min-height:0;margin:8px 0;"></div>
 
       ${anime.description?`<div class="ap-section"><div class="ap-section-title">📖 Synopsis</div><div class="ap-desc">${anime.description}</div></div>`:''}
       ${anime.genres?.length?`<div class="ap-section"><div class="ap-section-title">🏷️ Genres</div><div class="ap-genres">${genresHTML}</div></div>`:''}
@@ -3506,9 +3498,6 @@ function renderAnimePage(anime, episodes, sources){
     </div>`;
 
   checkWatchlistStatus(anime.id);
-
-  // Mount the Watch in-page push ad on every Watch view entry (SPA-safe).
-  try { window.KamiAds && window.KamiAds.loadInPagePush('player-ad'); } catch(e) {}
 }
 
 async function playEpisode(epId, epNum, embedUrl, sourceName){
@@ -4070,8 +4059,6 @@ function showHome(){
   document.getElementById('homeView').style.display='flex';
   document.querySelectorAll('.sb-item').forEach(i=>i.classList.remove('active'));
   document.getElementById('sb-home')?.classList.add('active');
-  // Re-mount the Home in-page push ad on every Home view entry (SPA-safe).
-  try { window.KamiAds && window.KamiAds.loadInPagePush('home-ad'); } catch(e) {}
 }
 function showProfile(){
   if(currentUser) openProfile(currentUser.user_metadata?.username||currentUser.email?.split('@')[0]||'User', true);
@@ -4663,59 +4650,11 @@ function statusBadge(status){
   return'';
 }
 
-// Jikan-backed trending fallback. The original code expected a `jaiGetAll()`
-// admin import store that doesn't exist on a fresh deploy, so trending stayed
-// empty forever. We now hit Jikan once and cache to localStorage for an hour.
-let _trendingJikanCache = null;
-let _trendingJikanLoading = false;
-async function _trendingFetchJikan(){
-  if(_trendingJikanCache) return _trendingJikanCache;
-  if(_trendingJikanLoading) return null;
-  _trendingJikanLoading = true;
-  try{
-    // Try cache first
-    const raw = localStorage.getItem('kami_trending_jikan_v1');
-    if(raw){
-      const obj = JSON.parse(raw);
-      if(obj && obj.t && (Date.now()-obj.t) < 60*60*1000 && Array.isArray(obj.list)){
-        _trendingJikanCache = obj.list;
-        return obj.list;
-      }
-    }
-    const res = await fetch('https://api.jikan.moe/v4/top/anime?filter=airing&limit=10&sfw=true');
-    if(!res.ok) throw new Error('jikan '+res.status);
-    const j = await res.json();
-    const list = (j.data||[]).slice(0,5).map(a=>({
-      mal_id: a.mal_id,
-      anilist_id: null,
-      title: a.title_english || a.title || a.title_japanese,
-      poster: a.images?.webp?.large_image_url || a.images?.jpg?.large_image_url || '',
-      release_year: a.year || (a.aired?.from ? new Date(a.aired.from).getFullYear() : ''),
-      score: a.score || '',
-      status: a.status || ''
-    }));
-    _trendingJikanCache = list;
-    try{ localStorage.setItem('kami_trending_jikan_v1', JSON.stringify({t:Date.now(),list})); }catch(_){}
-    return list;
-  }catch(e){
-    console.warn('[Trending] Jikan fetch failed', e);
-    return [];
-  }finally{
-    _trendingJikanLoading = false;
-  }
-}
 function trendingRender(){
-  const local = typeof jaiGetAll==='function' ? jaiGetAll() : [];
-  if(!local.length){
-    // No local/admin data — populate from Jikan asynchronously, then re-render.
-    _trendingFetchJikan().then(list=>{ if(list && list.length) _trendingRenderList(list); });
-    return;
-  }
+  const all=typeof jaiGetAll==='function'?jaiGetAll():[];
+  if(!all.length)return;
   const views=viewsGetAll();
-  const sorted=local.map(a=>({...a,v:views[a.mal_id||a.anilist_id]||0})).sort((a,b)=>b.v-a.v).slice(0,5);
-  _trendingRenderList(sorted);
-}
-function _trendingRenderList(sorted){
+  const sorted=all.map(a=>({...a,v:views[a.mal_id||a.anilist_id]||0})).sort((a,b)=>b.v-a.v).slice(0,5);
   const grid=document.querySelector('.tr-grid');
   if(!grid)return;
   const arts=['trt1','trt2','trt3','trt4','trt5'],icons=['🗡️','🔥','🌊','⚡','⚔️'];
@@ -8491,12 +8430,20 @@ setTimeout(trendingAniListLoad, 600);
 })();
 </script>
 
-<!-- ═══════════════════════════════════════════════════════════
-     ADS — Monetag (Popunder + In-Page Push only).
-     No service workers, no push notifications, no vignette.
-     Loaded last so it never blocks paint.
-     ═══════════════════════════════════════════════════════════ -->
-<script src="ads.js" defer></script>
+<!-- ═══ KAMISTREAM ADS MANAGER ═══ -->
+<script src="ads.js"></script>
+<script>
+  // Wire SPA hash navigation into KamiAds pageview tracker
+  (function () {
+    var _lastHash = location.hash;
+    window.addEventListener('hashchange', function () {
+      if (location.hash !== _lastHash) {
+        _lastHash = location.hash;
+        try { if (window.KamiAds) window.KamiAds.reportPageview(); } catch (e) {}
+      }
+    });
+  })();
+</script>
 
   </body>
 </html>
