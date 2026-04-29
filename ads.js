@@ -9,9 +9,8 @@
  *
  * Highlights:
  *   • Production-only — silent on localhost / *.replit.dev / preview hosts.
- *   • Smart popunder — clicks on real app UI (.ep-card, .tr-card, .cf-action,
- *     buttons, links, video, iframe, nav…) do NOT trigger the popunder script.
- *     Only an "idle" click on a non-interactive area loads it.
+ *   • Smart popunder — fires on any first click EXCEPT episode cards and
+ *     the player iframe, so episode loading is never blocked by the ad script.
  *   • Deferred fire — popunder load wrapped in setTimeout so the user's own
  *     click handler runs first.
  *   • Lazy in-page push — each container waits until it scrolls ≥25% into
@@ -107,7 +106,12 @@
     } catch (e) { return false; }
   }
 
-  /* ── 1. Popunder (one click on idle area, once per session) ────────── */
+  /* Episode-only skip list — the player resets the iframe at click time,
+     so injecting the popunder script simultaneously breaks episode loading.
+     Every other click (nav, cards, browse, hero…) still fires the popunder. */
+  var EPISODE_SKIP = '.ep-card, .ep-source-pill, #apIframe, .ap-src-btn, .ap-now-btn';
+
+  /* ── 1. Popunder (once per session, fires on any non-episode click) ── */
   function initPopunderOnce() {
     if (_disabled())   return;
     if (_state.popunderArmed) return;
@@ -118,8 +122,13 @@
 
     var handler = function (ev) {
       if (_state.popunderFired) return;
-      /* No skip list — every first click/tap fires the popunder while
-         the site's own handler runs normally (deferred by POPUNDER_DEFER_MS). */
+
+      /* Skip only episode player interactions to avoid breaking iframe load */
+      try {
+        var node = ev.target;
+        while (node && node.nodeType !== 1) node = node.parentNode;
+        if (node && node.closest && node.closest(EPISODE_SKIP)) return;
+      } catch (e) {}
 
       _state.popunderFired = true;
       try {
@@ -132,13 +141,15 @@
           var s = _buildZoneScript(POPUNDER.zone, POPUNDER.src);
           document.body.appendChild(s);
           _log('Popunder loaded');
+          /* Restore site interactivity immediately after script injection */
+          setTimeout(function(){
+            try{ if(typeof window.__kamiRestoreSite === 'function') window.__kamiRestoreSite(); }catch(e){}
+          }, 300);
         } catch (e) { _warn('popunder inject failed', e); _state.popunderFired = false; }
       }, POPUNDER_DEFER_MS);
     };
 
     try {
-      /* passive:true on touchstart prevents scroll jank on mobile;
-         click needs no special option — just bubble phase (false). */
       document.addEventListener('click',      handler, _listenerOpts);
       document.addEventListener('touchstart', handler, { passive: true, capture: false });
     } catch (e) {

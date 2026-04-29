@@ -8677,66 +8677,173 @@ setTimeout(trendingAniListLoad, 600);
 })();
 </script>
 
-<!-- ═══ SCROLL-LOCK PROTECTION ═══ -->
+<!-- ═══ DOM DEFENDER — blocks ad scripts from killing the site ═══ -->
 <script>
 (function(){
-  // IDs of views that must always stay scrollable
-  var SCROLL_IDS = ['animePageView','browseFullView','profileView'];
+  'use strict';
 
+  /* Views that must stay scrollable */
+  var SCROLL_IDS = ['animePageView','browseFullView','profileView','communityView','content'];
+
+  /* Known app element IDs/classes — anything NOT here that is
+     position:fixed + high z-index + injected after load = ad junk */
+  var APP_FIXED_IDS = [
+    'setupOverlay','challengeView','profileView','animePageView',
+    'browseFullView','communityView','rewardedAdOverlay','prerollOverlay',
+    'midrollOverlay','playerBannerOverlay','adPopupOverlay','ksOverlay',
+    'legalPrivacy','legalTerms','legalAbout','legalContact',
+    'leaderboardView','toast','adblockBanner','adSlotTop',
+    'notifPanel','sidebarOverlay'
+  ];
+  var APP_FIXED_CLASSES = [
+    'mo','parser-modal','legal-view','bottom-banner','mobile-nav',
+    'topbar','sidebar','sidebar-overlay'
+  ];
+
+  /* ── 1. Force scrollable views ── */
   function forceScrollable(el){
     if(!el) return;
-    el.style.overflowY = 'auto';
+    el.style.overflowY    = 'auto';
     el.style.webkitOverflowScrolling = 'touch';
+    el.style.pointerEvents = '';
+    el.style.touchAction  = '';
   }
 
-  function guardScrollLock(){
-    // Watch body + html — revert any overflow:hidden an ad script sets
-    var bodyObserver = new MutationObserver(function(mutations){
+  /* ── 2. Restore full body interactivity ── */
+  function restoreBody(){
+    var b = document.body;
+    var h = document.documentElement;
+    if(!b) return;
+    /* overflow */
+    if(b.style.overflow === 'hidden')  b.style.overflow  = '';
+    if(b.style.overflowY === 'hidden') b.style.overflowY = '';
+    if(h.style.overflow === 'hidden')  h.style.overflow  = '';
+    if(h.style.overflowY === 'hidden') h.style.overflowY = '';
+    /* pointer-events / touch */
+    b.style.pointerEvents = '';
+    b.style.userSelect    = '';
+    b.style.touchAction   = '';
+    h.style.pointerEvents = '';
+  }
+
+  /* ── 3. Nuke rogue ad overlays injected by Monetag/third-party scripts ── */
+  function nukeAdOverlays(){
+    try{
+      var all = document.querySelectorAll('body > *');
+      for(var i = 0; i < all.length; i++){
+        var el = all[i];
+        /* Skip known app elements */
+        if(APP_FIXED_IDS.indexOf(el.id) !== -1) continue;
+        var hasAppClass = false;
+        for(var j = 0; j < APP_FIXED_CLASSES.length; j++){
+          if(el.classList && el.classList.contains(APP_FIXED_CLASSES[j])){ hasAppClass = true; break; }
+        }
+        if(hasAppClass) continue;
+        /* Skip script/style/meta tags */
+        var tag = (el.tagName||'').toUpperCase();
+        if(tag === 'SCRIPT' || tag === 'STYLE' || tag === 'LINK' ||
+           tag === 'META'   || tag === 'NOSCRIPT') continue;
+        /* Check if it's a rogue fixed/absolute overlay covering the screen */
+        try{
+          var cs = window.getComputedStyle(el);
+          var pos = cs.position;
+          var zi  = parseInt(cs.zIndex) || 0;
+          var w   = parseFloat(cs.width)  || 0;
+          var h2  = parseFloat(cs.height) || 0;
+          /* Rogue = fixed/absolute, high z-index, full/large screen coverage,
+             not one of our app elements */
+          if((pos === 'fixed' || pos === 'absolute') && zi > 1000 &&
+             w > window.innerWidth * 0.5 && h2 > window.innerHeight * 0.5){
+            /* Extra safety: only remove if it has no known app ID/class */
+            el.style.display      = 'none';
+            el.style.pointerEvents = 'none';
+            el.style.visibility   = 'hidden';
+            /* Actually remove it after a tick so nothing crashes */
+            (function(node){ setTimeout(function(){ try{ node.remove(); }catch(e){} }, 0); })(el);
+          }
+        }catch(e){}
+      }
+    }catch(e){}
+  }
+
+  /* ── 4. Full site restore — called on return from ad ── */
+  function restoreSite(){
+    restoreBody();
+    nukeAdOverlays();
+    SCROLL_IDS.forEach(function(id){ forceScrollable(document.getElementById(id)); });
+    /* Re-enable the content scroller by class too */
+    var content = document.querySelector('.content');
+    if(content) forceScrollable(content);
+  }
+
+  /* ── 5. MutationObserver — catches ad scripts mid-inject ── */
+  function startObserver(){
+    /* Watch body style changes */
+    var styleObs = new MutationObserver(function(mutations){
+      var needRestore = false;
       mutations.forEach(function(m){
-        var el = m.target;
-        if(el === document.body || el === document.documentElement){
-          if(el.style.overflow === 'hidden' || el.style.overflowY === 'hidden'){
-            el.style.overflow = '';
-            el.style.overflowY = '';
+        var t = m.target;
+        if(t === document.body || t === document.documentElement){
+          if(t.style.overflow === 'hidden' || t.style.overflowY === 'hidden' ||
+             t.style.pointerEvents === 'none'){
+            needRestore = true;
           }
         }
+        /* Also watch scroll view IDs */
+        SCROLL_IDS.forEach(function(id){
+          var el = document.getElementById(id);
+          if(el && m.target === el){
+            if(el.style.overflowY === 'hidden' || el.style.overflow === 'hidden'){
+              forceScrollable(el);
+            }
+          }
+        });
       });
-    });
-    [document.documentElement, document.body].forEach(function(t){
-      if(t) bodyObserver.observe(t, { attributes:true, attributeFilter:['style'] });
+      if(needRestore) restoreBody();
     });
 
-    // Watch the scroll views — if an ad sets overflow:hidden on them, revert it
-    var viewObserver = new MutationObserver(function(mutations){
-      mutations.forEach(function(m){
-        var el = m.target;
-        if(el.style.overflowY === 'hidden' || el.style.overflow === 'hidden'){
-          forceScrollable(el);
-        }
-      });
+    var targets = [document.documentElement, document.body].filter(Boolean);
+    targets.forEach(function(t){
+      styleObs.observe(t, { attributes: true, attributeFilter: ['style','class'] });
     });
     SCROLL_IDS.forEach(function(id){
       var el = document.getElementById(id);
-      if(el){
-        viewObserver.observe(el, { attributes:true, attributeFilter:['style'] });
-        forceScrollable(el);
-      }
+      if(el) styleObs.observe(el, { attributes: true, attributeFilter: ['style'] });
     });
+
+    /* Watch for new children injected into body (ad overlays) */
+    var childObs = new MutationObserver(function(mutations){
+      var hasNew = false;
+      mutations.forEach(function(m){
+        if(m.addedNodes && m.addedNodes.length) hasNew = true;
+      });
+      /* Debounce — only scan once per batch of mutations */
+      if(hasNew) setTimeout(nukeAdOverlays, 50);
+    });
+    if(document.body){
+      childObs.observe(document.body, { childList: true });
+    }
   }
 
-  if(document.body){
-    guardScrollLock();
-  } else {
-    document.addEventListener('DOMContentLoaded', guardScrollLock);
+  /* ── 6. Boot ── */
+  function boot(){
+    restoreSite();
+    startObserver();
   }
 
-  // Re-apply after any view becomes visible (e.g. anime page opens)
+  if(document.body) boot();
+  else document.addEventListener('DOMContentLoaded', boot);
+
+  /* Re-apply after views open */
   document.addEventListener('DOMContentLoaded', function(){
-    // Small delay so the view is shown before we observe it
     setTimeout(function(){
       SCROLL_IDS.forEach(function(id){ forceScrollable(document.getElementById(id)); });
-    }, 500);
+    }, 600);
   });
+
+  /* Expose for revivePage to call */
+  window.__kamiRestoreSite = restoreSite;
+
 })();
 </script>
 
@@ -9084,6 +9191,9 @@ setTimeout(trendingAniListLoad, 600);
   function revivePage(){
     var gap = Date.now() - _lastActive;
     _lastActive = Date.now();
+
+    /* 0. First — clean up anything the ad script broke */
+    try{ if(typeof window.__kamiRestoreSite === 'function') window.__kamiRestoreSite(); }catch(e){}
 
     /* 1. Hero carousel — restart so it doesn't feel frozen */
     try{
