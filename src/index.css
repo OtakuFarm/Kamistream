@@ -1,0 +1,68 @@
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Poppins:wght@400;500;600;700;800;900&family=Share+Tech+Mono&display=swap');
+@import "tailwindcss";
+@import "tw-animate-css";
+@plugin "@tailwindcss/typography";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--bg);
+  --color-foreground: var(--text);
+  
+  --color-card: var(--card);
+  --color-card-foreground: var(--text);
+  
+  --color-border: var(--border);
+  --color-input: var(--border);
+  --color-ring: var(--purple);
+  
+  --color-primary: var(--pink);
+  --color-primary-foreground: #ffffff;
+  
+  --color-secondary: var(--bg3);
+  --color-secondary-foreground: var(--text);
+
+  --color-muted: var(--bg2);
+  --color-muted-foreground: var(--text2);
+
+  --color-accent: var(--bg3);
+  --color-accent-foreground: var(--text);
+
+  --color-destructive: var(--red);
+  --color-destructive-foreground: #ffffff;
+  
+  --font-sans: 'Nunito', sans-serif;
+  --font-heading: 'Poppins', sans-serif;
+  --font-mono: 'Share Tech Mono', monospace;
+}
+
+:root {
+  --bg: #0d0d14;
+  --bg2: #13131f;
+  --bg3: #1a1a2e;
+  --card: #16162a;
+  --border: #ffffff0f;
+  --pink: #ff2d78;
+  --purple: #9b5de5;
+  --blue: #4361ee;
+  --gold: #ffd60a;
+  --green: #06d6a0;
+  --red: #ff4757;
+  --text: #ffffff;
+  --text2: #c4c4e0;
+  --text3: #7878a3;
+  --admin: #7c3aed;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply font-sans antialiased bg-[var(--bg)] text-[var(--text)];
+    color-scheme: dark;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-heading;
+  }
+}
