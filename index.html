@@ -1366,6 +1366,28 @@ img.lazy.loaded{opacity:1;}
 .cmv-react{font-size:13px;cursor:pointer;padding:1px 5px;border-radius:6px;background:rgba(255,255,255,0.06);border:1px solid var(--border);transition:all .2s;}
 .cmv-react:hover{background:rgba(255,45,120,0.15);border-color:rgba(255,45,120,0.3);}
 
+/* ── TOP LOADING BAR ── */
+#kamiLoadBar{
+  position:fixed;top:0;left:0;height:3px;width:0%;z-index:99999;
+  background:linear-gradient(90deg,var(--pink),var(--purple),var(--blue));
+  transition:width .25s ease,opacity .3s ease;
+  pointer-events:none;opacity:0;border-radius:0 2px 2px 0;
+  box-shadow:0 0 8px rgba(255,45,120,0.6);
+}
+#kamiLoadBar.loading{opacity:1;}
+
+/* ── PAGE TRANSITIONS ── */
+#homeView,#browseFullView,#animePageView,#communityView{
+  animation:none;
+}
+.kami-page-enter{
+  animation:kamiPageIn .22s ease forwards;
+}
+@keyframes kamiPageIn{
+  from{opacity:0;transform:translateY(10px);}
+  to{opacity:1;transform:translateY(0);}
+}
+
 </style>
 
   <style id="ks-footer-pin">
@@ -1383,6 +1405,7 @@ img.lazy.loaded{opacity:1;}
   </style>
   </head>
 <body>
+<div id="kamiLoadBar"></div>
 
 <!-- ════════════════════════════════════════
      SETUP OVERLAY
@@ -4201,7 +4224,6 @@ function toggleSidebar(){
   sb.classList.toggle('open', !isOpen);
   ov.classList.toggle('open', !isOpen);
 }
-function showHome(){document.getElementById('homeView').style.display='flex';}
 function showToast(msg,type=''){
   const t=document.getElementById('toast');
   t.textContent=msg;t.className='toast'+(type?' '+type:'');t.classList.add('show');
@@ -9188,6 +9210,218 @@ setTimeout(trendingAniListLoad, 600);
       revivePage();
     }
   });
+
+})();
+</script>
+
+<!-- ═══ KAMI ROUTER — loading bar, transitions, lifecycle, back/forward ═══ -->
+<script>
+(function(){
+  'use strict';
+
+  /* ── Loading bar ── */
+  var _bar = null;
+  var _barTimer = null;
+  var _barVal = 0;
+
+  function barStart(){
+    if(!_bar) _bar = document.getElementById('kamiLoadBar');
+    if(!_bar) return;
+    clearInterval(_barTimer);
+    _barVal = 0;
+    _bar.style.width = '0%';
+    _bar.style.transition = 'none';
+    _bar.classList.add('loading');
+    /* Animate to 85% — stops there until done() is called */
+    setTimeout(function(){
+      _bar.style.transition = 'width 1.2s cubic-bezier(.1,.6,.4,1),opacity .3s ease';
+      _bar.style.width = '85%';
+    }, 16);
+  }
+
+  function barDone(){
+    if(!_bar) return;
+    clearInterval(_barTimer);
+    _bar.style.transition = 'width .2s ease,opacity .4s ease';
+    _bar.style.width = '100%';
+    setTimeout(function(){
+      _bar.classList.remove('loading');
+      _bar.style.width = '0%';
+    }, 350);
+  }
+
+  /* ── Page fade-in ── */
+  function pageEnter(el){
+    if(!el) return;
+    el.classList.remove('kami-page-enter');
+    void el.offsetWidth; /* force reflow */
+    el.classList.add('kami-page-enter');
+  }
+
+  /* ── Close all views ── */
+  function closeAll(){
+    var ids = ['browseFullView','animePageView','communityView'];
+    ids.forEach(function(id){
+      var el = document.getElementById(id);
+      if(!el) return;
+      if(id === 'browseFullView') el.classList.remove('open');
+      else el.style.display = 'none';
+    });
+    /* Close community channel if open */
+    try{ if(typeof closeCommunityPage === 'function' && typeof _cmvOpen !== 'undefined' && _cmvOpen) closeCommunityPage(); }catch(e){}
+  }
+
+  /* ── Navigate to a page with loading bar + transition ── */
+  function navTo(page, params){
+    barStart();
+    closeAll();
+
+    switch(page){
+
+      case 'home':
+        var hv = document.getElementById('homeView');
+        if(hv){ hv.style.display = 'flex'; pageEnter(hv); }
+        /* Refresh continue watching and trending */
+        try{ if(typeof cwRender === 'function') cwRender(); }catch(e){}
+        try{ if(typeof trendingAniListLoad === 'function') trendingAniListLoad(); }catch(e){}
+        if(location.hash || location.search) history.pushState({page:'home'},'',location.pathname);
+        barDone();
+        break;
+
+      case 'browse':
+        var bv = document.getElementById('browseFullView');
+        if(bv){
+          bv.classList.add('open');
+          pageEnter(bv);
+        }
+        var hv2 = document.getElementById('homeView');
+        if(hv2) hv2.style.display = 'none';
+        if(location.hash !== '#browse') history.pushState({page:'browse'},'','#browse');
+        try{
+          if(typeof _bfvAllAnime !== 'undefined' && !_bfvAllAnime.length){
+            if(typeof bfvShowSkeletons === 'function') bfvShowSkeletons();
+            if(typeof bfvLoadAniList === 'function') bfvLoadAniList('').then(barDone).catch(barDone);
+          } else {
+            if(typeof bfvRender === 'function' && typeof _bfvAllAnime !== 'undefined') bfvRender(_bfvAllAnime);
+            barDone();
+          }
+        }catch(e){ barDone(); }
+        break;
+
+      case 'anime':
+        var hv3 = document.getElementById('homeView');
+        if(hv3) hv3.style.display = 'none';
+        if(params && params.id){
+          try{
+            if(typeof openAnimePage === 'function'){
+              var p = openAnimePage(params.id);
+              if(p && typeof p.then === 'function') p.then(barDone).catch(barDone);
+              else barDone();
+            }
+          }catch(e){ barDone(); }
+        } else { barDone(); }
+        break;
+
+      case 'community':
+        var hv4 = document.getElementById('homeView');
+        if(hv4) hv4.style.display = 'none';
+        try{
+          if(typeof openCommunityPage === 'function') openCommunityPage();
+          var cmv = document.getElementById('communityView');
+          if(cmv) pageEnter(cmv);
+        }catch(e){}
+        barDone();
+        break;
+
+      default:
+        barDone();
+    }
+  }
+
+  /* ── Parse current URL into a route ── */
+  function parseRoute(){
+    var hash   = (location.hash   || '').replace('#','');
+    var search = (location.search || '');
+    var animeMatch = search.match(/[?&]anime=(\d+)/);
+
+    if(animeMatch)           return { page:'anime', params:{ id: parseInt(animeMatch[1]) } };
+    if(hash === 'browse')    return { page:'browse' };
+    if(hash === 'community') return { page:'community' };
+    return { page:'home' };
+  }
+
+  /* ── Wrap openAnimePage to show loading bar ── */
+  var _origOpenAnimePage = null;
+  function patchOpenAnimePage(){
+    if(typeof openAnimePage !== 'function') return;
+    if(openAnimePage._kamiPatched) return;
+    _origOpenAnimePage = openAnimePage;
+    openAnimePage = function(id){
+      barStart();
+      var result = _origOpenAnimePage(id);
+      if(result && typeof result.then === 'function'){
+        result.then(barDone).catch(barDone);
+      } else {
+        barDone();
+      }
+      return result;
+    };
+    openAnimePage._kamiPatched = true;
+  }
+
+  /* ── Wrap openBrowseFull to show loading bar ── */
+  function patchOpenBrowseFull(){
+    if(typeof openBrowseFull !== 'function') return;
+    if(openBrowseFull._kamiPatched) return;
+    var orig = openBrowseFull;
+    openBrowseFull = function(){
+      barStart();
+      var r = orig();
+      if(r && typeof r.then === 'function') r.then(barDone).catch(barDone);
+      else setTimeout(barDone, 400);
+      return r;
+    };
+    openBrowseFull._kamiPatched = true;
+  }
+
+  /* ── Handle browser back/forward ── */
+  window.addEventListener('popstate', function(e){
+    var route = parseRoute();
+    navTo(route.page, route.params);
+  });
+
+  /* ── Handle bfcache restore (iOS Safari back) ── */
+  window.addEventListener('pageshow', function(e){
+    if(e.persisted){
+      /* Page restored from cache — reinit current view */
+      var route = parseRoute();
+      navTo(route.page, route.params);
+    }
+  });
+
+  /* ── Boot: patch functions and restore from URL on load ── */
+  function boot(){
+    _bar = document.getElementById('kamiLoadBar');
+    patchOpenAnimePage();
+    patchOpenBrowseFull();
+
+    /* Restore page from URL on initial load / refresh */
+    var route = parseRoute();
+    if(route.page !== 'home'){
+      navTo(route.page, route.params);
+    }
+  }
+
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', boot);
+  } else {
+    setTimeout(boot, 0);
+  }
+
+  /* Expose for external use */
+  window.kamiNavTo = navTo;
+  window.kamiBarStart = barStart;
+  window.kamiBarDone = barDone;
 
 })();
 </script>
