@@ -6,21 +6,21 @@ import { LoadingSkeleton } from '@/components/LoadingSkeleton';
 import { EpisodeSocial } from '@/components/EpisodeSocial';
 
 const SOURCES = [
-  { id: 'vidnest', name: 'VidNest Server',  build: (mal: string, ep: string) => `https://vidnest.fun/anime/${mal}/${ep}/sub` },
-  { id: 'animeplay', name: 'AnimePlay HD', build: (mal: string, ep: string) => `https://animeplay.cfd/anime/${mal}/${ep}/sub` },
-  { id: 'cinetaro', name: 'Cinetaro Fast',  build: (mal: string, ep: string) => `https://api.cinetaro.buzz/anime/${mal}/${ep}/sub` },
+  { id: 'vidnest',   name: 'VidNest Server',  build: (mal: string, ep: string) => `https://vidnest.fun/anime/${mal}/${ep}/sub` },
+  { id: 'animeplay', name: 'AnimePlay HD',     build: (mal: string, ep: string) => `https://animeplay.cfd/anime/${mal}/${ep}/sub` },
+  { id: 'cinetaro',  name: 'Cinetaro Fast',   build: (mal: string, ep: string) => `https://api.cinetaro.buzz/anime/${mal}/${ep}/sub` },
 ];
 
 export default function Watch() {
   const [, params] = useRoute('/watch/:id/:ep');
   const malId = params?.id || '';
-  const epId = params?.ep || '1';
+  const epId  = params?.ep || '1';
 
-  const [server, setServer] = useState(SOURCES[0]);
+  const [server, setServer]       = useState(SOURCES[0]);
   const [showEpList, setShowEpList] = useState(false);
 
-  const { data: detail, isLoading: detailLoading } = useAnimeDetail(malId);
-  const { data: episodes } = useAnimeEpisodes(malId);
+  const { data: detail,   isLoading: detailLoading } = useAnimeDetail(malId);
+  const { data: episodes }                            = useAnimeEpisodes(malId);
 
   useEffect(() => {
     const ads = (window as any).KamiAds;
@@ -30,26 +30,31 @@ export default function Watch() {
   if (detailLoading) return <LoadingSkeleton />;
   if (!detail?.data) return <div className="p-8 text-center">Anime not found.</div>;
 
-  const anime = detail.data;
-  const eps = episodes?.data || [];
+  const anime          = detail.data;
+  const eps            = episodes?.data || [];
   const currentEpIndex = eps.findIndex((e: any) => e.mal_id.toString() === epId);
-  const currentEp = eps[currentEpIndex] || { title: `Episode ${epId}` };
-  
-  const prevEp = currentEpIndex > 0 ? eps[currentEpIndex - 1] : null;
-  const nextEp = currentEpIndex < eps.length - 1 ? eps[currentEpIndex + 1] : null;
+  const currentEp      = eps[currentEpIndex] || { title: `Episode ${epId}` };
+  const prevEp         = currentEpIndex > 0              ? eps[currentEpIndex - 1] : null;
+  const nextEp         = currentEpIndex < eps.length - 1 ? eps[currentEpIndex + 1] : null;
 
   return (
     <div className="flex flex-col lg:flex-row h-[calc(100vh-60px)]">
+      {/* ── Main column ── */}
       <div className="flex-1 flex flex-col bg-black overflow-hidden relative">
-        <div className="w-full bg-black relative pt-[56.25%]">
-          <iframe 
-            src={server.build(malId, epId)}
-            className="absolute top-0 left-0 w-full h-full border-0"
-            allowFullScreen
-            sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
-          />
+
+        {/* Player — 15 % smaller via 85 % width wrapper */}
+        <div className="w-full bg-black flex justify-center items-start">
+          <div className="w-[85%] relative pt-[47.8%]"> {/* 56.25 × 0.85 = 47.8125 */}
+            <iframe
+              src={server.build(malId, epId)}
+              className="absolute top-0 left-0 w-full h-full border-0"
+              allowFullScreen
+              allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
+            />
+          </div>
         </div>
-        
+
+        {/* Info + controls */}
         <div className="p-4 md:p-6 bg-[var(--bg2)] flex-1 overflow-y-auto">
           <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
             <div>
@@ -60,7 +65,8 @@ export default function Watch() {
                 EP {epId}: {currentEp.title}
               </h1>
             </div>
-            
+
+            {/* Server picker */}
             <div className="flex items-center gap-2">
               <div className="relative group">
                 <button className="bg-[var(--card)] border border-[var(--border)] px-4 py-2 rounded-xl text-[12px] font-bold flex items-center gap-2 hover:bg-[var(--bg3)] transition-colors">
@@ -86,13 +92,22 @@ export default function Watch() {
           <EpisodeSocial malId={malId} epId={epId} />
 
           <div className="flex items-center gap-2 mt-6 pb-6 border-b border-[var(--border)]">
-            <Link href={prevEp ? `/watch/${malId}/${prevEp.mal_id}` : '#'} className={`flex-1 bg-[var(--card)] border border-[var(--border)] py-3 rounded-xl flex items-center justify-center gap-2 text-[12px] font-bold transition-all ${prevEp ? 'hover:bg-[var(--bg3)] hover:border-[var(--purple)] text-white' : 'opacity-50 cursor-not-allowed text-[var(--text3)]'}`}>
+            <Link
+              href={prevEp ? `/watch/${malId}/${prevEp.mal_id}` : '#'}
+              className={`flex-1 bg-[var(--card)] border border-[var(--border)] py-3 rounded-xl flex items-center justify-center gap-2 text-[12px] font-bold transition-all ${prevEp ? 'hover:bg-[var(--bg3)] hover:border-[var(--purple)] text-white' : 'opacity-50 cursor-not-allowed text-[var(--text3)]'}`}
+            >
               <ChevronLeft className="w-4 h-4" /> Prev Episode
             </Link>
-            <button onClick={() => setShowEpList(!showEpList)} className="lg:hidden w-12 h-12 bg-[var(--card)] border border-[var(--border)] rounded-xl flex items-center justify-center text-[var(--text3)]">
+            <button
+              onClick={() => setShowEpList(!showEpList)}
+              className="lg:hidden w-12 h-12 bg-[var(--card)] border border-[var(--border)] rounded-xl flex items-center justify-center text-[var(--text3)]"
+            >
               EP
             </button>
-            <Link href={nextEp ? `/watch/${malId}/${nextEp.mal_id}` : '#'} className={`flex-1 bg-[var(--card)] border border-[var(--border)] py-3 rounded-xl flex items-center justify-center gap-2 text-[12px] font-bold transition-all ${nextEp ? 'hover:bg-[var(--bg3)] hover:border-[var(--pink)] text-white' : 'opacity-50 cursor-not-allowed text-[var(--text3)]'}`}>
+            <Link
+              href={nextEp ? `/watch/${malId}/${nextEp.mal_id}` : '#'}
+              className={`flex-1 bg-[var(--card)] border border-[var(--border)] py-3 rounded-xl flex items-center justify-center gap-2 text-[12px] font-bold transition-all ${nextEp ? 'hover:bg-[var(--bg3)] hover:border-[var(--pink)] text-white' : 'opacity-50 cursor-not-allowed text-[var(--text3)]'}`}
+            >
               Next Episode <ChevronRight className="w-4 h-4" />
             </Link>
           </div>
@@ -121,7 +136,7 @@ export default function Watch() {
                   </div>
                 </div>
               </Link>
-            )
+            );
           })}
         </div>
       </div>
