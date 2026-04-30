@@ -1903,6 +1903,8 @@ values (
 
   <!-- MONETAG IN-PAGE PUSH SLOT (Home) -->
   <div id="home-ad" style="width:100%;min-height:0;margin:8px 20px;"></div>
+  <!-- STEP 2 — Second home slot, activated 25s after load (hidden until fired) -->
+  <div id="home-ad-2" style="width:100%;min-height:0;margin:8px 20px;"></div>
 
   <!-- ADBLOCK SOFT BANNER -->
   <div id="adblockBanner">
@@ -2403,6 +2405,8 @@ function launchApp(){
   // Mount the Home in-page push slot. The new ads.js lazy-loads via
   // IntersectionObserver + 1.2s settle, so this is safe to call immediately.
   try { window.KamiAds && window.KamiAds.loadInPagePush('home-ad'); } catch(e) {}
+  // STEP 2 — fire second home slot 25s after page load (once per session)
+  try { window.KamiAds && window.KamiAds.loadTimedSlot('home-ad-2', 25); } catch(e) {}
 }
 
 // Auto-connect on load
@@ -3204,9 +3208,9 @@ async function renderCfFeed(){
       </div>`;
     feed.appendChild(slide);
 
-    // Insert a Sponsored ad slide after every 3rd real video.
+    // STEP 3 — dynamic feed ad pattern (weighted 2/3/4 gap via shouldInsertFeedAd)
     try {
-      if (idx > 0 && (idx + 1) % 3 === 0 && window.KamiAds) {
+      if (window.KamiAds && window.KamiAds.shouldInsertFeedAd(idx)) {
         feed.appendChild(window.KamiAds.createFeedAdNode());
       }
     } catch (e) { console.warn('[KamiAds] feed insert failed', e); }
@@ -3587,6 +3591,8 @@ function renderAnimePage(anime, episodes, sources){
 
       <!-- MONETAG IN-PAGE PUSH SLOT (Watch/Player) -->
       <div id="player-ad" style="width:100%;min-height:0;margin:8px 0;"></div>
+      <!-- STEP 2 — Second player slot, activated 25s after watch page opens -->
+      <div id="player-ad-2" style="width:100%;min-height:0;margin:8px 0;"></div>
 
       ${anime.description?`<div class="ap-section"><div class="ap-section-title">📖 Synopsis</div><div class="ap-desc">${anime.description}</div></div>`:''}
       ${anime.genres?.length?`<div class="ap-section"><div class="ap-section-title">🏷️ Genres</div><div class="ap-genres">${genresHTML}</div></div>`:''}
@@ -3600,6 +3606,8 @@ function renderAnimePage(anime, episodes, sources){
   checkWatchlistStatus(anime.id);
   // Mount the Watch in-page push slot — fresh load on each anime view (SPA-safe).
   try { window.KamiAds && window.KamiAds.loadInPagePush('player-ad'); } catch(e) {}
+  // STEP 2 — fire second player slot 25s after watch page opens (once per session)
+  try { window.KamiAds && window.KamiAds.loadTimedSlot('player-ad-2', 25); } catch(e) {}
 }
 
 async function playEpisode(epId, epNum, embedUrl, sourceName){
@@ -4648,6 +4656,8 @@ async function cwResume(id){
   const store = gls(CW_KEY);
   const item = store[id];
   if(!item) return;
+  // STEP 5 — session depth boost on continue watching click
+  try{ window.KamiAds && window.KamiAds.onSessionDepth(); }catch(e){}
   // Try opening by slug or title — smart opener handles the rest
   if(item.slug) tryOpenAnime(item.slug);
   else openAniListAnime(null, item.title);
@@ -5129,6 +5139,8 @@ function autoplayNow(){
   const src=ep.embed_sources?.[0];
   if(typeof playEpisode==='function')playEpisode(ep.id,ep.episode_number,src?.embed_url||'',src?.source_name||'Server 1');
   if(currentAnime)cwSave(currentAnime,ep.episode_number,0);
+  // STEP 5 — session depth boost on autoplay navigation
+  try{ window.KamiAds && window.KamiAds.onSessionDepth(); }catch(e){}
 }
 function autoplayCancel(){
   clearInterval(_apTimer);_apNextEp=null;
@@ -5143,6 +5155,9 @@ playEpisode = async function(epId, epNum, embedUrl, sourceName){
   clearInterval(_progressInterval);
 
   await _origPlayEp(epId, epNum, embedUrl, sourceName);
+
+  // STEP 4 — episode interaction ad trigger (player-ad reloads, 60s cooldown)
+  try { window.KamiAds && window.KamiAds.onEpisodeChange(); } catch(e) {}
 
   // Save continue watching at 0% when episode starts
   if(currentAnime) cwSave(currentAnime, epNum, 0, 0);
@@ -8677,16 +8692,18 @@ setTimeout(trendingAniListLoad, 600);
 })();
 </script>
 
-<!-- ═══ DOM DEFENDER — blocks ad scripts from killing the site ═══ -->
+<!-- ═══ DOM DEFENDER v2 — force scroll, kill ad overlays, CSS !important shield ═══ -->
 <script>
 (function(){
   'use strict';
 
-  /* Views that must stay scrollable */
-  var SCROLL_IDS = ['animePageView','browseFullView','profileView','communityView','content'];
+  /* ── Scrollable view IDs ── */
+  var SCROLL_IDS = [
+    'animePageView','browseFullView','profileView',
+    'communityView','content','homeView'
+  ];
 
-  /* Known app element IDs/classes — anything NOT here that is
-     position:fixed + high z-index + injected after load = ad junk */
+  /* ── Known safe app elements (skip these in overlay nuke) ── */
   var APP_FIXED_IDS = [
     'setupOverlay','challengeView','profileView','animePageView',
     'browseFullView','communityView','rewardedAdOverlay','prerollOverlay',
@@ -8700,148 +8717,254 @@ setTimeout(trendingAniListLoad, 600);
     'topbar','sidebar','sidebar-overlay'
   ];
 
-  /* ── 1. Force scrollable views ── */
-  function forceScrollable(el){
-    if(!el) return;
-    el.style.overflowY    = 'auto';
-    el.style.webkitOverflowScrolling = 'touch';
-    el.style.pointerEvents = '';
-    el.style.touchAction  = '';
+  /* ══════════════════════════════════════════════════════════════
+   * LAYER 1 — CSS !important shield
+   * Injects a <style> tag whose rules win over anything an ad
+   * script writes via stylesheet OR inline style because we use
+   * !important AND re-inject the tag whenever it is removed.
+   * ══════════════════════════════════════════════════════════════ */
+  var SHIELD_ID = 'kami-scroll-shield';
+
+  var SHIELD_CSS = [
+    /* Body and html must never be scroll-locked by ad scripts */
+    'html, body {',
+    '  overflow-x: hidden !important;',
+    '  touch-action: pan-y !important;',
+    '  -webkit-overflow-scrolling: touch !important;',
+    '}',
+    /* Every known scrollable view stays scrollable */
+    '#animePageView, #browseFullView, #profileView,',
+    '#communityView, #homeView, .content, .right-panel {',
+    '  overflow-y: auto !important;',
+    '  -webkit-overflow-scrolling: touch !important;',
+    '  touch-action: pan-y !important;',
+    '  pointer-events: auto !important;',
+    '}',
+    /* Rogue full-screen fixed divs injected by ad scripts get zeroed out.
+       We keep z-index < 10 so app modals (z-index 2500+) still work. */
+    'body > div:not([id]):not([class]) {',
+    '  pointer-events: none !important;',
+    '  touch-action: auto !important;',
+    '}',
+    /* Prevent ad iframes from blocking the page touch layer */
+    'body > iframe:not(#apIframe):not(#pmIframe):not(#miniIframe):not(#ksFrame) {',
+    '  pointer-events: none !important;',
+    '  touch-action: none !important;',
+    '}'
+  ].join('\n');
+
+  function injectShield(){
+    /* Remove stale copy first */
+    var old = document.getElementById(SHIELD_ID);
+    if(old) old.remove();
+
+    var s = document.createElement('style');
+    s.id = SHIELD_ID;
+    s.textContent = SHIELD_CSS;
+    /* Insert as LAST child of <head> so it has highest specificity */
+    (document.head || document.documentElement).appendChild(s);
   }
 
-  /* ── 2. Restore full body interactivity ── */
+  /* Re-inject shield if an ad script removes it */
+  function watchShield(){
+    var headObs = new MutationObserver(function(mutations){
+      for(var i=0;i<mutations.length;i++){
+        var m = mutations[i];
+        for(var j=0;j<m.removedNodes.length;j++){
+          var n = m.removedNodes[j];
+          if(n && n.id === SHIELD_ID){
+            injectShield(); /* put it straight back */
+            return;
+          }
+        }
+      }
+    });
+    var head = document.head || document.documentElement;
+    headObs.observe(head, { childList: true });
+  }
+
+  /* ══════════════════════════════════════════════════════════════
+   * LAYER 2 — inline style force (catches ad scripts using
+   *           el.style.overflowY = 'hidden' etc.)
+   * ══════════════════════════════════════════════════════════════ */
+  function forceScrollable(el){
+    if(!el) return;
+    el.style.setProperty('overflow-y',    'auto',  'important');
+    el.style.setProperty('touch-action',  'pan-y', 'important');
+    el.style.setProperty('pointer-events','auto',  'important');
+    el.style.webkitOverflowScrolling = 'touch';
+  }
+
   function restoreBody(){
     var b = document.body;
     var h = document.documentElement;
     if(!b) return;
-    /* overflow */
-    if(b.style.overflow === 'hidden')  b.style.overflow  = '';
-    if(b.style.overflowY === 'hidden') b.style.overflowY = '';
-    if(h.style.overflow === 'hidden')  h.style.overflow  = '';
-    if(h.style.overflowY === 'hidden') h.style.overflowY = '';
-    /* pointer-events / touch */
-    b.style.pointerEvents = '';
-    b.style.userSelect    = '';
-    b.style.touchAction   = '';
-    h.style.pointerEvents = '';
+    ['overflow','overflowY','overflow-y'].forEach(function(p){
+      try{
+        if(b.style[p]==='hidden') b.style.setProperty(p,'','important');
+        if(h.style[p]==='hidden') h.style.setProperty(p,'','important');
+      }catch(e){}
+    });
+    b.style.setProperty('pointer-events','','important');
+    b.style.setProperty('touch-action',  'pan-y','important');
+    b.style.setProperty('user-select',   '','important');
+    h.style.setProperty('pointer-events','','important');
+    h.style.setProperty('touch-action',  'pan-y','important');
   }
 
-  /* ── 3. Nuke rogue ad overlays injected by Monetag/third-party scripts ── */
+  /* ══════════════════════════════════════════════════════════════
+   * LAYER 3 — rogue overlay nuke
+   * Removes any large fixed/absolute element injected by ad scripts
+   * ══════════════════════════════════════════════════════════════ */
   function nukeAdOverlays(){
     try{
       var all = document.querySelectorAll('body > *');
-      for(var i = 0; i < all.length; i++){
+      for(var i=0;i<all.length;i++){
         var el = all[i];
-        /* Skip known app elements */
         if(APP_FIXED_IDS.indexOf(el.id) !== -1) continue;
-        var hasAppClass = false;
-        for(var j = 0; j < APP_FIXED_CLASSES.length; j++){
-          if(el.classList && el.classList.contains(APP_FIXED_CLASSES[j])){ hasAppClass = true; break; }
+        var safeClass = false;
+        for(var j=0;j<APP_FIXED_CLASSES.length;j++){
+          if(el.classList && el.classList.contains(APP_FIXED_CLASSES[j])){ safeClass=true; break; }
         }
-        if(hasAppClass) continue;
-        /* Skip script/style/meta tags */
+        if(safeClass) continue;
         var tag = (el.tagName||'').toUpperCase();
-        if(tag === 'SCRIPT' || tag === 'STYLE' || tag === 'LINK' ||
-           tag === 'META'   || tag === 'NOSCRIPT') continue;
-        /* Check if it's a rogue fixed/absolute overlay covering the screen */
+        if(tag==='SCRIPT'||tag==='STYLE'||tag==='LINK'||tag==='META'||tag==='NOSCRIPT') continue;
+
         try{
-          var cs = window.getComputedStyle(el);
+          var cs  = window.getComputedStyle(el);
           var pos = cs.position;
-          var zi  = parseInt(cs.zIndex) || 0;
-          var w   = parseFloat(cs.width)  || 0;
-          var h2  = parseFloat(cs.height) || 0;
-          /* Rogue = fixed/absolute, high z-index, full/large screen coverage,
-             not one of our app elements */
-          if((pos === 'fixed' || pos === 'absolute') && zi > 1000 &&
-             w > window.innerWidth * 0.5 && h2 > window.innerHeight * 0.5){
-            /* Extra safety: only remove if it has no known app ID/class */
-            el.style.display      = 'none';
-            el.style.pointerEvents = 'none';
-            el.style.visibility   = 'hidden';
-            /* Actually remove it after a tick so nothing crashes */
-            (function(node){ setTimeout(function(){ try{ node.remove(); }catch(e){} }, 0); })(el);
+          var zi  = parseInt(cs.zIndex)||0;
+          var w   = parseFloat(cs.width)||0;
+          var ht  = parseFloat(cs.height)||0;
+          /* Rogue: fixed/absolute, large, high z-index, not an app element */
+          if((pos==='fixed'||pos==='absolute') && zi>500 &&
+              w > window.innerWidth*0.5 && ht > window.innerHeight*0.5){
+            el.style.setProperty('pointer-events','none','important');
+            el.style.setProperty('touch-action','auto','important');
+            el.style.display = 'none';
+            (function(node){ setTimeout(function(){ try{ node.remove(); }catch(e){} },0); })(el);
+          }
+          /* Rogue iframes covering significant area */
+          if(tag==='IFRAME' && pos==='fixed' && zi>100 && w>200 && ht>200){
+            el.style.setProperty('pointer-events','none','important');
           }
         }catch(e){}
       }
     }catch(e){}
   }
 
-  /* ── 4. Full site restore — called on return from ad ── */
-  function restoreSite(){
+  /* ══════════════════════════════════════════════════════════════
+   * LAYER 4 — pulse enforcer (runs every 2s while page is visible)
+   * This is the "force" layer — continuously re-asserts scroll
+   * even if ad scripts keep fighting back.
+   * ══════════════════════════════════════════════════════════════ */
+  var _pulseTimer = null;
+
+  function pulse(){
     restoreBody();
-    nukeAdOverlays();
     SCROLL_IDS.forEach(function(id){ forceScrollable(document.getElementById(id)); });
-    /* Re-enable the content scroller by class too */
     var content = document.querySelector('.content');
     if(content) forceScrollable(content);
+    /* Re-inject shield if it somehow got cleared */
+    if(!document.getElementById(SHIELD_ID)) injectShield();
   }
 
-  /* ── 5. MutationObserver — catches ad scripts mid-inject ── */
+  function startPulse(){
+    stopPulse();
+    _pulseTimer = setInterval(pulse, 2000);
+  }
+
+  function stopPulse(){
+    if(_pulseTimer){ clearInterval(_pulseTimer); _pulseTimer=null; }
+  }
+
+  /* Slow pulse when tab is hidden (no wasted cycles) */
+  document.addEventListener('visibilitychange', function(){
+    if(document.hidden){
+      stopPulse();
+    } else {
+      pulse(); /* immediate restore on return */
+      startPulse();
+    }
+  });
+
+  /* ══════════════════════════════════════════════════════════════
+   * LAYER 5 — MutationObserver (instant catch on style changes)
+   * ══════════════════════════════════════════════════════════════ */
   function startObserver(){
-    /* Watch body style changes */
+    /* Watch body/html style attribute */
     var styleObs = new MutationObserver(function(mutations){
-      var needRestore = false;
+      var dirty = false;
       mutations.forEach(function(m){
         var t = m.target;
-        if(t === document.body || t === document.documentElement){
-          if(t.style.overflow === 'hidden' || t.style.overflowY === 'hidden' ||
-             t.style.pointerEvents === 'none'){
-            needRestore = true;
+        if(t===document.body||t===document.documentElement){
+          if(t.style.overflow==='hidden'||t.style.overflowY==='hidden'||
+             t.style.pointerEvents==='none'||t.style.touchAction==='none'){
+            dirty=true;
           }
         }
-        /* Also watch scroll view IDs */
+        /* Catch individual scroll views being locked */
         SCROLL_IDS.forEach(function(id){
-          var el = document.getElementById(id);
-          if(el && m.target === el){
-            if(el.style.overflowY === 'hidden' || el.style.overflow === 'hidden'){
+          var el=document.getElementById(id);
+          if(el&&m.target===el){
+            if(el.style.overflow==='hidden'||el.style.overflowY==='hidden'||
+               el.style.pointerEvents==='none'){
               forceScrollable(el);
             }
           }
         });
       });
-      if(needRestore) restoreBody();
+      if(dirty){ restoreBody(); }
     });
 
-    var targets = [document.documentElement, document.body].filter(Boolean);
-    targets.forEach(function(t){
-      styleObs.observe(t, { attributes: true, attributeFilter: ['style','class'] });
+    [document.documentElement, document.body].filter(Boolean).forEach(function(t){
+      styleObs.observe(t,{attributes:true, attributeFilter:['style','class']});
     });
     SCROLL_IDS.forEach(function(id){
-      var el = document.getElementById(id);
-      if(el) styleObs.observe(el, { attributes: true, attributeFilter: ['style'] });
+      var el=document.getElementById(id);
+      if(el) styleObs.observe(el,{attributes:true, attributeFilter:['style']});
     });
 
-    /* Watch for new children injected into body (ad overlays) */
+    /* Watch for injected child nodes (ad overlays) */
     var childObs = new MutationObserver(function(mutations){
-      var hasNew = false;
-      mutations.forEach(function(m){
-        if(m.addedNodes && m.addedNodes.length) hasNew = true;
-      });
-      /* Debounce — only scan once per batch of mutations */
-      if(hasNew) setTimeout(nukeAdOverlays, 50);
+      var hasNew=false;
+      mutations.forEach(function(m){ if(m.addedNodes&&m.addedNodes.length) hasNew=true; });
+      if(hasNew) setTimeout(nukeAdOverlays,50);
     });
-    if(document.body){
-      childObs.observe(document.body, { childList: true });
-    }
+    if(document.body) childObs.observe(document.body,{childList:true});
   }
 
-  /* ── 6. Boot ── */
+  /* ══════════════════════════════════════════════════════════════
+   * BOOT
+   * ══════════════════════════════════════════════════════════════ */
   function boot(){
-    restoreSite();
+    injectShield();
+    watchShield();
     startObserver();
+    pulse();       /* immediate first pass */
+    startPulse();  /* recurring enforcer */
+  }
+
+  /* Full restore — exposed for ads.js and revivePage to call */
+  function restoreSite(){
+    injectShield();
+    restoreBody();
+    nukeAdOverlays();
+    SCROLL_IDS.forEach(function(id){ forceScrollable(document.getElementById(id)); });
+    var content=document.querySelector('.content');
+    if(content) forceScrollable(content);
   }
 
   if(document.body) boot();
   else document.addEventListener('DOMContentLoaded', boot);
 
-  /* Re-apply after views open */
+  /* Re-apply after views open (covers SPA navigation) */
   document.addEventListener('DOMContentLoaded', function(){
     setTimeout(function(){
       SCROLL_IDS.forEach(function(id){ forceScrollable(document.getElementById(id)); });
     }, 600);
   });
 
-  /* Expose for revivePage to call */
   window.__kamiRestoreSite = restoreSite;
 
 })();
