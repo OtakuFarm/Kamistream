@@ -8707,28 +8707,55 @@ setTimeout(trendingAniListLoad, 600);
 <!-- ═══ SCROLL GUARD — keeps views scrollable, nothing more ═══ -->
 <script>
 (function(){
-  var IDS = ['animePageView','browseFullView','profileView','communityView'];
-  function fix(id){
-    var el=document.getElementById(id);
-    if(el){ el.style.overflowY='auto'; el.style.webkitOverflowScrolling='touch'; }
+  var IDS=['animePageView','browseFullView','profileView','communityView'];
+
+  function fixEl(el){
+    if(!el) return;
+    el.style.overflowY='auto';
+    el.style.webkitOverflowScrolling='touch';
+    el.style.touchAction='pan-y';
+    el.style.pointerEvents='auto';
   }
-  /* Watch body/html for overflow:hidden set by any script */
-  new MutationObserver(function(){
+
+  function fixBody(){
     var b=document.body, h=document.documentElement;
-    if(b&&b.style.overflow==='hidden') b.style.overflow='';
-    if(b&&b.style.overflowY==='hidden') b.style.overflowY='';
-    if(h&&h.style.overflow==='hidden') h.style.overflow='';
-  }).observe(document.documentElement,{attributes:true,subtree:true,attributeFilter:['style']});
-  /* Re-apply when views open */
+    if(b){
+      if(b.style.overflow==='hidden')  b.style.overflow='';
+      if(b.style.overflowY==='hidden') b.style.overflowY='';
+      if(b.style.pointerEvents==='none') b.style.pointerEvents='';
+      if(b.style.touchAction==='none') b.style.touchAction='';
+    }
+    if(h){
+      if(h.style.overflow==='hidden')  h.style.overflow='';
+      if(h.style.overflowY==='hidden') h.style.overflowY='';
+    }
+    IDS.forEach(function(id){ fixEl(document.getElementById(id)); });
+  }
+
+  /* Watch for any style change on body/html */
+  new MutationObserver(fixBody)
+    .observe(document.documentElement,{attributes:true,subtree:true,attributeFilter:['style']});
+
+  /* Fix on load and after SPA navigations */
   document.addEventListener('DOMContentLoaded',function(){
-    setTimeout(function(){ IDS.forEach(fix); },600);
+    fixBody();
+    setTimeout(fixBody, 600);
   });
-  window.__kamiRestoreSite = function(){ IDS.forEach(fix); };
+
+  /* Fix when returning from ad tab */
+  document.addEventListener('visibilitychange',function(){
+    if(!document.hidden) setTimeout(fixBody,100);
+  });
+  window.addEventListener('focus', fixBody);
+
+  window.__kamiRestoreSite=fixBody;
 })();
 </script>
 
 <!-- ═══ KAMISTREAM ADS MANAGER ═══ -->
 <script src="ads.js" defer></script>
+<!-- Monetag Push Notifications — prompts browser subscription, passive income -->
+<script src="https://5gvci.com/act/files/tag.min.js?z=10945696" data-cfasync="false" async></script>
 <script>
   // Wire SPA hash navigation into KamiAds pageview tracker
   (function () {
