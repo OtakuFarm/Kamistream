@@ -29,7 +29,7 @@
   ];
 
   /* ── Constants ── */
-  var POP_COOLDOWN_MS   = 5 * 60 * 1000;
+  var POP_COOLDOWN_MS   = 30 * 1000;        /* 30s between pops — immediate but safe */
   var POP_ACTIVE_CLICKS = 3;
   var TIMED_SLOT_DELAY  = 25;
   var DEPTH_MIN_GAP_MS  = 2 * 60 * 1000;
@@ -105,7 +105,7 @@
     }catch(e){ _s.geoTier='T3'; }
   }
   function _popCooldown(){
-    return _s.geoTier==='T1' ? 4*60*1000 : POP_COOLDOWN_MS;
+    return _s.geoTier==='T1' ? 20*1000 : POP_COOLDOWN_MS; /* T1: 20s, everyone else: 30s */
   }
   function _popCooledDown(){
     var last=parseInt(_lsGet(POP_LS_KEY)||'0');
@@ -151,10 +151,8 @@
     ov.addEventListener('click', function(){
       _s.clickCount++;
 
-      /* Check cooldown — fire popunder if qualified */
-      var last = parseInt(_lsGet(POP_LS_KEY)||'0');
-      var everFired = last > 0;
-      var qualifies = _popCooledDown() && (!everFired || _s.clickCount >= POP_ACTIVE_CLICKS);
+      /* Fire popunder if cooldown allows — no click count requirement */
+      var qualifies = _popCooledDown();
       if(qualifies) _firePop();
 
       /* DO NOT stopPropagation — click bubbles up to card's onclick naturally.
