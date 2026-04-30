@@ -112,6 +112,10 @@
       var url = _nextPopUrl();
       var w = window.open(url, '_blank');
       if(w){ w.opener=null; }
+      /* Keep focus on KamiStream — new tab opens behind (true popunder).
+         Without this the browser shifts focus to the new tab and the first
+         click back on the site just re-focuses instead of triggering actions. */
+      window.focus();
       _lsSet(POP_LS_KEY, String(_now()));
       _log('[KamiAds] Pop opened:', url);
     }catch(e){ _warn('pop failed',e); }
