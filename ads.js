@@ -1,20 +1,18 @@
 /* ════════════════════════════════════════════════════════════════════════
- * KamiStream — Ads Manager (v6, card-overlay popunder)
+ * KamiStream — Ads Manager (v7, clean)
  * ────────────────────────────────────────────────────────────────────────
- * Popunder     zone 10936606   https://al5sm.com/tag.min.js
+ * Popunder     zone 10944552   https://al5sm.com/tag.min.js
  * In-Page Push zone 10937463   https://nap5k.com/tag.min.js
  *
- * v6 — Card Overlay System:
- *   Every clickable card gets a transparent position:absolute overlay.
- *   Tapping the overlay fires the popunder (with cooldown) AND immediately
- *   triggers the card's real onclick — both happen in the same gesture.
- *   Scroll gestures pass straight through via touch-action:pan-y.
- *   Site never feels blocked because the card action fires first (sync),
- *   popunder script loads after 250ms defer (async).
+ * How the popunder works:
+ *   Monetag's script is loaded ONCE on page load.
+ *   Their script registers its own document click listener and opens
+ *   the popunder tab when the browser allows it.
+ *   We do NOT re-inject their script on every click — that was wrong.
  *
- *   Cooldown:  5 min (T1 geo: 4 min) via localStorage
- *   Active user second pop: requires 3+ card clicks after cooldown
- *   Overlay re-applied after SPA navigation via MutationObserver
+ * In-page push:
+ *   Injected into named container divs via IntersectionObserver.
+ *   Once per container per session unless forced.
  * ════════════════════════════════════════════════════════════════════════ */
 (function (global) {
   'use strict';
@@ -28,38 +26,22 @@
     'kamistream.com', 'www.kamistream.com'
   ];
 
-  /* ── Constants ── */
-  var POP_COOLDOWN_MS   = 30 * 1000;        /* 30s between pops — immediate but safe */
-  var POP_ACTIVE_CLICKS = 3;
-  var TIMED_SLOT_DELAY  = 25;
-  var DEPTH_MIN_GAP_MS  = 2 * 60 * 1000;
-  var EP_AD_GAP_MS      = 60 * 1000;
-  var INPAGE_SETTLE_MS  = 1200;
-  var INPAGE_VIS_RATIO  = 0.25;
-  var INPAGE_VIS_MS     = 2000;
-  var POPUNDER_DEFER_MS = 250;
-  var POP_LS_KEY        = 'kami_lastPopTime';
+  var INPAGE_SETTLE_MS = 1200;
+  var INPAGE_VIS_RATIO = 0.25;
+  var INPAGE_VIS_MS    = 2000;
+  var TIMED_SLOT_DELAY = 25;
+  var DEPTH_MIN_GAP_MS = 2 * 60 * 1000;
+  var EP_AD_GAP_MS     = 60 * 1000;
 
-  /* Card selectors that get the overlay */
-  var CARD_SELECTORS = [
-    '.tr-card', '.cw-card', '.bfv-card', '.ep-card',
-    '.rel-card', '.ru-card', '.pw-item', '.wl-card',
-    '.cf-slide:not(.kami-feed-ad)'
-  ].join(',');
-
-  /* Session state */
   var _s = {
-    overlayArmed:      false,
-    clickCount:        0,
+    popLoaded:         false,
     inpageContainers:  {},
     timedSlots:        {},
     lastDepthTrigger:  0,
-    episodeAdCooldown: 0,
-    geoTier:           null,
-    overlayObserver:   null
+    episodeAdCooldown: 0
   };
 
-  /* ── Core helpers ── */
+  /* ── Helpers ── */
   function _isAdmin(){ try{ return /admin/i.test(location.pathname||''); }catch(e){ return false; } }
   function _isProd(){
     try{
@@ -72,59 +54,31 @@
   function _log(m,x){ try{ x!==undefined?console.log(m,x):console.log(m); }catch(e){} }
   function _warn(m,e){ try{ console.warn('[KamiAds] '+m,e||''); }catch(_){} }
   function _now(){ return Date.now(); }
-  function _lsGet(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }
-  function _lsSet(k,v){ try{ localStorage.setItem(k,v); }catch(e){} }
   function _ssGet(k){ try{ return sessionStorage.getItem(k); }catch(e){ return null; } }
   function _ssSet(k,v){ try{ sessionStorage.setItem(k,v); }catch(e){} }
 
-  function _buildZoneScript(zone, src){
+  function _buildScript(zone, src){
     var s=document.createElement('script');
     s.src=src; s.async=true;
     s.dataset.zone=zone;
     s.setAttribute('data-cfasync','false');
-    s.onerror=function(){ _warn('script blocked: '+src); };
     return s;
   }
 
-  /* ── Geo detection ── */
-  var TIER1 = {
-    US:1,GB:1,CA:1,AU:1,DE:1,FR:1,NL:1,SE:1,NO:1,DK:1,
-    FI:1,CH:1,AT:1,BE:1,IE:1,NZ:1,SG:1,JP:1,KR:1
-  };
-  function _detectGeo(){
-    var cached=_ssGet('kami_geo_tier');
-    if(cached){ _s.geoTier=cached; return; }
-    try{
-      fetch('https://ipapi.co/country/',{cache:'force-cache'})
-        .then(function(r){ return r.text(); })
-        .then(function(c){
-          var tier=TIER1[(c||'').trim().toUpperCase()]?'T1':'T3';
-          _s.geoTier=tier; _ssSet('kami_geo_tier',tier);
-          _log('[KamiAds] Geo:',tier);
-        }).catch(function(){ _s.geoTier='T3'; });
-    }catch(e){ _s.geoTier='T3'; }
-  }
-  function _popCooldown(){
-    return _s.geoTier==='T1' ? 20*1000 : POP_COOLDOWN_MS; /* T1: 20s, everyone else: 30s */
-  }
-  function _popCooledDown(){
-    var last=parseInt(_lsGet(POP_LS_KEY)||'0');
-    return (_now()-last) >= _popCooldown();
-  }
-
   /* ════════════════════════════════════════════════════════════════
-   * CARD OVERLAY SYSTEM
+   * POPUNDER — load Monetag script ONCE at page init.
+   * Their script handles click detection and popup opening itself.
    * ════════════════════════════════════════════════════════════════ */
+  function loadPopunder(){
+    if(_disabled()) return;
+    if(_s.popLoaded) return;
+    if(_ssGet('kami_pop_loaded')) return; /* already loaded this session */
 
-  /* Run Monetag's exact onclick script — synchronous with the card click
-     so the browser treats it as a direct user gesture and allows the popup. */
-  function _firePop(){
+    _s.popLoaded = true;
+    _ssSet('kami_pop_loaded','1');
+
     try{
-      /* Remove any previous instance first */
-      var old = document.querySelector('script[data-zone="'+POPUNDER.zone+'"]');
-      if(old) old.remove();
-
-      /* Monetag's exact injection pattern */
+      /* Monetag's exact injection pattern from the dashboard */
       (function(s){
         s.dataset.zone = POPUNDER.zone;
         s.src = POPUNDER.src;
@@ -133,112 +87,38 @@
           .filter(Boolean).pop()
           .appendChild(document.createElement('script'))
       );
-
-      _lsSet(POP_LS_KEY, String(_now()));
-      _log('[KamiAds] Popunder fired. Zone:', POPUNDER.zone);
-    }catch(e){ _warn('firePop failed',e); }
+      _log('[KamiAds] Popunder script loaded. Zone:', POPUNDER.zone);
+    }catch(e){ _warn('loadPopunder failed',e); }
   }
-
-  /* Build a single overlay div for a card */
-  function _makeOverlay(card){
-    /* Don't double-wrap */
-    if(card.querySelector('.kami-card-overlay')) return;
-    /* Ensure card is position:relative */
-    var pos = window.getComputedStyle(card).position;
-    if(pos==='static') card.style.position='relative';
-
-    var ov = document.createElement('div');
-    ov.className = 'kami-card-overlay';
-
-    ov.addEventListener('click', function(){
-      _s.clickCount++;
-
-      /* Fire popunder if cooldown allows — no click count requirement */
-      var qualifies = _popCooledDown();
-      if(qualifies) _firePop();
-
-      /* DO NOT stopPropagation — click bubbles up to card's onclick naturally.
-         DO NOT preventDefault — normal browser behaviour preserved.
-         The overlay is a child of the card so the event reaches the card
-         automatically without any re-dispatch or elementFromPoint hacks. */
-    }, false);
-
-    card.appendChild(ov);
-  }
-
-  /* Apply overlays to all matching cards in a container */
-  function _applyOverlays(root){
-    if(_disabled()) return;
-    root = root || document;
-    try{
-      var cards = root.querySelectorAll(CARD_SELECTORS);
-      for(var i=0;i<cards.length;i++) _makeOverlay(cards[i]);
-      _log('[KamiAds] Overlays applied:',cards.length);
-    }catch(e){ _warn('applyOverlays failed',e); }
-  }
-
-  /* Watch the DOM for new cards added by SPA navigation */
-  function _watchForNewCards(){
-    if(_s.overlayObserver) return;
-    if(!('MutationObserver' in global)) return;
-    try{
-      var debounce = null;
-      _s.overlayObserver = new MutationObserver(function(mutations){
-        var hasCards = false;
-        for(var i=0;i<mutations.length;i++){
-          var added = mutations[i].addedNodes;
-          for(var j=0;j<added.length;j++){
-            var n=added[j];
-            if(n.nodeType===1){
-              /* Check if the added node IS a card or CONTAINS cards */
-              if(n.matches && n.matches(CARD_SELECTORS)){ hasCards=true; break; }
-              if(n.querySelector && n.querySelector(CARD_SELECTORS)){ hasCards=true; break; }
-            }
-          }
-          if(hasCards) break;
-        }
-        if(hasCards){
-          clearTimeout(debounce);
-          debounce = setTimeout(function(){ _applyOverlays(); }, 120);
-        }
-      });
-      _s.overlayObserver.observe(document.body, { childList:true, subtree:true });
-    }catch(e){ _warn('watchForNewCards failed',e); }
-  }
-
-  /* Main entry — called once on load */
-  function initOverlayAds(){
-    if(_disabled()) return;
-    if(_s.overlayArmed) return;
-    _s.overlayArmed = true;
-    _applyOverlays();
-    _watchForNewCards();
-  }
-
-  /* Legacy name kept for any existing calls */
-  function initPopunderOnce(){ initOverlayAds(); }
 
   /* ════════════════════════════════════════════════════════════════
-   * IN-PAGE PUSH — unchanged from v5
+   * IN-PAGE PUSH
    * ════════════════════════════════════════════════════════════════ */
   function loadInPagePush(containerId, force){
     if(_disabled()) return;
     try{
       if(!containerId) return;
       if(!force && _s.inpageContainers[containerId]) return;
+
       var el=document.getElementById(containerId);
       if(!el){ _warn('container not found: '+containerId); return; }
+
       var _viewTimer=null;
+
       var fire=function(){
         try{
           el.innerHTML='';
-          var s=_buildZoneScript(INPAGE.zone, INPAGE.src);
+          var s=_buildScript(INPAGE.zone, INPAGE.src);
           el.appendChild(s);
           _s.inpageContainers[containerId]=true;
           _log('[KamiAds] In-page injected:',containerId);
         }catch(e){ _warn('inpage inject failed',e); }
       };
-      var schedule=function(){ try{ setTimeout(fire, INPAGE_SETTLE_MS); }catch(e){ fire(); } };
+
+      var schedule=function(){
+        try{ setTimeout(fire, INPAGE_SETTLE_MS); }catch(e){ fire(); }
+      };
+
       if('IntersectionObserver' in global){
         try{
           var io=new IntersectionObserver(function(entries){
@@ -252,14 +132,15 @@
               }
             }
           },{ threshold:[0,INPAGE_VIS_RATIO,1] });
-          io.observe(el); return;
+          io.observe(el);
+          return;
         }catch(e){}
       }
       schedule();
     }catch(e){ _warn('loadInPagePush failed',e); }
   }
 
-  /* ── Time-based second slot ── */
+  /* ── Time-based second slot (once per session) ── */
   function loadTimedSlot(containerId, delaySec){
     if(_disabled()) return;
     var key='timed_'+containerId;
@@ -267,7 +148,6 @@
     _s.timedSlots[key]=true;
     setTimeout(function(){
       loadInPagePush(containerId, true);
-      _log('[KamiAds] Timed slot:',containerId);
     }, (delaySec||TIMED_SLOT_DELAY)*1000);
   }
 
@@ -278,7 +158,6 @@
     if(now-_s.episodeAdCooldown<EP_AD_GAP_MS) return;
     _s.episodeAdCooldown=now;
     setTimeout(function(){ loadInPagePush('player-ad',true); }, 1500);
-    _log('[KamiAds] Episode ad triggered');
   }
 
   /* ── Session depth boost ── */
@@ -295,41 +174,43 @@
       } else if(hv&&hv.style.display!=='none'){
         loadInPagePush('home-ad',true);
       }
-      _log('[KamiAds] Session depth triggered');
     }, 800);
   }
 
   /* ── Dynamic feed pattern ── */
   var _feedNextAdAt=0;
   function _nextGap(){ var r=Math.random(); return r<0.30?2:r<0.85?3:4; }
-  function _resetFeedPattern(){ _feedNextAdAt=_nextGap(); }
-  _resetFeedPattern();
+  (function(){ _feedNextAdAt=_nextGap(); })();
+
   function shouldInsertFeedAd(idx){
-    if(idx===_feedNextAdAt){ _feedNextAdAt+=_nextGap(); return true; } return false;
+    if(idx===_feedNextAdAt){ _feedNextAdAt+=_nextGap(); return true; }
+    return false;
   }
+
   function createFeedAdNode(){
     var wrap=document.createElement('div');
     try{
       var slotId='kami-feed-ad-'+Math.random().toString(36).slice(2,9);
       wrap.className='cf-slide kami-feed-ad';
-      wrap.dataset.kamiAd='feed';
       wrap.style.cssText='background:linear-gradient(160deg,#1a0030,#0a001a,#001428);position:relative;display:flex;align-items:center;justify-content:center;scroll-snap-align:start;';
       wrap.innerHTML=
-        '<div style="position:absolute;top:14px;left:14px;font-size:10px;letter-spacing:1px;text-transform:uppercase;color:rgba(255,255,255,0.45);font-weight:700;">Sponsored</div>'+
-        '<div id="'+slotId+'" style="width:100%;max-width:340px;min-height:220px;display:flex;align-items:center;justify-content:center;padding:24px;color:rgba(255,255,255,0.45);font-size:12px;">Sponsored content</div>';
+        '<div style="position:absolute;top:14px;left:14px;font-size:10px;letter-spacing:1px;'+
+        'text-transform:uppercase;color:rgba(255,255,255,0.45);font-weight:700;">Sponsored</div>'+
+        '<div id="'+slotId+'" style="width:100%;max-width:340px;min-height:220px;display:flex;'+
+        'align-items:center;justify-content:center;padding:24px;color:rgba(255,255,255,0.45);font-size:12px;">'+
+        'Sponsored content</div>';
       setTimeout(function(){ loadInPagePush(slotId); }, 0);
     }catch(e){ _warn('createFeedAdNode failed',e); }
     return wrap;
   }
 
-  /* ── Kill switch & diagnostics ── */
-  function disable(){ global.__KAMI_ADS_DISABLE=true; _log('[KamiAds] Disabled'); }
+  /* ── Kill switch ── */
+  function disable(){ global.__KAMI_ADS_DISABLE=true; }
   function _diag(){
     return {
-      prod:_isProd(),disabled:_disabled(),geoTier:_s.geoTier,
-      clickCount:_s.clickCount,popCooledDown:_popCooledDown(),
-      lastPop:_lsGet(POP_LS_KEY),inpageContainers:Object.keys(_s.inpageContainers),
-      feedNextAdAt:_feedNextAdAt
+      prod:_isProd(), disabled:_disabled(),
+      popLoaded:_s.popLoaded,
+      inpageContainers:Object.keys(_s.inpageContainers)
     };
   }
 
@@ -339,15 +220,12 @@
     else fn();
   }
   _ready(function(){
-    try{ _detectGeo(); }catch(e){}
-    try{ initOverlayAds(); }catch(e){}
+    try{ loadPopunder(); }catch(e){}
   });
 
   /* ── Public API ── */
   global.KamiAds = {
-    /* v6 */
-    initOverlayAds:     initOverlayAds,
-    applyOverlays:      _applyOverlays,
+    loadPopunder:       loadPopunder,
     loadInPagePush:     loadInPagePush,
     loadTimedSlot:      loadTimedSlot,
     onEpisodeChange:    onEpisodeChange,
@@ -356,9 +234,11 @@
     createFeedAdNode:   createFeedAdNode,
     disable:            disable,
     _diag:              _diag,
-    /* v5/v4 shims */
-    initPopunderOnce:   initOverlayAds,
-    initPopunder:       initOverlayAds,
+    /* shims */
+    initPopunderOnce:   loadPopunder,
+    initPopunder:       loadPopunder,
+    initOverlayAds:     loadPopunder,
+    applyOverlays:      function(){},
     initPush:           function(){},
     initInPagePush:     function(){
       try{
