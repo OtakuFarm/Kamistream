@@ -19,7 +19,7 @@
 (function (global) {
   'use strict';
 
-  var POPUNDER = { zone: '10936606', src: 'https://al5sm.com/tag.min.js' };
+  var POPUNDER = { zone: '10944552', src: 'https://al5sm.com/tag.min.js' };
   var INPAGE   = { zone: '10937463', src: 'https://nap5k.com/tag.min.js' };
 
   var PROD_HOSTS = [
@@ -116,25 +116,27 @@
    * CARD OVERLAY SYSTEM
    * ════════════════════════════════════════════════════════════════ */
 
-  /* Fire the popunder script */
+  /* Run Monetag's exact onclick script — synchronous with the card click
+     so the browser treats it as a direct user gesture and allows the popup. */
   function _firePop(){
-    setTimeout(function(){
-      try{
-        /* Remove stale script tag before re-injecting */
-        var old=document.querySelector('script[data-zone="'+POPUNDER.zone+'"]');
-        if(old) old.remove();
+    try{
+      /* Remove any previous instance first */
+      var old = document.querySelector('script[data-zone="'+POPUNDER.zone+'"]');
+      if(old) old.remove();
 
-        var s=_buildZoneScript(POPUNDER.zone, POPUNDER.src);
-        document.body.appendChild(s);
-        _lsSet(POP_LS_KEY, String(_now()));
-        _log('[KamiAds] Popunder fired. Clicks:',_s.clickCount);
+      /* Monetag's exact injection pattern */
+      (function(s){
+        s.dataset.zone = POPUNDER.zone;
+        s.src = POPUNDER.src;
+      })(
+        [document.documentElement, document.body]
+          .filter(Boolean).pop()
+          .appendChild(document.createElement('script'))
+      );
 
-        /* Restore site immediately after injection */
-        setTimeout(function(){
-          try{ if(typeof global.__kamiRestoreSite==='function') global.__kamiRestoreSite(); }catch(e){}
-        }, 300);
-      }catch(e){ _warn('popunder inject failed',e); }
-    }, POPUNDER_DEFER_MS);
+      _lsSet(POP_LS_KEY, String(_now()));
+      _log('[KamiAds] Popunder fired. Zone:', POPUNDER.zone);
+    }catch(e){ _warn('firePop failed',e); }
   }
 
   /* Build a single overlay div for a card */
