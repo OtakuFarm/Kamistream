@@ -148,49 +148,20 @@
     var ov = document.createElement('div');
     ov.className = 'kami-card-overlay';
 
-    var fired = false; /* per-overlay lock */
-
-    function handleTap(ev){
+    ov.addEventListener('click', function(){
       _s.clickCount++;
 
-      /* Always let the card's real action fire — synthetic click on card */
-      /* We stop propagation on the overlay so the card's own listener
-         doesn't double-fire, then manually dispatch to it */
-      ev.stopPropagation();
-
-      /* Fire popunder if cooldown allows */
+      /* Check cooldown — fire popunder if qualified */
       var last = parseInt(_lsGet(POP_LS_KEY)||'0');
       var everFired = last > 0;
       var qualifies = _popCooledDown() && (!everFired || _s.clickCount >= POP_ACTIVE_CLICKS);
+      if(qualifies) _firePop();
 
-      if(qualifies && !fired){
-        fired = true;
-        _firePop();
-      }
-
-      /* Trigger the card's own onclick immediately */
-      ov.style.pointerEvents = 'none'; /* step aside */
-      var realEl = document.elementFromPoint(
-        ev.clientX || (ev.touches && ev.touches[0] ? ev.touches[0].clientX : 0),
-        ev.clientY || (ev.touches && ev.touches[0] ? ev.touches[0].clientY : 0)
-      );
-      ov.style.pointerEvents = ''; /* restore */
-
-      /* Try real element click first, fallback to card click */
-      if(realEl && realEl !== ov){
-        realEl.click();
-      } else {
-        /* Fallback: find and call the card's onclick directly */
-        try{
-          var fn = card.getAttribute('onclick');
-          if(fn){ new Function(fn).call(card); }
-          else{ card.click(); }
-        }catch(e){ card.click(); }
-      }
-    }
-
-    ov.addEventListener('click',      handleTap, false);
-    ov.addEventListener('touchend',   handleTap, { passive: false });
+      /* DO NOT stopPropagation — click bubbles up to card's onclick naturally.
+         DO NOT preventDefault — normal browser behaviour preserved.
+         The overlay is a child of the card so the event reaches the card
+         automatically without any re-dispatch or elementFromPoint hacks. */
+    }, false);
 
     card.appendChild(ov);
   }
