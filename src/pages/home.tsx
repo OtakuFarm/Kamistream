@@ -1,52 +1,44 @@
 import React, { useEffect, useState } from 'react';
-import { useTrendingAnime } from '@/lib/jikan';
+import { useTrendingAnime, useTopRatedAnime, useSeasonalAnime } from '@/lib/jikan';
 import { AnimeCard } from '@/components/AnimeCard';
 import { GridSkeleton } from '@/components/LoadingSkeleton';
-import { ChevronRight, Play, Clock } from 'lucide-react';
+import { ChevronRight, Star, Flame, Sparkles } from 'lucide-react';
 import { Link } from 'wouter';
-import { useWatchHistory } from '@/hooks/useWatchHistory';
 
 export default function Home() {
-  const { data: trending, isLoading: trendingLoading } = useTrendingAnime();
+  const { data: trending,  isLoading: trendingLoading  } = useTrendingAnime();
+  const { data: topRated,  isLoading: topRatedLoading  } = useTopRatedAnime();
+  const { data: seasonal,  isLoading: seasonalLoading  } = useSeasonalAnime();
+
   const [heroIndex, setHeroIndex] = useState(0);
   const [isHovered, setIsHovered] = useState(false);
-  const { getRecentAnime } = useWatchHistory();
-  const [continueWatching, setContinueWatching] = useState(getRecentAnime());
 
-  useEffect(() => {
-    document.title = 'KamiStream — Watch Anime Free';
-    return () => { document.title = 'KamiStream'; };
-  }, []);
-
-  useEffect(() => {
-    setContinueWatching(getRecentAnime());
-  }, [getRecentAnime]);
-
-  const heroAnimes = trending?.data?.slice(0, 5) || [];
+  // Up to 10 hero slides from trending
+  const heroAnimes = trending?.data?.slice(0, 10) || [];
+  const activeHero = heroAnimes[heroIndex];
 
   useEffect(() => {
     if (heroAnimes.length === 0 || isHovered) return;
     const interval = setInterval(() => {
-      setHeroIndex((prev) => (prev + 1) % heroAnimes.length);
+      setHeroIndex(prev => (prev + 1) % heroAnimes.length);
     }, 8000);
     return () => clearInterval(interval);
   }, [heroAnimes.length, isHovered]);
 
-  const activeHero = heroAnimes[heroIndex];
-
   return (
-    <div className="p-4 md:p-6 space-y-8 pb-20">
-      {/* Hero */}
+    <div className="p-4 md:p-6 space-y-10 pb-20">
+
+      {/* ── Hero carousel ── */}
       {activeHero ? (
         <div
-          className="relative w-full h-[320px] md:h-[400px] rounded-2xl overflow-hidden group"
+          className="relative w-full h-[320px] md:h-[420px] rounded-2xl overflow-hidden group"
           onMouseEnter={() => setIsHovered(true)}
           onMouseLeave={() => setIsHovered(false)}
         >
           <img
             src={activeHero.trailer?.images?.maximum_image_url || activeHero.images.webp.large_image_url}
             alt={activeHero.title}
-            className="absolute inset-0 w-full h-full object-cover"
+            className="absolute inset-0 w-full h-full object-cover transition-all duration-700"
           />
           <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/60 to-transparent" />
           <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
@@ -61,75 +53,92 @@ export default function Home() {
             <p className="text-[13px] md:text-[14px] text-[var(--text2)] line-clamp-2 md:line-clamp-3 mb-6 max-w-xl">
               {activeHero.synopsis}
             </p>
-            <div className="flex gap-3">
+            <div className="flex gap-3 flex-wrap">
               <Link href={`/anime/${activeHero.mal_id}`}>
-                <button className="bg-gradient-to-r from-[var(--pink)] to-[var(--purple)] text-white px-6 py-2.5 rounded-xl text-[13px] font-bold hover:brightness-110 transition-all flex items-center gap-2">
-                  <Play className="w-4 h-4 fill-current" /> Watch Now
+                <button className="bg-gradient-to-r from-[var(--pink)] to-[var(--purple)] text-white px-6 py-2.5 rounded-xl text-[13px] font-bold transition-all hover:opacity-90 flex items-center gap-2">
+                  <ChevronRight className="w-4 h-4" /> Watch Now
                 </button>
               </Link>
+              {activeHero.score && (
+                <div className="bg-white/10 backdrop-blur-md border border-white/20 text-white px-4 py-2.5 rounded-xl text-[13px] font-bold flex items-center gap-1.5">
+                  <Star className="w-4 h-4 text-yellow-400 fill-yellow-400" /> {activeHero.score}
+                </div>
+              )}
             </div>
           </div>
 
+          {/* Dot indicators */}
           <div className="absolute bottom-4 right-6 flex gap-2">
             {heroAnimes.map((_: any, i: number) => (
               <button
                 key={i}
                 onClick={() => setHeroIndex(i)}
-                className={`h-1.5 rounded-full transition-all ${i === heroIndex ? 'w-6 bg-[var(--pink)]' : 'w-1.5 bg-white/30'}`}
+                className={`h-1.5 rounded-full transition-all ${i === heroIndex ? 'w-6 bg-[var(--pink)]' : 'w-1.5 bg-white/30 hover:bg-white/60'}`}
               />
             ))}
           </div>
         </div>
       ) : (
-        <div className="w-full h-[320px] md:h-[400px] rounded-2xl bg-[var(--card)] animate-pulse" />
+        <div className="w-full h-[320px] md:h-[420px] rounded-2xl bg-[var(--card)] animate-pulse" />
       )}
 
-      {/* Continue Watching */}
-      {continueWatching.length > 0 && (
-        <section>
-          <div className="flex items-center gap-2 mb-4">
-            <Clock className="w-4 h-4 text-[var(--pink)]" />
-            <h2 className="text-[16px] font-heading font-black text-white">Continue Watching</h2>
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-            {continueWatching.slice(0, 6).map((entry) => (
-              <Link key={`${entry.mal_id}-${entry.ep_id}`} href={`/watch/${entry.mal_id}/${entry.ep_id}`}>
-                <div className="group relative cursor-pointer">
-                  <div className="aspect-[2/3] rounded-xl overflow-hidden bg-[var(--card)] relative">
-                    <img
-                      src={entry.image_url}
-                      alt={entry.title}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                    />
-                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                      <Play className="w-10 h-10 text-white fill-current" />
-                    </div>
-                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent p-2">
-                      <span className="text-[10px] font-bold text-[var(--pink)]">EP {entry.ep_id}</span>
-                    </div>
-                  </div>
-                  <p className="text-[12px] font-bold text-white mt-2 line-clamp-2 leading-snug">{entry.title}</p>
-                  <p className="text-[10px] text-[var(--text3)] mt-0.5">{entry.ep_title}</p>
-                </div>
-              </Link>
-            ))}
-          </div>
-        </section>
-      )}
-
-      {/* Trending */}
+      {/* ── Trending Now ── */}
       <section>
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-[16px] font-heading font-black text-white">Trending Anime</h2>
-          <Link href="/browse" className="text-[12px] font-bold text-[var(--pink)] hover:text-[var(--purple)] transition-colors flex items-center gap-1">
-            View All <ChevronRight className="w-3 h-3" />
+          <h2 className="text-[16px] font-heading font-black text-white flex items-center gap-2">
+            <Flame className="w-4 h-4 text-[var(--pink)]" /> Trending Now
+          </h2>
+          <Link href="/browse" className="text-[12px] font-bold text-[var(--pink)] hover:text-[var(--purple)] transition-colors">
+            View All
           </Link>
         </div>
         {trendingLoading ? (
           <GridSkeleton />
         ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-            {trending?.data?.slice(0, 12).map((anime: any) => (
+            {trending?.data?.map((anime: any) => (
+              <AnimeCard key={anime.mal_id} anime={anime} />
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* ── Top Rated ── */}
+      <section>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-[16px] font-heading font-black text-white flex items-center gap-2">
+            <Star className="w-4 h-4 text-yellow-400" /> Top Rated
+          </h2>
+          <Link href="/browse" className="text-[12px] font-bold text-[var(--pink)] hover:text-[var(--purple)] transition-colors">
+            View All
+          </Link>
+        </div>
+        {topRatedLoading ? (
+          <GridSkeleton />
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+            {topRated?.data?.map((anime: any) => (
+              <AnimeCard key={anime.mal_id} anime={anime} />
+            ))}
+          </div>
+        )}
+      </section>
+
+      {/* ── This Season ── */}
+      <section>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-[16px] font-heading font-black text-white flex items-center gap-2">
+            <Sparkles className="w-4 h-4 text-[var(--purple)]" /> This Season
+          </h2>
+          <Link href="/browse" className="text-[12px] font-bold text-[var(--pink)] hover:text-[var(--purple)] transition-colors">
+            View All
+          </Link>
+        </div>
+        {seasonalLoading ? (
+          <GridSkeleton />
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+            {seasonal?.data?.map((anime: any) => (
               <AnimeCard key={anime.mal_id} anime={anime} />
             ))}
           </div>
@@ -139,7 +148,7 @@ export default function Home() {
       <div
         id="home-ad"
         className="min-h-[1px]"
-        ref={(el) => { if (el && (window as any).KamiAds) (window as any).KamiAds.loadInPagePush('home-ad'); }}
+        ref={el => { if (el && (window as any).KamiAds) (window as any).KamiAds.loadInPagePush('home-ad'); }}
       />
     </div>
   );
