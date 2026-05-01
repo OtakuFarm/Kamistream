@@ -20,6 +20,7 @@ const Leaderboard = lazy(() => import("@/pages/leaderboard"));
 const Community = lazy(() => import("@/pages/community"));
 const Profile = lazy(() => import("@/pages/profile"));
 const Creator = lazy(() => import("@/pages/creator"));
+const SearchPage = lazy(() => import("@/pages/search"));
 const Login = lazy(() => import("@/pages/auth/login"));
 const Signup = lazy(() => import("@/pages/auth/signup"));
 const Admin = lazy(() => import("@/pages/admin"));
@@ -52,6 +53,7 @@ function Router() {
       <Switch>
         <Route path="/" component={() => <Layout><Home /></Layout>} />
         <Route path="/browse" component={() => <Layout><Browse /></Layout>} />
+        <Route path="/search" component={() => <Layout><SearchPage /></Layout>} />
         <Route path="/anime/:id" component={() => <Layout><AnimeDetail /></Layout>} />
         
         {/* Minimal Layout for watch & auth */}
