@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useRoute, Link } from 'wouter';
 import { useAnimeDetail, useAnimeEpisodes } from '@/lib/jikan';
 import { supabase } from '@/lib/supabase';
@@ -6,7 +6,6 @@ import { ChevronLeft, ChevronRight, Settings } from 'lucide-react';
 import { LoadingSkeleton } from '@/components/LoadingSkeleton';
 import { EpisodeSocial } from '@/components/EpisodeSocial';
 
-// ── Resolve AniList ID from MAL ID (cached in sessionStorage) ──
 const _alCache: Record<string, string> = {};
 async function resolveAnilistId(malId: string): Promise<string | null> {
   if (_alCache[malId]) return _alCache[malId];
@@ -28,51 +27,27 @@ async function resolveAnilistId(malId: string): Promise<string | null> {
   } catch { return null; }
 }
 
-// ── Fallback URL builders when no Supabase source exists ──
-type Ids = { mal: string; al: string | null };
-const FALLBACK_SOURCES = [
-  {
-    id: 'vidnest', name: 'VidNest',
-    build: ({ al, mal }: Ids, ep: string, dub: boolean) =>
-      `https://vidnest.fun/animepahe/${al || mal}/${ep}/${dub ? 'dub' : 'sub'}`,
-  },
-  {
-    id: 'cinetaro', name: 'Cinetaro',
-    build: ({ al, mal }: Ids, ep: string, dub: boolean) =>
-      `https://api.cinetaro.buzz/anime/${al || mal}/${ep}/${dub ? 'dub' : 'sub'}`,
-  },
-];
-
-// ── Fetch embed sources saved by admin in Supabase ──
 async function fetchAdminSources(malId: string, epNum: string) {
   try {
-    // 1. Get the anime row
-    const { data: anime } = await supabase
-      .from('anime')
-      .select('id')
-      .eq('mal_id', malId)
-      .maybeSingle();
+    const { data: anime } = await supabase.from('anime').select('id').eq('mal_id', malId).maybeSingle();
     if (!anime?.id) return [];
-
-    // 2. Get the episode row
-    const { data: episode } = await supabase
-      .from('episodes')
-      .select('id')
-      .eq('anime_id', anime.id)
-      .eq('episode_number', parseInt(epNum))
-      .maybeSingle();
+    const { data: episode } = await supabase.from('episodes').select('id').eq('anime_id', anime.id).eq('episode_number', parseInt(epNum)).maybeSingle();
     if (!episode?.id) return [];
-
-    // 3. Get embed sources for this episode
-    const { data: sources } = await supabase
-      .from('embed_sources')
-      .select('source_name, embed_url, language, quality')
-      .eq('episode_id', episode.id)
-      .eq('is_active', true);
-
+    const { data: sources } = await supabase.from('embed_sources').select('source_name, embed_url, language, quality').eq('episode_id', episode.id).eq('is_active', true);
     return sources || [];
   } catch { return []; }
 }
+
+// Fire ad on episode interactions
+function fireEpAd(type: string) {
+  try { (window as any).KamiAds?.onEpisodeClick(type); } catch {}
+}
+
+type Ids = { mal: string; al: string | null };
+const FALLBACK_SOURCES = [
+  { id: 'vidnest',  name: 'VidNest',  build: ({ al, mal }: Ids, ep: string, dub: boolean) => `https://vidnest.fun/animepahe/${al || mal}/${ep}/${dub ? 'dub' : 'sub'}` },
+  { id: 'cinetaro', name: 'Cinetaro', build: ({ al, mal }: Ids, ep: string, dub: boolean) => `https://api.cinetaro.buzz/anime/${al || mal}/${ep}/${dub ? 'dub' : 'sub'}` },
+];
 
 export default function Watch() {
   const [, params] = useRoute('/watch/:id/:ep');
@@ -82,53 +57,40 @@ export default function Watch() {
   const [alId,          setAlId]          = useState<string | null>(null);
   const [dub,           setDub]           = useState(false);
   const [adminSources,  setAdminSources]  = useState<any[]>([]);
-  const [activeSource,  setActiveSource]  = useState<string>(''); // embed_url of selected source
+  const [activeSource,  setActiveSource]  = useState<string>('');
   const [showEpList,    setShowEpList]    = useState(false);
   const [loadingPlayer, setLoadingPlayer] = useState(true);
+  const playerClickedRef = useRef(false); // track first player click per episode
 
   const { data: detail,   isLoading: detailLoading } = useAnimeDetail(malId);
   const { data: episodes }                            = useAnimeEpisodes(malId);
 
-  // On anime/episode change: resolve AniList ID + fetch admin sources
   useEffect(() => {
     if (!malId || !epId) return;
     setLoadingPlayer(true);
     setAdminSources([]);
     setActiveSource('');
+    playerClickedRef.current = false;
 
-    Promise.all([
-      resolveAnilistId(malId),
-      fetchAdminSources(malId, epId),
-    ]).then(([al, sources]) => {
+    Promise.all([resolveAnilistId(malId), fetchAdminSources(malId, epId)]).then(([al, sources]) => {
       setAlId(al);
       setAdminSources(sources);
-
       if (sources.length > 0) {
-        // Pick sub or dub preference, default to first available
-        const preferred = sources.find((s: any) =>
-          s.language === (dub ? 'dub' : 'sub')
-        ) || sources[0];
+        const preferred = sources.find((s: any) => s.language === (dub ? 'dub' : 'sub')) || sources[0];
         setActiveSource(preferred.embed_url);
       } else {
-        // Fallback: generate URL from AniList ID
-        setActiveSource(
-          `https://vidnest.fun/animepahe/${al || malId}/${epId}/${dub ? 'dub' : 'sub'}`
-        );
+        setActiveSource(`https://vidnest.fun/animepahe/${al || malId}/${epId}/${dub ? 'dub' : 'sub'}`);
       }
       setLoadingPlayer(false);
     });
   }, [malId, epId]);
 
-  // When sub/dub toggles, switch to matching source if available
   useEffect(() => {
     if (adminSources.length > 0) {
-      const match = adminSources.find((s: any) => s.language === (dub ? 'dub' : 'sub'))
-        || adminSources[0];
+      const match = adminSources.find((s: any) => s.language === (dub ? 'dub' : 'sub')) || adminSources[0];
       setActiveSource(match.embed_url);
     } else if (alId !== null) {
-      setActiveSource(
-        `https://vidnest.fun/animepahe/${alId || malId}/${epId}/${dub ? 'dub' : 'sub'}`
-      );
+      setActiveSource(`https://vidnest.fun/animepahe/${alId || malId}/${epId}/${dub ? 'dub' : 'sub'}`);
     }
   }, [dub]);
 
@@ -147,28 +109,24 @@ export default function Watch() {
   const prevEp         = currentEpIndex > 0              ? eps[currentEpIndex - 1] : null;
   const nextEp         = currentEpIndex < eps.length - 1 ? eps[currentEpIndex + 1] : null;
 
-  // Build server list: admin sources first, then fallbacks
   const serverList = adminSources.length > 0
-    ? adminSources.map((s: any) => ({
-        id: s.source_name,
-        name: `${s.source_name} ${s.language === 'dub' ? '(DUB)' : '(SUB)'}`,
-        url: s.embed_url,
-      }))
-    : FALLBACK_SOURCES.map(s => ({
-        id: s.id,
-        name: s.name,
-        url: s.build({ mal: malId, al: alId }, epId, dub),
-      }));
+    ? adminSources.map((s: any) => ({ id: s.source_name, name: `${s.source_name} ${s.language === 'dub' ? '(DUB)' : '(SUB)'}`, url: s.embed_url }))
+    : FALLBACK_SOURCES.map(s => ({ id: s.id, name: s.name, url: s.build({ mal: malId, al: alId }, epId, dub) }));
+
+  // Fired when user clicks anywhere on the player wrapper
+  function handlePlayerClick() {
+    if (playerClickedRef.current) return; // only first click per episode
+    playerClickedRef.current = true;
+    fireEpAd('player');
+  }
 
   return (
     <div className="flex flex-col lg:flex-row h-[calc(100vh-60px)]">
-
-      {/* ── Main column ── */}
       <div className="flex-1 flex flex-col bg-black overflow-hidden">
 
-        {/* Player */}
+        {/* Player — clicking fires ad on first interaction per episode */}
         <div className="w-full bg-black flex justify-center items-start">
-          <div className="w-[85%] relative pt-[47.8%]">
+          <div className="w-[85%] relative pt-[47.8%]" onClick={handlePlayerClick}>
             {loadingPlayer ? (
               <div className="absolute inset-0 flex items-center justify-center bg-black text-[var(--text3)] text-[13px]">
                 ⏳ Loading player…
@@ -204,17 +162,11 @@ export default function Watch() {
               </div>
             </div>
 
-            {/* Controls */}
             <div className="flex items-center gap-2 flex-wrap">
-
-              {/* Sub / Dub toggle */}
+              {/* Sub / Dub */}
               <div className="flex bg-[var(--card)] border border-[var(--border)] rounded-xl overflow-hidden text-[12px] font-bold">
-                <button onClick={() => setDub(false)} className={`px-4 py-2 transition-colors ${!dub ? 'bg-[var(--pink)] text-white' : 'text-[var(--text3)] hover:text-white'}`}>
-                  SUB
-                </button>
-                <button onClick={() => setDub(true)} className={`px-4 py-2 transition-colors ${dub ? 'bg-[var(--purple)] text-white' : 'text-[var(--text3)] hover:text-white'}`}>
-                  DUB
-                </button>
+                <button onClick={() => setDub(false)} className={`px-4 py-2 transition-colors ${!dub ? 'bg-[var(--pink)] text-white' : 'text-[var(--text3)] hover:text-white'}`}>SUB</button>
+                <button onClick={() => setDub(true)}  className={`px-4 py-2 transition-colors ${dub  ? 'bg-[var(--purple)] text-white' : 'text-[var(--text3)] hover:text-white'}`}>DUB</button>
               </div>
 
               {/* Server picker */}
@@ -226,11 +178,8 @@ export default function Watch() {
                   </button>
                   <div className="absolute right-0 top-full mt-2 w-48 bg-[var(--card)] border border-[var(--border)] rounded-xl shadow-xl overflow-hidden opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
                     {serverList.map(s => (
-                      <button
-                        key={s.id}
-                        onClick={() => setActiveSource(s.url)}
-                        className={`w-full text-left px-4 py-3 text-[12px] font-bold hover:bg-[var(--bg3)] transition-colors ${s.url === activeSource ? 'text-[var(--pink)]' : 'text-white'}`}
-                      >
+                      <button key={s.id} onClick={() => setActiveSource(s.url)}
+                        className={`w-full text-left px-4 py-3 text-[12px] font-bold hover:bg-[var(--bg3)] transition-colors ${s.url === activeSource ? 'text-[var(--pink)]' : 'text-white'}`}>
                         {s.name}
                       </button>
                     ))}
@@ -243,25 +192,33 @@ export default function Watch() {
           <div id="player-ad" className="mt-6 min-h-[1px]" />
           <EpisodeSocial malId={malId} epId={epId} />
 
-          {/* Prev / Next */}
+          {/* Prev / Next — clicking fires ad */}
           <div className="flex items-center gap-2 mt-6 pb-6 border-b border-[var(--border)]">
-            <Link href={prevEp ? `/watch/${malId}/${prevEp.mal_id}` : '#'}
-              className={`flex-1 bg-[var(--card)] border border-[var(--border)] py-3 rounded-xl flex items-center justify-center gap-2 text-[12px] font-bold transition-all ${prevEp ? 'hover:bg-[var(--bg3)] hover:border-[var(--purple)] text-white' : 'opacity-50 cursor-not-allowed text-[var(--text3)]'}`}>
+            <Link
+              href={prevEp ? `/watch/${malId}/${prevEp.mal_id}` : '#'}
+              onClick={() => prevEp && fireEpAd('prev')}
+              data-ep-nav="prev"
+              className={`flex-1 bg-[var(--card)] border border-[var(--border)] py-3 rounded-xl flex items-center justify-center gap-2 text-[12px] font-bold transition-all ${prevEp ? 'hover:bg-[var(--bg3)] hover:border-[var(--purple)] text-white' : 'opacity-50 cursor-not-allowed text-[var(--text3)]'}`}
+            >
               <ChevronLeft className="w-4 h-4" /> Prev Episode
             </Link>
             <button onClick={() => setShowEpList(!showEpList)}
               className="lg:hidden w-12 h-12 bg-[var(--card)] border border-[var(--border)] rounded-xl flex items-center justify-center text-[var(--text3)]">
               EP
             </button>
-            <Link href={nextEp ? `/watch/${malId}/${nextEp.mal_id}` : '#'}
-              className={`flex-1 bg-[var(--card)] border border-[var(--border)] py-3 rounded-xl flex items-center justify-center gap-2 text-[12px] font-bold transition-all ${nextEp ? 'hover:bg-[var(--bg3)] hover:border-[var(--pink)] text-white' : 'opacity-50 cursor-not-allowed text-[var(--text3)]'}`}>
+            <Link
+              href={nextEp ? `/watch/${malId}/${nextEp.mal_id}` : '#'}
+              onClick={() => nextEp && fireEpAd('next')}
+              data-ep-nav="next"
+              className={`flex-1 bg-[var(--card)] border border-[var(--border)] py-3 rounded-xl flex items-center justify-center gap-2 text-[12px] font-bold transition-all ${nextEp ? 'hover:bg-[var(--bg3)] hover:border-[var(--pink)] text-white' : 'opacity-50 cursor-not-allowed text-[var(--text3)]'}`}
+            >
               Next Episode <ChevronRight className="w-4 h-4" />
             </Link>
           </div>
         </div>
       </div>
 
-      {/* ── Episode List Sidebar ── */}
+      {/* Episode List Sidebar */}
       <div className={`w-[320px] bg-[var(--bg2)] border-l border-[var(--border)] flex flex-col shrink-0 absolute lg:relative inset-y-0 right-0 z-40 transform transition-transform duration-300 ${showEpList ? 'translate-x-0' : 'translate-x-full lg:translate-x-0'}`}>
         <div className="p-4 border-b border-[var(--border)] flex justify-between items-center">
           <h3 className="font-heading font-black text-[14px]">Episodes</h3>
@@ -273,7 +230,12 @@ export default function Watch() {
           {eps.map((ep: any) => {
             const isCurrent = ep.mal_id.toString() === epId;
             return (
-              <Link key={ep.mal_id} href={`/watch/${malId}/${ep.mal_id}`}>
+              <Link
+                key={ep.mal_id}
+                href={`/watch/${malId}/${ep.mal_id}`}
+                onClick={() => !isCurrent && fireEpAd('list')}
+                data-ep-item="true"
+              >
                 <div className={`p-3 rounded-xl cursor-pointer transition-colors flex items-center gap-3 ${isCurrent ? 'bg-[var(--pink)]/10 border border-[var(--pink)]' : 'hover:bg-[var(--card)] border border-transparent'}`}>
                   <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-mono text-[11px] font-bold ${isCurrent ? 'bg-[var(--pink)] text-white' : 'bg-[var(--bg3)] text-[var(--text3)]'}`}>
                     {ep.mal_id}
