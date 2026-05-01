@@ -9,6 +9,27 @@ const fetchJikan = async (endpoint: string) => {
   return data;
 };
 
+// Fetches ALL episode pages (handles 100+ episode anime)
+const fetchAllEpisodes = async (malId: number | string) => {
+  let page = 1;
+  let allEpisodes: any[] = [];
+  let hasNextPage = true;
+
+  while (hasNextPage) {
+    const res = await fetch(`${BASE_URL}/anime/${malId}/episodes?page=${page}`);
+    if (!res.ok) break;
+    const data = await res.json();
+    const eps = data?.data || [];
+    allEpisodes = [...allEpisodes, ...eps];
+    hasNextPage = data?.pagination?.has_next_page === true;
+    page++;
+    // Small delay to respect Jikan rate limit (3 req/s)
+    if (hasNextPage) await new Promise(r => setTimeout(r, 350));
+  }
+
+  return { data: allEpisodes };
+};
+
 export const useTrendingAnime = () =>
   useQuery({
     queryKey: ['anime', 'trending'],
@@ -46,12 +67,13 @@ export const useAnimeDetail = (malId: number | string) =>
     staleTime: 5 * 60 * 1000,
   });
 
+// Now fetches ALL episodes across all pages
 export const useAnimeEpisodes = (malId: number | string) =>
   useQuery({
-    queryKey: ['anime', malId, 'episodes'],
-    queryFn: () => fetchJikan(`/anime/${malId}/episodes`),
+    queryKey: ['anime', malId, 'episodes', 'all'],
+    queryFn: () => fetchAllEpisodes(malId),
     enabled: !!malId,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 10 * 60 * 1000,
   });
 
 export const useAnimeRecommendations = (malId: number | string) =>
