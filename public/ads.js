@@ -1,21 +1,19 @@
 /* ════════════════════════════════════════════════════════════════════════
- * KamiStream — Ads Manager (v8)
+ * KamiStream — Ads Manager (v9)
  * ────────────────────────────────────────────────────────────────────────
- * Popunder     zone 10944552
- * In-Page Push zone 10937463   https://nap5k.com/tag.min.js
+ * Popunder     zones: 10936622, 10937524
+ * In-Page Push zone:  10937463   https://nap5k.com/tag.min.js
  *
- * Popunder approach (v8):
- *   window.open() called DIRECTLY inside the card click event.
- *   No Monetag script loaded on the page → no full-screen overlay →
- *   no scroll blocking → site works perfectly.
- *   Browser allows the new tab because it's a synchronous click response.
- *
- *   Cooldown: 30s (T1 geo: 20s) via localStorage.
+ * v9 additions:
+ *   · Episode click ads — fires popunder when user clicks:
+ *       - Episode list items in the sidebar
+ *       - Next / Prev episode buttons
+ *       - The player iframe area (first interaction)
+ *   · Shared cooldown with card pops (no double-firing)
  * ════════════════════════════════════════════════════════════════════════ */
 (function (global) {
   'use strict';
 
-  /* Rotate between both ad units on each pop — both get traffic */
   var POP_URLS = [
     'https://omg10.com/4/10936622',
     'https://omg10.com/4/10937524'
@@ -26,7 +24,8 @@
     _popIndex++;
     return url;
   }
-  var INPAGE    = { zone: '10937463', src: 'https://nap5k.com/tag.min.js' };
+
+  var INPAGE = { zone: '10937463', src: 'https://nap5k.com/tag.min.js' };
 
   var PROD_HOSTS = [
     'kamistream.tv',  'www.kamistream.tv',
@@ -35,31 +34,39 @@
   ];
 
   var POP_LS_KEY       = 'kami_lastPopTime';
-  var POP_COOLDOWN_MS  = 30 * 1000;   /* 30s default */
-  var POP_T1_MS        = 20 * 1000;   /* 20s for Tier-1 countries */
-  var TIMED_SLOT_DELAY = 25;
-  var DEPTH_MIN_GAP_MS = 2 * 60 * 1000;
-  var EP_AD_GAP_MS     = 60 * 1000;
+  var POP_COOLDOWN_MS  = 30 * 1000;
+  var POP_T1_MS        = 20 * 1000;
+  var EP_CLICK_GAP_MS  = 45 * 1000;  // separate cooldown for episode clicks
   var INPAGE_SETTLE_MS = 1200;
   var INPAGE_VIS_RATIO = 0.25;
   var INPAGE_VIS_MS    = 2000;
+  var EP_AD_GAP_MS     = 60 * 1000;
+  var DEPTH_MIN_GAP_MS = 2 * 60 * 1000;
+  var TIMED_SLOT_DELAY = 25;
 
   var CARD_SELECTORS = [
     '.tr-card','.cw-card','.bfv-card',
     '.rel-card','.ru-card','.pw-item','.wl-card'
   ].join(',');
 
+  // Episode page selectors
+  var EP_NAV_SELECTORS = [
+    '[data-ep-nav]',          // prev/next buttons (we'll add this attr)
+    '[data-ep-item]',         // episode list items
+  ].join(',');
+
   var _s = {
     overlayArmed:      false,
     overlayObserver:   null,
+    epObserver:        null,
     inpageContainers:  {},
     timedSlots:        {},
     lastDepthTrigger:  0,
     episodeAdCooldown: 0,
+    lastEpClickPop:    0,
     geoTier:           null
   };
 
-  /* ── Helpers ── */
   function _isAdmin(){ try{ return /admin/i.test(location.pathname||''); }catch(e){ return false; } }
   function _isProd(){
     try{
@@ -84,7 +91,6 @@
     return s;
   }
 
-  /* ── Geo (cached, one fetch per session) ── */
   var TIER1={US:1,GB:1,CA:1,AU:1,DE:1,FR:1,NL:1,SE:1,NO:1,DK:1,FI:1,CH:1,AT:1,BE:1,IE:1,NZ:1,SG:1,JP:1,KR:1};
   function _detectGeo(){
     var c=_ssGet('kami_geo');
@@ -102,26 +108,23 @@
   function _cooledDown(){
     return (_now()-parseInt(_lsGet(POP_LS_KEY)||'0')) >= _cooldown();
   }
+  function _epClickCooledDown(){
+    return (_now() - _s.lastEpClickPop) >= EP_CLICK_GAP_MS;
+  }
 
-  /* ════════════════════════════════════════════════════════════════
-   * POPUNDER — window.open() directly in click handler.
-   * No script injected into the page. No overlay. No DOM side effects.
-   * ════════════════════════════════════════════════════════════════ */
+  /* ── Core popunder ── */
   function _openPop(){
     try{
       var url = _nextPopUrl();
       var w = window.open(url, '_blank');
       if(w){ w.opener=null; }
-      /* Keep focus on KamiStream — new tab opens behind (true popunder).
-         Without this the browser shifts focus to the new tab and the first
-         click back on the site just re-focuses instead of triggering actions. */
       window.focus();
       _lsSet(POP_LS_KEY, String(_now()));
       _log('[KamiAds] Pop opened:', url);
     }catch(e){ _warn('pop failed',e); }
   }
 
-  /* Attach a lightweight click listener to each card */
+  /* ── Card clicks (home / browse) ── */
   function _wrapCard(card){
     if(card._kamiWrapped) return;
     card._kamiWrapped = true;
@@ -129,7 +132,7 @@
       if(_disabled()) return;
       if(!_cooledDown()) return;
       _openPop();
-    }, false); /* bubbles — card's own onclick still fires normally */
+    }, false);
   }
 
   function _applyToCards(root){
@@ -138,11 +141,57 @@
     try{
       var cards = root.querySelectorAll(CARD_SELECTORS);
       for(var i=0;i<cards.length;i++) _wrapCard(cards[i]);
-      _log('[KamiAds] Cards wrapped:',cards.length);
     }catch(e){ _warn('applyToCards failed',e); }
   }
 
-  /* Watch for new cards added by SPA navigation */
+  /* ════════════════════════════════════════════════════════════════
+   * EPISODE CLICK ADS
+   * Called by watch.tsx via KamiAds.onEpisodeClick()
+   * Fires a popunder when:
+   *   - User clicks an episode in the sidebar list
+   *   - User clicks Prev / Next episode
+   *   - User clicks anywhere on the player for the first time per episode
+   * Uses its own 45s cooldown on top of the shared pop cooldown.
+   * ════════════════════════════════════════════════════════════════ */
+  function onEpisodeClick(type){
+    if(_disabled()) return;
+    if(!_cooledDown()) return;
+    if(!_epClickCooledDown()) return;
+    _s.lastEpClickPop = _now();
+    _openPop();
+    _log('[KamiAds] Episode click ad fired, type:', type||'unknown');
+  }
+
+  /* ── Watch for episode nav/list elements added by React ── */
+  function _wrapEpElement(el){
+    if(el._kamiEpWrapped) return;
+    el._kamiEpWrapped = true;
+    el.addEventListener('click', function(){
+      if(_disabled()) return;
+      onEpisodeClick('nav');
+    }, false);
+  }
+
+  function _applyToEpElements(root){
+    if(_disabled()) return;
+    root = root || document;
+    try{
+      var els = root.querySelectorAll(EP_NAV_SELECTORS);
+      for(var i=0;i<els.length;i++) _wrapEpElement(els[i]);
+    }catch(e){}
+  }
+
+  function _watchEpElements(){
+    if(_s.epObserver) return;
+    if(!('MutationObserver' in global)) return;
+    var debounce=null;
+    _s.epObserver = new MutationObserver(function(){
+      clearTimeout(debounce);
+      debounce = setTimeout(function(){ _applyToEpElements(); }, 150);
+    });
+    _s.epObserver.observe(document.body,{childList:true,subtree:true});
+  }
+
   function _watchCards(){
     if(_s.overlayObserver) return;
     if(!('MutationObserver' in global)) return;
@@ -171,28 +220,27 @@
     if(_s.overlayArmed) return;
     _s.overlayArmed=true;
     _applyToCards();
+    _applyToEpElements();
     _watchCards();
+    _watchEpElements();
     _detectGeo();
   }
 
-  /* ════════════════════════════════════════════════════════════════
-   * IN-PAGE PUSH — unchanged, works fine
-   * ════════════════════════════════════════════════════════════════ */
+  /* ── In-Page Push ── */
   function loadInPagePush(containerId, force){
     if(_disabled()) return;
     try{
       if(!containerId) return;
       if(!force && _s.inpageContainers[containerId]) return;
       var el=document.getElementById(containerId);
-      if(!el){ _warn('no container: '+containerId); return; }
+      if(!el){ return; }
       var vt=null;
       var fire=function(){
         try{
           el.innerHTML='';
           el.appendChild(_buildScript(INPAGE.zone,INPAGE.src));
           _s.inpageContainers[containerId]=true;
-          _log('[KamiAds] In-page:',containerId);
-        }catch(e){ _warn('inpage failed',e); }
+        }catch(e){}
       };
       var schedule=function(){ setTimeout(fire,INPAGE_SETTLE_MS); };
       if('IntersectionObserver' in global){
@@ -208,7 +256,7 @@
         }catch(e){}
       }
       schedule();
-    }catch(e){ _warn('loadInPagePush failed',e); }
+    }catch(e){}
   }
 
   function loadTimedSlot(containerId,delaySec){
@@ -258,19 +306,17 @@
   }
 
   function disable(){ global.__KAMI_ADS_DISABLE=true; }
-  function _diag(){ return {prod:_isProd(),disabled:_disabled(),geoTier:_s.geoTier,cooledDown:_cooledDown(),containers:Object.keys(_s.inpageContainers)}; }
+  function _diag(){ return {prod:_isProd(),disabled:_disabled(),geoTier:_s.geoTier,cooledDown:_cooledDown(),epCooledDown:_epClickCooledDown(),containers:Object.keys(_s.inpageContainers)}; }
 
-  /* Auto-init */
   function _ready(fn){ if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',fn,{once:true}); else fn(); }
   _ready(function(){ try{ initAds(); }catch(e){} });
 
-  /* Public API */
   global.KamiAds={
     loadInPagePush:loadInPagePush, loadTimedSlot:loadTimedSlot,
-    onEpisodeChange:onEpisodeChange, onSessionDepth:onSessionDepth,
+    onEpisodeChange:onEpisodeChange, onEpisodeClick:onEpisodeClick,
+    onSessionDepth:onSessionDepth,
     shouldInsertFeedAd:shouldInsertFeedAd, createFeedAdNode:createFeedAdNode,
     disable:disable, _diag:_diag,
-    /* shims */
     initPopunderOnce:initAds, initPopunder:initAds, initOverlayAds:initAds,
     applyOverlays:function(){}, initPush:function(){},
     initInPagePush:function(){
