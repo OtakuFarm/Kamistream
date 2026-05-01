@@ -2,20 +2,25 @@ import React, { useEffect, useState } from 'react';
 import { useTrendingAnime, useTopRatedAnime, useSeasonalAnime } from '@/lib/jikan';
 import { AnimeCard } from '@/components/AnimeCard';
 import { GridSkeleton } from '@/components/LoadingSkeleton';
-import { ChevronRight, Star, Flame, Sparkles } from 'lucide-react';
+import { useWatchlist } from '@/hooks/useWatchlist';
+import { useWatchHistory } from '@/hooks/useWatchHistory';
+import { ChevronRight, Star, Flame, Sparkles, BookMarked, Clock } from 'lucide-react';
 import { Link } from 'wouter';
 
 export default function Home() {
   const { data: trending,  isLoading: trendingLoading  } = useTrendingAnime();
   const { data: topRated,  isLoading: topRatedLoading  } = useTopRatedAnime();
   const { data: seasonal,  isLoading: seasonalLoading  } = useSeasonalAnime();
+  const { watchlist } = useWatchlist();
+  const { getRecentAnime } = useWatchHistory();
 
   const [heroIndex, setHeroIndex] = useState(0);
   const [isHovered, setIsHovered] = useState(false);
 
-  // Up to 10 hero slides from trending
   const heroAnimes = trending?.data?.slice(0, 10) || [];
   const activeHero = heroAnimes[heroIndex];
+
+  const recentHistory = getRecentAnime().slice(0, 12);
 
   useEffect(() => {
     if (heroAnimes.length === 0 || isHovered) return;
@@ -25,13 +30,33 @@ export default function Home() {
     return () => clearInterval(interval);
   }, [heroAnimes.length, isHovered]);
 
+  // Normalise a watchlist item to what AnimeCard expects
+  const wlToCard = (item: any) => ({
+    mal_id: item.mal_id,
+    title: item.title,
+    score: item.score,
+    episodes: item.episodes,
+    type: 'TV',
+    images: { webp: { large_image_url: item.image_url }, jpg: { large_image_url: item.image_url } },
+  });
+
+  // Normalise watch history entry to AnimeCard shape
+  const histToCard = (item: any) => ({
+    mal_id: item.mal_id,
+    title: item.title,
+    score: null,
+    episodes: null,
+    type: 'TV',
+    images: { webp: { large_image_url: item.image_url }, jpg: { large_image_url: item.image_url } },
+  });
+
   return (
     <div className="p-4 md:p-6 space-y-10 pb-20">
 
-      {/* ── Hero carousel ── */}
+      {/* ── Hero ── */}
       {activeHero ? (
         <div
-          className="relative w-full h-[320px] md:h-[420px] rounded-2xl overflow-hidden group"
+          className="relative w-full h-[320px] md:h-[420px] rounded-2xl overflow-hidden"
           onMouseEnter={() => setIsHovered(true)}
           onMouseLeave={() => setIsHovered(false)}
         >
@@ -55,7 +80,7 @@ export default function Home() {
             </p>
             <div className="flex gap-3 flex-wrap">
               <Link href={`/anime/${activeHero.mal_id}`}>
-                <button className="bg-gradient-to-r from-[var(--pink)] to-[var(--purple)] text-white px-6 py-2.5 rounded-xl text-[13px] font-bold transition-all hover:opacity-90 flex items-center gap-2">
+                <button className="bg-gradient-to-r from-[var(--pink)] to-[var(--purple)] text-white px-6 py-2.5 rounded-xl text-[13px] font-bold hover:opacity-90 flex items-center gap-2">
                   <ChevronRight className="w-4 h-4" /> Watch Now
                 </button>
               </Link>
@@ -67,12 +92,9 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Dot indicators */}
           <div className="absolute bottom-4 right-6 flex gap-2">
             {heroAnimes.map((_: any, i: number) => (
-              <button
-                key={i}
-                onClick={() => setHeroIndex(i)}
+              <button key={i} onClick={() => setHeroIndex(i)}
                 className={`h-1.5 rounded-full transition-all ${i === heroIndex ? 'w-6 bg-[var(--pink)]' : 'w-1.5 bg-white/30 hover:bg-white/60'}`}
               />
             ))}
@@ -82,23 +104,52 @@ export default function Home() {
         <div className="w-full h-[320px] md:h-[420px] rounded-2xl bg-[var(--card)] animate-pulse" />
       )}
 
+      {/* ── Continue Watching ── */}
+      {recentHistory.length > 0 && (
+        <section>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-[16px] font-heading font-black text-white flex items-center gap-2">
+              <Clock className="w-4 h-4 text-[var(--purple)]" /> Continue Watching
+            </h2>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+            {recentHistory.map((item: any) => (
+              <AnimeCard key={item.mal_id} anime={histToCard(item)} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* ── My Watchlist ── */}
+      {watchlist.length > 0 && (
+        <section>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-[16px] font-heading font-black text-white flex items-center gap-2">
+              <BookMarked className="w-4 h-4 text-[var(--pink)]" /> My Watchlist
+            </h2>
+            <Link href="/watchlist" className="text-[12px] font-bold text-[var(--pink)] hover:text-[var(--purple)] transition-colors">
+              View All ({watchlist.length})
+            </Link>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+            {watchlist.slice(0, 12).map((item: any) => (
+              <AnimeCard key={item.mal_id} anime={wlToCard(item)} />
+            ))}
+          </div>
+        </section>
+      )}
+
       {/* ── Trending Now ── */}
       <section>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-[16px] font-heading font-black text-white flex items-center gap-2">
             <Flame className="w-4 h-4 text-[var(--pink)]" /> Trending Now
           </h2>
-          <Link href="/browse" className="text-[12px] font-bold text-[var(--pink)] hover:text-[var(--purple)] transition-colors">
-            View All
-          </Link>
+          <Link href="/browse" className="text-[12px] font-bold text-[var(--pink)] hover:text-[var(--purple)] transition-colors">View All</Link>
         </div>
-        {trendingLoading ? (
-          <GridSkeleton />
-        ) : (
+        {trendingLoading ? <GridSkeleton /> : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-            {trending?.data?.map((anime: any) => (
-              <AnimeCard key={anime.mal_id} anime={anime} />
-            ))}
+            {trending?.data?.map((anime: any) => <AnimeCard key={anime.mal_id} anime={anime} />)}
           </div>
         )}
       </section>
@@ -109,17 +160,11 @@ export default function Home() {
           <h2 className="text-[16px] font-heading font-black text-white flex items-center gap-2">
             <Star className="w-4 h-4 text-yellow-400" /> Top Rated
           </h2>
-          <Link href="/browse" className="text-[12px] font-bold text-[var(--pink)] hover:text-[var(--purple)] transition-colors">
-            View All
-          </Link>
+          <Link href="/browse" className="text-[12px] font-bold text-[var(--pink)] hover:text-[var(--purple)] transition-colors">View All</Link>
         </div>
-        {topRatedLoading ? (
-          <GridSkeleton />
-        ) : (
+        {topRatedLoading ? <GridSkeleton /> : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-            {topRated?.data?.map((anime: any) => (
-              <AnimeCard key={anime.mal_id} anime={anime} />
-            ))}
+            {topRated?.data?.map((anime: any) => <AnimeCard key={anime.mal_id} anime={anime} />)}
           </div>
         )}
       </section>
@@ -130,24 +175,16 @@ export default function Home() {
           <h2 className="text-[16px] font-heading font-black text-white flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-[var(--purple)]" /> This Season
           </h2>
-          <Link href="/browse" className="text-[12px] font-bold text-[var(--pink)] hover:text-[var(--purple)] transition-colors">
-            View All
-          </Link>
+          <Link href="/browse" className="text-[12px] font-bold text-[var(--pink)] hover:text-[var(--purple)] transition-colors">View All</Link>
         </div>
-        {seasonalLoading ? (
-          <GridSkeleton />
-        ) : (
+        {seasonalLoading ? <GridSkeleton /> : (
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-            {seasonal?.data?.map((anime: any) => (
-              <AnimeCard key={anime.mal_id} anime={anime} />
-            ))}
+            {seasonal?.data?.map((anime: any) => <AnimeCard key={anime.mal_id} anime={anime} />)}
           </div>
         )}
       </section>
 
-      <div
-        id="home-ad"
-        className="min-h-[1px]"
+      <div id="home-ad" className="min-h-[1px]"
         ref={el => { if (el && (window as any).KamiAds) (window as any).KamiAds.loadInPagePush('home-ad'); }}
       />
     </div>

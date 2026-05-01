@@ -21,33 +21,46 @@ const GENRES = [
   { id: '41', name: 'Thriller' },
 ];
 
-// Fetch all anime from Supabase and normalise to the shape AnimeCard expects
-const fetchSupabaseAnime = async () => {
-  const { data, error } = await supabase
-    .from('anime')
-    .select('*')
-    .order('created_at', { ascending: false });
+// Fetch ALL anime from Supabase in batches (handles 1000+ rows)
+const fetchAllSupabaseAnime = async () => {
+  let allRows: any[] = [];
+  let from = 0;
+  const batchSize = 1000;
+  let hasMore = true;
 
-  if (error) throw error;
+  while (hasMore) {
+    const { data, error } = await supabase
+      .from('anime')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .range(from, from + batchSize - 1);
 
-  // Map whatever columns Supabase returns → AnimeCard-compatible shape
-  return (data || []).map((row: any) => ({
+    if (error) throw error;
+    const rows = data || [];
+    allRows = [...allRows, ...rows];
+    hasMore = rows.length === batchSize;
+    from += batchSize;
+  }
+
+  // Normalise to AnimeCard-compatible shape — try common column name patterns
+  return allRows.map((row: any) => ({
     mal_id:   row.mal_id   ?? row.id,
-    title:    row.title,
-    score:    row.score    ?? null,
-    episodes: row.episodes ?? null,
-    type:     row.type     ?? 'TV',
+    title:    row.title    ?? row.name,
+    score:    row.score    ?? row.rating ?? null,
+    episodes: row.episodes ?? row.episode_count ?? null,
+    type:     row.type     ?? row.format ?? 'TV',
+    status:   row.status   ?? null,
     images: {
-      webp: { large_image_url: row.image_url ?? row.cover_url ?? row.thumbnail ?? '' },
-      jpg:  { large_image_url: row.image_url ?? row.cover_url ?? row.thumbnail ?? '' },
+      webp: { large_image_url: row.image_url ?? row.cover_url ?? row.thumbnail ?? row.poster ?? '' },
+      jpg:  { large_image_url: row.image_url ?? row.cover_url ?? row.thumbnail ?? row.poster ?? '' },
     },
   }));
 };
 
 function useSupabaseAnime() {
   return useQuery({
-    queryKey: ['supabase', 'anime'],
-    queryFn: fetchSupabaseAnime,
+    queryKey: ['supabase', 'anime', 'all'],
+    queryFn: fetchAllSupabaseAnime,
     staleTime: 2 * 60 * 1000,
     retry: 1,
   });
@@ -58,21 +71,19 @@ type Tab = 'library' | 'discover';
 export default function Browse() {
   const q = new URLSearchParams(window.location.search).get('q') || '';
 
-  const [tab, setTab]             = useState<Tab>('library');
+  const [tab,         setTab]         = useState<Tab>('library');
   const [activeGenre, setActiveGenre] = useState('');
+  const [search,      setSearch]      = useState('');
 
-  const { data: supabaseAnime, isLoading: supabaseLoading, isError: supabaseError } =
-    useSupabaseAnime();
-  const { data: searchResults,  isLoading: searchLoading  } = useAnimeSearch(q);
-  const { data: genreResults,   isLoading: genreLoading   } = useAnimeByGenre(activeGenre);
+  const { data: supabaseAnime, isLoading: supabaseLoading, isError: supabaseError } = useSupabaseAnime();
+  const { data: searchResults, isLoading: searchLoading } = useAnimeSearch(q || search);
+  const { data: genreResults,  isLoading: genreLoading  } = useAnimeByGenre(activeGenre);
 
-  // Switch to discover automatically when the user types a search
   useEffect(() => { if (q) setTab('discover'); }, [q]);
 
-  const discoverData    = q ? searchResults?.data : genreResults?.data;
-  const discoverLoading = q ? searchLoading       : genreLoading;
-
-  const libraryEmpty = !supabaseLoading && (!supabaseAnime || supabaseAnime.length === 0);
+  const discoverData    = (q || search) ? searchResults?.data : genreResults?.data;
+  const discoverLoading = (q || search) ? searchLoading       : genreLoading;
+  const libraryEmpty    = !supabaseLoading && (!supabaseAnime || supabaseAnime.length === 0);
 
   return (
     <div className="p-4 md:p-6 pb-20">
@@ -83,12 +94,16 @@ export default function Browse() {
 
         {/* Tab switcher */}
         {!q && (
-          <div className="flex gap-2 mb-6">
+          <div className="flex gap-2 mb-5">
             <button
               onClick={() => setTab('library')}
               className={`px-5 py-2 rounded-xl text-[13px] font-bold transition-all flex items-center gap-2 ${tab === 'library' ? 'bg-gradient-to-r from-[var(--pink)] to-[var(--purple)] text-white' : 'bg-[var(--card)] text-[var(--text2)] border border-[var(--border)] hover:text-white'}`}
             >
-              <Database className="w-3.5 h-3.5" /> Our Library
+              <Database className="w-3.5 h-3.5" />
+              Our Library
+              {supabaseAnime && supabaseAnime.length > 0 && (
+                <span className="bg-white/20 px-1.5 py-0.5 rounded-md text-[10px]">{supabaseAnime.length}</span>
+              )}
             </button>
             <button
               onClick={() => setTab('discover')}
@@ -99,15 +114,12 @@ export default function Browse() {
           </div>
         )}
 
-        {/* Genre filters — only on Discover tab */}
+        {/* Genre filters for discover */}
         {(tab === 'discover' || q) && !q && (
           <div className="flex flex-wrap gap-2">
             {GENRES.map(g => (
-              <button
-                key={g.id}
-                onClick={() => setActiveGenre(g.id)}
-                className={`px-4 py-1.5 rounded-full text-[12px] font-bold transition-all ${activeGenre === g.id ? 'bg-gradient-to-r from-[var(--pink)] to-[var(--purple)] text-white' : 'bg-[var(--card)] text-[var(--text2)] border border-[var(--border)] hover:border-[var(--purple)] hover:text-white'}`}
-              >
+              <button key={g.id} onClick={() => setActiveGenre(g.id)}
+                className={`px-4 py-1.5 rounded-full text-[12px] font-bold transition-all ${activeGenre === g.id ? 'bg-gradient-to-r from-[var(--pink)] to-[var(--purple)] text-white' : 'bg-[var(--card)] text-[var(--text2)] border border-[var(--border)] hover:border-[var(--purple)] hover:text-white'}`}>
                 {g.name}
               </button>
             ))}
@@ -115,47 +127,43 @@ export default function Browse() {
         )}
       </div>
 
-      {/* ── Library tab (Supabase) ── */}
+      {/* ── Library (Supabase) ── */}
       {(tab === 'library' && !q) && (
         <>
-          {supabaseLoading && <GridSkeleton />}
-
+          {supabaseLoading && (
+            <div>
+              <p className="text-[12px] text-[var(--text3)] mb-4 animate-pulse">Loading library…</p>
+              <GridSkeleton />
+            </div>
+          )}
           {supabaseError && (
             <div className="text-center py-20">
               <p className="text-[var(--text3)] text-[14px]">Couldn't load the library right now.</p>
             </div>
           )}
-
           {libraryEmpty && !supabaseError && (
             <div className="text-center py-20">
               <Database className="w-12 h-12 text-[var(--text3)] mx-auto mb-4 opacity-40" />
               <p className="text-[var(--text3)] text-[14px] font-bold">No anime in the library yet.</p>
-              <p className="text-[var(--text3)] text-[12px] mt-1 opacity-60">
-                Add titles via the Admin panel and they'll appear here.
-              </p>
+              <p className="text-[var(--text3)] text-[12px] mt-1 opacity-60">Add titles via the Admin panel.</p>
             </div>
           )}
-
           {!supabaseLoading && supabaseAnime && supabaseAnime.length > 0 && (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
               {supabaseAnime.map((anime: any) => (
-                <AnimeCard key={anime.mal_id} anime={anime} />
+                <AnimeCard key={anime.mal_id ?? anime.title} anime={anime} />
               ))}
             </div>
           )}
         </>
       )}
 
-      {/* ── Discover tab (Jikan) or search results ── */}
+      {/* ── Discover (Jikan) or search ── */}
       {(tab === 'discover' || q) && (
         <>
-          {discoverLoading ? (
-            <GridSkeleton />
-          ) : discoverData?.length > 0 ? (
+          {discoverLoading ? <GridSkeleton /> : discoverData?.length > 0 ? (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-              {discoverData.map((anime: any) => (
-                <AnimeCard key={anime.mal_id} anime={anime} />
-              ))}
+              {discoverData.map((anime: any) => <AnimeCard key={anime.mal_id} anime={anime} />)}
             </div>
           ) : (
             <div className="text-center py-20 text-[var(--text3)]">No anime found.</div>
