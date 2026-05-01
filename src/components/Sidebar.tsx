@@ -1,8 +1,12 @@
 import React from 'react';
 import { Link, useLocation } from 'wouter';
 import { Home, Compass, Bookmark, Trophy, BarChart3, Users, User, Settings } from 'lucide-react';
+import { useAuth } from '@/lib/auth';
+import { isAdminEmail } from '@/lib/admin';
 
 export function Sidebar({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
+  const { user } = useAuth();
+  const isAdmin = isAdminEmail(user?.email);
   const [location] = useLocation();
 
   const NavItem = ({ href, icon: Icon, label, badge, isLive }: any) => {
@@ -51,7 +55,7 @@ export function Sidebar({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
 
           <SectionLabel>Account</SectionLabel>
           <NavItem href="/profile" icon={User} label="Profile" />
-          <NavItem href="/admin" icon={Settings} label="Admin" />
+          {isAdmin && <NavItem href="/admin" icon={Settings} label="Admin" />}
         </div>
         
         <div className="p-4 mt-auto">
