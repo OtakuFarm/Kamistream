@@ -517,8 +517,6 @@ tr:hover td{background:rgba(124,58,237,0.04);}
     <button class="tbn" onclick="showView('anime',this)">📺 Anime</button>
     <button class="tbn" onclick="showView('autoimport',this)">🤖 Auto Import</button>
     <button class="tbn" onclick="showView('episodesrc',this)">🎬 Episode Sources</button>
-    <button class="tbn" onclick="showView('monetize',this)">💰 Monetization</button>
-    <button class="tbn" onclick="showView('revenue',this)">📈 Revenue</button>
     <button class="tbn" onclick="showView('settings',this)">⚙️ Settings</button>
   </div>
   <div class="tb-right">
@@ -817,219 +815,6 @@ tr:hover td{background:rgba(124,58,237,0.04);}
     </div>
 
     <!-- ── SETTINGS ── -->
-    <!-- ══ MONETIZATION VIEW ══ -->
-    <div class="view" id="view-monetize">
-      <div class="page-hdr">
-        <div><div class="page-title">Ad &amp; <span>Monetization</span></div>
-          <div class="page-sub">Manage ads, Paystack config, premium pricing and ad rotation.</div></div>
-        <div class="page-actions">
-          <button class="btn btn-primary" onclick="adAdminNew()">+ New Ad</button>
-          <button class="btn btn-ghost" onclick="adAdminLoad()">🔄 Refresh</button>
-        </div>
-      </div>
-
-      <!-- Paystack Config -->
-      <div class="setting-card" style="margin-bottom:16px;">
-        <div class="setting-title">💳 Paystack Configuration</div>
-        <div style="display:flex;flex-direction:column;gap:10px;">
-          <div>
-            <div class="setting-label" style="margin-bottom:5px;">Public Key</div>
-            <input id="adPaystackKey" class="setting-input" style="width:100%;box-sizing:border-box;font-family:'Share Tech Mono',monospace;font-size:11px;" placeholder="pk_live_xxxxxxxx or pk_test_xxxxxxxx" type="password"/>
-          </div>
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-            <div>
-              <div class="setting-label" style="margin-bottom:5px;">Monthly Price ($)</div>
-              <input id="adPm1Price" class="setting-input" type="number" value="499" min="1"/>
-            </div>
-            <div>
-              <div class="setting-label" style="margin-bottom:5px;">3-Month Price ($)</div>
-              <input id="adPm3Price" class="setting-input" type="number" value="1199" min="1"/>
-            </div>
-          </div>
-          <button class="btn btn-primary btn-sm" onclick="adSavePaystackConfig()" style="align-self:flex-start;">💾 Save Config</button>
-        </div>
-      </div>
-
-      <!-- Ad list -->
-      <div class="tbl-wrap">
-        <div class="tbl-header">
-          <div class="tbl-title">Ad Library</div>
-          <input class="tbl-search" placeholder="Search ads…" oninput="filterTable('adTable',this.value)"/>
-        </div>
-        <table id="adTable">
-          <thead><tr>
-            <th>Name</th><th>Position</th><th>Status</th><th>Impressions</th><th>Clicks</th><th>CTR</th><th>Actions</th>
-          </tr></thead>
-          <tbody id="adTableBody"><tr><td colspan="7" style="text-align:center;color:var(--text3);padding:20px;">Loading…</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-
-    <!-- Ad Editor Modal (inside admin page) -->
-    <div id="adEditorWrap" style="display:none;position:fixed;inset:0;z-index:600;background:rgba(0,0,0,0.8);align-items:center;justify-content:center;">
-      <div style="background:var(--card2);border:1px solid var(--border2);border-radius:18px;padding:24px;max-width:560px;width:92%;max-height:90vh;overflow-y:auto;">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
-          <div style="font-family:'Poppins',sans-serif;font-size:16px;font-weight:800;color:#fff;" id="adEditorTitle">New Ad</div>
-          <button onclick="adEditorClose()" style="background:none;border:none;color:var(--text3);font-size:20px;cursor:pointer;">✕</button>
-        </div>
-        <!-- Network Quick-Fill -->
-        <div style="background:var(--bg3);border:1px solid var(--border2);border-radius:10px;padding:12px;margin-bottom:14px;">
-          <div style="font-size:10px;font-weight:700;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px;">⚡ Quick Fill — Select Your Ad Network</div>
-          <div style="display:flex;flex-wrap:wrap;gap:6px;">
-            <button onclick="adFillNetwork('adsterra')"     style="background:rgba(6,214,160,0.12);border:1px solid rgba(6,214,160,0.3);color:#06d6a0;border-radius:7px;padding:4px 11px;font-size:11px;font-weight:700;cursor:pointer;">Adsterra</button>
-            <button onclick="adFillNetwork('monetag')"      style="background:rgba(67,97,238,0.12);border:1px solid rgba(67,97,238,0.3);color:#4361ee;border-radius:7px;padding:4px 11px;font-size:11px;font-weight:700;cursor:pointer;">Monetag</button>
-            <button onclick="adFillNetwork('propellerads')" style="background:rgba(255,45,120,0.12);border:1px solid rgba(255,45,120,0.3);color:var(--pink);border-radius:7px;padding:4px 11px;font-size:11px;font-weight:700;cursor:pointer;">PropellerAds</button>
-            <button onclick="adFillNetwork('hilltopads')"   style="background:rgba(255,214,10,0.12);border:1px solid rgba(255,214,10,0.3);color:#ffd60a;border-radius:7px;padding:4px 11px;font-size:11px;font-weight:700;cursor:pointer;">HilltopAds</button>
-            <button onclick="adFillNetwork('popads')"       style="background:rgba(155,93,229,0.12);border:1px solid rgba(155,93,229,0.3);color:var(--purple);border-radius:7px;padding:4px 11px;font-size:11px;font-weight:700;cursor:pointer;">PopAds</button>
-            <button onclick="adFillNetwork('trafficjunky')" style="background:rgba(255,100,50,0.12);border:1px solid rgba(255,100,50,0.3);color:#ff6432;border-radius:7px;padding:4px 11px;font-size:11px;font-weight:700;cursor:pointer;">TrafficJunky</button>
-            <button onclick="adFillNetwork('adcash')"       style="background:rgba(0,200,255,0.12);border:1px solid rgba(0,200,255,0.3);color:#00c8ff;border-radius:7px;padding:4px 11px;font-size:11px;font-weight:700;cursor:pointer;">Adcash</button>
-            <button onclick="adFillNetwork('evadav')"       style="background:rgba(100,200,100,0.12);border:1px solid rgba(100,200,100,0.3);color:#64c864;border-radius:7px;padding:4px 11px;font-size:11px;font-weight:700;cursor:pointer;">Evadav</button>
-          </div>
-        </div>
-          <div style="display:flex;flex-direction:column;gap:12px;">
-          <div>
-            <div class="setting-label" style="margin-bottom:5px;">Ad Name</div>
-            <input id="adName" class="setting-input" style="width:100%;box-sizing:border-box;" placeholder="e.g. PropellerAds Banner 1"/>
-          </div>
-          <div>
-            <div class="setting-label" style="margin-bottom:5px;">Advertiser / Brand (optional)</div>
-            <input id="adAdvertiser" class="setting-input" style="width:100%;box-sizing:border-box;" placeholder="e.g. Crunchyroll, GameFi, etc."/>
-          </div>
-          <div>
-            <div class="setting-label" style="margin-bottom:5px;">Position</div>
-            <select id="adPosition" style="width:100%;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;color:var(--text);padding:9px 12px;font-size:12px;outline:none;">
-              <option value="homepage_top">Homepage Top Banner</option>
-              <option value="homepage_mid">Homepage Mid Banner</option>
-              <option value="homepage_bottom">Homepage Bottom Banner</option>
-              <option value="player_preroll">Player Pre-roll (YouTube style)</option>
-              <option value="player_midroll">Player Mid-roll (pauses at X min)</option>
-              <option value="player_overlay">Player Banner Overlay (non-blocking)</option>
-              <option value="popup">Popup / Interstitial</option>
-              <option value="challenge_native">Challenge Feed Native</option>
-            </select>
-          </div>
-          <!-- Ad Type selector — only shown for player_preroll -->
-          <div id="adTypeWrap" style="display:none;">
-            <div class="setting-label" style="margin-bottom:5px;">Ad Type</div>
-            <div style="display:flex;gap:8px;">
-              <label style="display:flex;align-items:center;gap:7px;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:9px 14px;cursor:pointer;flex:1;transition:all .2s;"
-                id="adTypeCodeLabel">
-                <input type="radio" name="adType" id="adTypeCode" value="code" checked onchange="adUpdateTypeFields()" style="margin:0;">
-                <div>
-                  <div style="font-size:12px;font-weight:700;color:#fff;">📋 JS / iframe Code</div>
-                  <div style="font-size:10px;color:var(--text3);">PropellerAds, Adsterra, HilltopAds, etc.</div>
-                </div>
-              </label>
-              <label style="display:flex;align-items:center;gap:7px;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:9px 14px;cursor:pointer;flex:1;transition:all .2s;"
-                id="adTypeVastLabel">
-                <input type="radio" name="adType" id="adTypeVast" value="vast" onchange="adUpdateTypeFields()" style="margin:0;">
-                <div>
-                  <div style="font-size:12px;font-weight:700;color:#fff;">🎬 VAST Video URL</div>
-                  <div style="font-size:10px;color:var(--text3);">Google IMA, SpotX, Unruly, Adsterra Video</div>
-                </div>
-              </label>
-            </div>
-          </div>
-          <!-- VAST URL field -->
-          <div id="adVastUrlWrap" style="display:none;">
-            <div class="setting-label" style="margin-bottom:5px;">VAST Tag URL</div>
-            <input id="adVastUrl" class="setting-input" style="width:100%;box-sizing:border-box;font-family:'Share Tech Mono',monospace;font-size:11px;"
-              placeholder="https://ads.network.com/vast?zone=12345&amp;w=640&amp;h=480"/>
-            <div style="font-size:10px;color:var(--text3);margin-top:5px;line-height:1.6;">
-              📌 Paste your VAST 2.0/3.0 tag URL. The system fetches the XML, extracts the video file, and plays it directly in the player with full quartile tracking (25%, 50%, 75%, complete, skip).
-            </div>
-          </div>
-          <!-- JS/iframe code field -->
-          <div id="adCodeWrap">
-            <div class="setting-label" style="margin-bottom:4px;">Ad Code (JS tag, iframe, or image)</div>
-            <div id="adCodeHint" style="font-size:10px;color:#06d6a0;margin-bottom:5px;min-height:14px;"></div>
-            <textarea id="adCode" style="width:100%;box-sizing:border-box;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;color:var(--text);padding:10px 12px;font-family:'Share Tech Mono',monospace;font-size:11px;resize:vertical;height:120px;outline:none;" placeholder="Paste ad network code here&#10;&lt;script src=&quot;...&quot;&gt;&lt;/script&gt;&#10;&lt;iframe src=&quot;...&quot;&gt;&lt;/iframe&gt;&#10;Or direct URL: https://ad.example.com/banner.jpg"></textarea>
-          </div>
-          <!-- Frequency fields -->
-          <div id="adFreqFields">
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-              <div>
-                <div class="setting-label" style="margin-bottom:5px;">Skip After (seconds)</div>
-                <input id="adSkipAfter" class="setting-input" type="number" value="5" min="1" max="30"/>
-              </div>
-              <div id="adFreqEpsWrap">
-                <div class="setting-label" style="margin-bottom:5px;">Show every N episodes</div>
-                <input id="adFreqEps" class="setting-input" type="number" value="1" min="1" max="10"/>
-              </div>
-              <div id="adCooldownWrap">
-                <div class="setting-label" style="margin-bottom:5px;">Cooldown (minutes)</div>
-                <input id="adCooldownMins" class="setting-input" type="number" value="30" min="5" max="240"/>
-              </div>
-              <div id="adMidrollWrap">
-                <div class="setting-label" style="margin-bottom:5px;">Trigger at (minutes)</div>
-                <input id="adMidrollMins" class="setting-input" type="number" value="8" min="1" max="60"/>
-              </div>
-            </div>
-          </div>
-          <div style="display:flex;align-items:center;gap:10px;">
-            <div class="toggle on" id="adEnabled" onclick="this.classList.toggle('on')"></div>
-            <div class="setting-label">Enabled</div>
-          </div>
-          <input type="hidden" id="adEditId"/>
-          <div style="display:flex;gap:8px;margin-top:4px;">
-            <button class="btn btn-primary" onclick="adEditorSave()" style="flex:1;">💾 Save Ad</button>
-            <button class="btn btn-ghost" onclick="adEditorClose()">Cancel</button>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- ══ REVENUE DASHBOARD ══ -->
-    <div class="view" id="view-revenue">
-      <div class="page-hdr">
-        <div><div class="page-title">Revenue <span>Dashboard</span></div>
-          <div class="page-sub">Track premium subscriptions, ad performance and earnings.</div></div>
-        <div class="page-actions">
-          <button class="btn btn-ghost" onclick="revLoad()">🔄 Refresh</button>
-        </div>
-      </div>
-
-      <!-- Summary cards -->
-      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px;margin-bottom:20px;" id="revCards">
-        <div class="stat-card" style="border-top:3px solid var(--green);">
-          <div class="stat-val" id="revTotalRev">$0</div><div class="stat-label">Total Revenue</div>
-        </div>
-        <div class="stat-card" style="border-top:3px solid var(--gold);">
-          <div class="stat-val" id="revPremiumCount">0</div><div class="stat-label">Premium Users</div>
-        </div>
-        <div class="stat-card" style="border-top:3px solid var(--blue);">
-          <div class="stat-val" id="revTotalImpressions">0</div><div class="stat-label">Ad Impressions</div>
-        </div>
-        <div class="stat-card" style="border-top:3px solid var(--pink);">
-          <div class="stat-val" id="revTotalClicks">0</div><div class="stat-label">Ad Clicks</div>
-        </div>
-        <div class="stat-card" style="border-top:3px solid var(--purple);">
-          <div class="stat-val" id="revAvgCTR">0%</div><div class="stat-label">Avg CTR</div>
-        </div>
-        <div class="stat-card" style="border-top:3px solid var(--orange);">
-          <div class="stat-val" id="revTodayRev">$0</div><div class="stat-label">Today's Revenue</div>
-        </div>
-      </div>
-
-      <!-- Top performing ads table -->
-      <div class="tbl-wrap" style="margin-bottom:16px;">
-        <div class="tbl-header"><div class="tbl-title">Top Performing Ads</div></div>
-        <table>
-          <thead><tr><th>Ad Name</th><th>Position</th><th>Impressions</th><th>Clicks</th><th>CTR</th><th>Status</th></tr></thead>
-          <tbody id="revAdTable"><tr><td colspan="6" style="text-align:center;color:var(--text3);padding:16px;">Load data to see ad performance</td></tr></tbody>
-        </table>
-      </div>
-
-      <!-- Recent premium payments -->
-      <div class="tbl-wrap">
-        <div class="tbl-header"><div class="tbl-title">Recent Premium Payments</div></div>
-        <table>
-          <thead><tr><th>User</th><th>Plan</th><th>Amount</th><th>Reference</th><th>Date</th></tr></thead>
-          <tbody id="revPayTable"><tr><td colspan="5" style="text-align:center;color:var(--text3);padding:16px;">No payments yet</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-
     <div class="view" id="view-settings">
       <div class="page-hdr">
         <div>
@@ -1203,7 +988,8 @@ tr:hover td{background:rgba(124,58,237,0.04);}
           <div class="page-sub">Import from AniList, manage embed sources, auto-schedule updates.</div>
         </div>
         <div class="page-actions">
-          <button class="btn btn-success" onclick="runScheduler()">▶ Run Sync Now</button>
+          <button class="btn btn-ghost btn-sm" onclick="runScheduler()">▶ Run Sync Now</button>
+          <button class="btn btn-success" id="animeManagerRegenBtn" onclick="jaiBulkRegenerateAllEmbeds()" title="Auto-generate VidNest embed URLs for every episode of every anime using their AniList ID">⚡ Auto-Generate All Embeds</button>
           <button class="btn btn-primary" onclick="switchAnimeTab('search')">+ Import Anime</button>
         </div>
       </div>
@@ -1811,8 +1597,6 @@ function showView(id,btn){
   if(id==='creators')   loadCreators();
   if(id==='comments')   loadComments();
   if(id==='settings'){  sbCheckStatus(); settingsPopulate(); }
-  if(id==='monetize')   adAdminLoad();
-  if(id==='revenue')    revLoad();
   if(id==='autoimport'){ jaiRenderLibrary(); jaiRefreshStats(); if(typeof jaiGetAll==='function'&&jaiGetAll().some(a=>a.auto_update)) jaiStartScheduler(); }
 }
 
@@ -2657,6 +2441,8 @@ async function importAnime(anilistId){
       score: m.averageScore ? m.averageScore/10 : null,
       popularity: m.popularity,
       studio,
+      next_airing_at: m.nextAiringEpisode?.airingAt || null,
+      next_airing_ep: m.nextAiringEpisode?.episode  || null,
       updated_at: new Date().toISOString()
     }, {onConflict:'anilist_id'}).select().single();
 
@@ -2727,6 +2513,27 @@ async function loadLibrary(){
   }
 
   animeLibrary = allRows;
+
+  // Fetch embed source counts per anime so cards can show missing indicator
+  try {
+    const ids = allRows.map(a=>a.id);
+    if(ids.length){
+      const {data:epData} = await client
+        .from('episodes')
+        .select('anime_id, embed_sources(id)')
+        .in('anime_id', ids);
+      if(epData){
+        // Count episodes that have at least 1 embed source per anime
+        const countMap = {};
+        epData.forEach(ep => {
+          if(!countMap[ep.anime_id]) countMap[ep.anime_id] = 0;
+          if(ep.embed_sources && ep.embed_sources.length > 0) countMap[ep.anime_id]++;
+        });
+        animeLibrary = animeLibrary.map(a => ({...a, _ep_with_src: countMap[a.id] || 0}));
+      }
+    }
+  } catch(e){ console.warn('Could not fetch embed counts:', e); }
+
   document.getElementById('libCount').textContent = animeLibrary.length + ' anime';
   renderLibraryGrid(animeLibrary);
 }
@@ -2734,24 +2541,63 @@ async function loadLibrary(){
 function renderLibraryGrid(list){
   const grid = document.getElementById('libraryGrid');
   if(!list.length){ grid.innerHTML='<div style="color:var(--text3);font-size:13px;grid-column:1/-1;padding:24px;text-align:center;">No anime imported yet. Go to Import tab to add anime.</div>'; return; }
-  grid.innerHTML = list.map(a=>`
+  grid.innerHTML = list.map(a=>{
+    const title = a.title_english||a.title_romaji||'Unknown';
+    const safeTitle = title.replace(/'/g,"\'");
+    const epTotal = a.episodes_total || 0;
+    const epWithSrc = a._ep_with_src || 0;
+    const missingEmbeds = epTotal > 0 ? epTotal - epWithSrc : null;
+    const embedPct = epTotal > 0 ? Math.round((epWithSrc/epTotal)*100) : null;
+
+    // Airing time
+    let airingHtml = '';
+    if(a.status==='RELEASING' && a.next_airing_at){
+      const ts = new Date(a.next_airing_at * 1000);
+      const now = new Date();
+      const diff = ts - now;
+      if(diff > 0){
+        const d = Math.floor(diff/86400000);
+        const h = Math.floor((diff%86400000)/3600000);
+        const m = Math.floor((diff%3600000)/60000);
+        const when = d>0 ? `in ${d}d ${h}h` : h>0 ? `in ${h}h ${m}m` : `in ${m}m`;
+        const epNum = a.next_airing_ep || '?';
+        airingHtml = `<div style="font-size:10px;color:#06d6a0;font-weight:700;margin-top:3px;">📡 EP${epNum} airs ${when}</div>`;
+      } else {
+        airingHtml = `<div style="font-size:10px;color:var(--gold);font-weight:700;margin-top:3px;">📡 New episode available!</div>`;
+      }
+    }
+
+    // Embed badge
+    let embedBadge = '';
+    if(epTotal === 0){
+      embedBadge = `<span style="font-size:9px;padding:2px 6px;border-radius:6px;background:rgba(255,255,255,0.07);color:var(--text3);font-weight:700;">No episodes</span>`;
+    } else if(missingEmbeds === 0){
+      embedBadge = `<span style="font-size:9px;padding:2px 6px;border-radius:6px;background:rgba(6,214,160,0.15);color:#06d6a0;font-weight:700;">✓ ${epTotal} embeds</span>`;
+    } else {
+      embedBadge = `<span style="font-size:9px;padding:2px 6px;border-radius:6px;background:rgba(255,82,82,0.15);color:#ff5252;font-weight:700;">⚠ ${missingEmbeds} missing</span>`;
+    }
+
+    return `
     <div class="al-card" onclick="selectAnime(${a.id})">
       ${a.cover_image
         ?`<img class="al-cover" src="${a.cover_image}" alt="${a.title_romaji}" loading="lazy" onerror="this.outerHTML='<div class=al-cover-ph>📺</div>'">`
         :`<div class="al-cover-ph">📺</div>`}
       <div class="al-info">
-        <div class="al-title" title="${a.title_english||a.title_romaji}">${a.title_english||a.title_romaji}</div>
+        <div class="al-title" title="${title}">${title}</div>
         <div class="al-meta">
           <span class="al-status-badge ${a.status==='RELEASING'?'al-releasing':'al-finished'}">${a.status==='RELEASING'?'AIRING':'FINISHED'}</span>
           <span>${a.season_year||''}</span>
           ${a.score?`<span style="color:var(--gold)">⭐${a.score.toFixed(1)}</span>`:''}
         </div>
+        <div style="margin-top:4px;">${embedBadge}</div>
+        ${airingHtml}
       </div>
       <div class="al-actions">
-        <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();openSourceModal(${a.id},'${(a.title_english||a.title_romaji).replace(/'/g,"\'")}',${a.episodes_total||12})">📺 Sources</button>
-        <button class="btn btn-danger btn-sm" onclick="event.stopPropagation();deleteAnime(${a.id},'${(a.title_english||a.title_romaji).replace(/'/g,"\'")}')">🗑️</button>
+        <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();openSourceModal(${a.id},'${safeTitle}',${epTotal||12})">📺 Sources</button>
+        <button class="btn btn-danger btn-sm" onclick="event.stopPropagation();deleteAnime(${a.id},'${safeTitle}')">🗑️</button>
       </div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
 }
 
 function filterLibrary(q){
@@ -2990,6 +2836,12 @@ async function runScheduler(){
       const m = data.Media;
       await client.from('anime').update({score:m.averageScore?m.averageScore/10:null,status:m.status,episodes_total:m.episodes,updated_at:new Date().toISOString()}).eq('id',anime.id);
       const epCount=m.episodes||m.nextAiringEpisode?.episode||0;
+      // Update airing schedule
+      await client.from('anime').update({
+        next_airing_at: m.nextAiringEpisode?.airingAt || null,
+        next_airing_ep: m.nextAiringEpisode?.episode  || null,
+        updated_at: new Date().toISOString()
+      }).eq('id', anime.id);
       if(epCount>0){
         const {data:existing}=await client.from('episodes').select('episode_number').eq('anime_id',anime.id);
         const existingNums=new Set((existing||[]).map(e=>e.episode_number));
@@ -5188,6 +5040,10 @@ async function jaiBulkRegenerateAllEmbeds(){
 
   if(!animeList.length){ showToast('Library is empty','warn'); return; }
 
+  // Disable both buttons while running
+  const animeManagerBtn = document.getElementById('animeManagerRegenBtn');
+  if(animeManagerBtn){ animeManagerBtn.disabled=true; animeManagerBtn.textContent='⏳ Generating…'; }
+
   if(!confirm('Regenerate embeds for ALL '+animeList.length+' anime?\n\nThis fills every episode × every server ('+ADMIN_EMBED_PROVIDERS.length+' servers) with a fresh embed URL. Existing URLs are overwritten.\n\nMay take a few minutes.')) return;
 
   if(btn){ btn.disabled=true; }
@@ -5215,332 +5071,33 @@ async function jaiBulkRegenerateAllEmbeds(){
     await new Promise(r=>setTimeout(r,250));
   }
 
+  // Re-enable buttons (both the one in autoimport tab and the new one in anime manager header)
   if(btn){ btn.disabled=false; btn.textContent=orig; }
-  const msg='✅ Bulk regen done — '+succeeded+' anime · '+totalSaved+' embeds saved'+
-            (skipped?' · '+skipped+' skipped (no AniList ID)':'')+
-            (failed?' · '+failed+' failed':'');
-  addLog(msg,'green');
-  showToast(msg,'ok');
-  jaiAddLog(msg);
+  const animeManagerBtn = document.getElementById('animeManagerRegenBtn');
+  if(animeManagerBtn){ animeManagerBtn.disabled=false; animeManagerBtn.textContent='⚡ Auto-Generate All Embeds'; }
+
+  // Build detailed report
+  const reportLines = [
+    '═══════════════════════════════════',
+    '⚡ BULK EMBED GENERATION REPORT',
+    '═══════════════════════════════════',
+    `✅ Succeeded:  ${succeeded} anime`,
+    `📦 Embeds saved: ${totalSaved}`,
+    skipped > 0 ? `⚠️  Skipped:    ${skipped} anime (no AniList ID — re-import from AniList to fix)` : '✓  No skips',
+    failed  > 0 ? `❌ Failed:     ${failed} anime (check console for details)` : '✓  No failures',
+    `📺 Avg per anime: ${succeeded > 0 ? (totalSaved/succeeded).toFixed(0) : 0} embeds`,
+    '═══════════════════════════════════',
+  ].filter(Boolean).join('\n');
+
+  addLog('⚡ Bulk embed regen: '+succeeded+' anime, '+totalSaved+' embeds, '+skipped+' skipped, '+failed+' failed','green');
+  showToast('✅ Done — '+totalSaved+' embeds saved across '+succeeded+' anime'+(skipped?' ('+skipped+' skipped)':''),'ok');
+  jaiAddLog(reportLines);
+
+  // Refresh library grid to show updated embed counts
+  if(typeof loadLibrary === 'function') await loadLibrary();
 }
 
-// ════════════════════════════════════════════════════════════════
-// ███ MONETIZATION ADMIN — Ad Manager + Revenue Dashboard
-// ════════════════════════════════════════════════════════════════
 
-// ⚠️ Keys MUST match index.html so ads sync correctly
-const ADMIN_AD_KEY   = 'ks_ads_v1';
-const ADMIN_STAT_KEY = 'ks_ad_stats_v1';
-
-// Ad network quick-fill templates
-const AD_NETWORK_TEMPLATES = {
-  adsterra:     { name:'Adsterra Banner',     advertiser:'Adsterra',     hint:'Paste your Adsterra banner/popunder script below' },
-  monetag:      { name:'Monetag Banner',       advertiser:'Monetag',       hint:'Paste your Monetag ad code below' },
-  propellerads: { name:'PropellerAds Banner',  advertiser:'PropellerAds',  hint:'Paste your PropellerAds banner code below' },
-  hilltopads:   { name:'HilltopAds Banner',    advertiser:'HilltopAds',    hint:'Paste your HilltopAds tag code below' },
-  popads:       { name:'PopAds Tag',           advertiser:'PopAds',        hint:'Paste your PopAds tag code below' },
-  trafficjunky: { name:'TrafficJunky Banner',  advertiser:'TrafficJunky',  hint:'Paste your TrafficJunky ad tag below' },
-  adcash:       { name:'Adcash Banner',        advertiser:'Adcash',        hint:'Paste your Adcash zone code below' },
-  evadav:       { name:'Evadav Push/Banner',   advertiser:'Evadav',        hint:'Paste your Evadav ad code below' },
-};
-
-function adFillNetwork(network){
-  const t = AD_NETWORK_TEMPLATES[network];
-  if(!t) return;
-  const nameEl = document.getElementById('adName');
-  const advEl  = document.getElementById('adAdvertiser');
-  const hint   = document.getElementById('adCodeHint');
-  const codeEl = document.getElementById('adCode');
-  if(nameEl && !nameEl.value) nameEl.value = t.name;
-  if(advEl)  advEl.value = t.advertiser;
-  if(hint)   hint.textContent = '\u{1F4A1} ' + t.hint;
-  const sc = '\x3c'+'script';
-  const esc = '\x3c'+'/script\x3e';
-  const TEMPLATES = {
-    adsterra:     '<!-- Adsterra Banner -->\n'+sc+' type="text/javascript">\n  atOptions = {\n    \'key\': \'YOUR_ADSTERRA_KEY\',\n    \'format\': \'iframe\',\n    \'height\': 90,\n    \'width\': 728,\n    \'params\': {}\n  };\n'+esc+'\n'+sc+' type="text/javascript" src="//www.topcreativeformat.com/YOUR_ADSTERRA_KEY/invoke.js">'+esc,
-    monetag:      '<!-- Monetag Banner -->\n'+sc+' src="//YOURZONE.com/invoke.js" data-cfasync="false" async>'+esc,
-    propellerads: '<!-- PropellerAds Banner -->\n'+sc+' async src="//whatsthis.pro/YOUR_ZONE_ID">'+esc,
-    hilltopads:   '<!-- HilltopAds Banner -->\n'+sc+' async src="//jsc.hilltopads.net/YOUR_ZONE_ID.js">'+esc,
-    popads:       '<!-- PopAds -->\n'+sc+' data-cfasync="false" src="//cdn.popads.net/pop.js" data-id="YOUR_ID" async>'+esc,
-    trafficjunky: '<!-- TrafficJunky -->\n'+sc+' src="//cdn.trafficjunky.net/tj-ads.js" data-zone="YOUR_ZONE_ID" async>'+esc,
-    adcash:       '<!-- Adcash -->\n'+sc+' type="text/javascript">\n  var acOptions = { zone: YOUR_ZONE_ID };\n'+esc+'\n'+sc+' type="text/javascript" src="//static.adcash.com/js/adcash.js" async>'+esc,
-    evadav:       '<!-- Evadav -->\n'+sc+' async src="//cdn.evadav.com/YOUR_EVADAV_ID.js">'+esc
-  };
-  if(codeEl && TEMPLATES[network] && !codeEl.value.trim()){
-    codeEl.value = TEMPLATES[network];
-  }
-  showToast('\u2705 ' + t.advertiser + ' template loaded \u2014 replace YOUR_*_ID with your real zone ID', 'ok');
-}
-
-function adminAdGetAll(){ try{ return JSON.parse(localStorage.getItem(ADMIN_AD_KEY)||'[]'); }catch(e){return[];} }
-function adminAdSave(ads){
-  localStorage.setItem(ADMIN_AD_KEY, JSON.stringify(ads));
-  // Sync to Supabase so main site reads latest ads across all devices
-  const sb = getSB();
-  if(sb){
-    sb.from('site_config').upsert(
-      {key:'ks_ads_v1', value: JSON.stringify(ads), updated_at: new Date().toISOString()},
-      {onConflict:'key'}
-    ).then(({error})=>{ if(error) console.warn('[AdSync]',error.message); else console.log('[AdSync] Ads synced ✅'); });
-  }
-}
-function adminAdStats(){ try{ return JSON.parse(localStorage.getItem(ADMIN_STAT_KEY)||'{}'); }catch(e){return {};} }
-
-function adSavePaystackConfig(){
-  const key=document.getElementById('adPaystackKey')?.value?.trim();
-  const p1=parseInt(document.getElementById('adPm1Price')?.value||'499');
-  const p3=parseInt(document.getElementById('adPm3Price')?.value||'1199');
-  if(!key){ showToast('Enter your Paystack public key','err'); return; }
-  const cfg=JSON.parse(localStorage.getItem('ks_monetize_cfg')||'{}');
-  cfg.paystackKey=key; cfg.pm1price=p1; cfg.pm3price=p3;
-  localStorage.setItem('ks_monetize_cfg',JSON.stringify(cfg));
-  const sb=getSB();
-  if(sb) sb.from('site_config').upsert({key:'paystack_public_key',value:key,updated_at:new Date().toISOString()},{onConflict:'key'}).then(()=>{});
-  showToast('✅ Paystack config saved','ok');
-  addLog('Paystack key updated','green');
-}
-
-function adLoadPaystackConfig(){
-  const cfg=JSON.parse(localStorage.getItem('ks_monetize_cfg')||'{}');
-  const ke=document.getElementById('adPaystackKey');
-  const p1=document.getElementById('adPm1Price');
-  const p3=document.getElementById('adPm3Price');
-  if(ke&&cfg.paystackKey) ke.value=cfg.paystackKey;
-  if(p1&&cfg.pm1price)    p1.value=cfg.pm1price;
-  if(p3&&cfg.pm3price)    p3.value=cfg.pm3price;
-}
-
-function adAdminLoad(){
-  adLoadPaystackConfig();
-  const tbody=document.getElementById('adTableBody');
-  if(!tbody) return;
-  const ads=adminAdGetAll();
-  const stats=adminAdStats();
-  if(!ads.length){
-    tbody.innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:24px;">No ads yet — click "+ New Ad" to get started.</td></tr>';
-    return;
-  }
-  const pos={
-    homepage_top:'Top Banner',homepage_mid:'Mid Banner',homepage_bottom:'Bottom Banner',
-    player_preroll:'Pre-roll',player_midroll:'Mid-roll',player_overlay:'Player Banner',
-    popup:'Popup',challenge_native:'CF Native'
-  };
-  tbody.innerHTML=ads.map(ad=>{
-    const st=stats[ad.id]||{impressions:0,clicks:0};
-    const ctr=st.impressions>0?((st.clicks/st.impressions)*100).toFixed(1)+'%':'—';
-    return `<tr>
-      <td><strong style="color:#fff;">${ad.name||'Unnamed'}</strong></td>
-      <td><span style="font-size:10px;background:rgba(67,97,238,0.12);color:var(--blue);padding:2px 8px;border-radius:6px;font-weight:700;">${pos[ad.position]||ad.position}</span></td>
-      <td><div class="toggle ${ad.enabled?'on':''}" onclick="adAdminToggle('${ad.id}',this)" style="transform:scale(0.8);"></div></td>
-      <td style="font-weight:700;color:var(--text2);">${fmtN(st.impressions)}</td>
-      <td style="font-weight:700;color:var(--text2);">${fmtN(st.clicks)}</td>
-      <td style="font-weight:700;color:${parseFloat(ctr)>2?'var(--green)':'var(--text3)'};">${ctr}</td>
-      <td style="display:flex;gap:6px;">
-        <button class="btn btn-ghost btn-sm" onclick="adAdminEdit('${ad.id}')">✏️ Edit</button>
-        <button class="btn btn-danger btn-sm" onclick="adAdminDelete('${ad.id}')">🗑️</button>
-      </td>
-    </tr>`;
-  }).join('');
-}
-
-function adAdminToggle(id,toggleEl){
-  const ads=adminAdGetAll();
-  const ad=ads.find(a=>a.id===id);
-  if(!ad) return;
-  ad.enabled=!ad.enabled;
-  toggleEl.classList.toggle('on',ad.enabled);
-  adminAdSave(ads);
-  showToast(ad.enabled?'Ad enabled':'Ad disabled','ok');
-}
-
-function adAdminDelete(id){
-  if(!confirm('Delete this ad?')) return;
-  adminAdSave(adminAdGetAll().filter(a=>a.id!==id));
-  adAdminLoad();
-  showToast('Ad deleted','ok');
-  addLog('Ad deleted: '+id,'red');
-}
-
-function adUpdateFreqFields(pos){
-  const skipWrap    = document.getElementById('adSkipAfter')?.closest('div');
-  const freqEpsWrap = document.getElementById('adFreqEpsWrap');
-  const coolWrap    = document.getElementById('adCooldownWrap');
-  const mrWrap      = document.getElementById('adMidrollWrap');
-  const typeWrap    = document.getElementById('adTypeWrap');
-  const isPreroll   = pos==='player_preroll';
-  const isMidroll   = pos==='player_midroll';
-  const isPopup     = pos==='popup';
-  if(typeWrap)    typeWrap.style.display    = isPreroll?'block':'none';
-  if(skipWrap)    skipWrap.style.display    = (isPreroll||isMidroll)?'block':'none';
-  if(freqEpsWrap) freqEpsWrap.style.display = isPreroll?'block':'none';
-  if(coolWrap)    coolWrap.style.display    = isPopup?'block':'none';
-  if(mrWrap)      mrWrap.style.display      = isMidroll?'block':'none';
-  if(isPreroll) adUpdateTypeFields();
-}
-
-function adUpdateTypeFields(){
-  const isVast     = document.getElementById('adTypeVast')?.checked;
-  const vastWrap   = document.getElementById('adVastUrlWrap');
-  const codeWrap   = document.getElementById('adCodeWrap');
-  const tCodeLabel = document.getElementById('adTypeCodeLabel');
-  const tVastLabel = document.getElementById('adTypeVastLabel');
-  if(vastWrap)   vastWrap.style.display = isVast?'block':'none';
-  if(codeWrap)   codeWrap.style.display = isVast?'none':'block';
-  if(tCodeLabel) tCodeLabel.style.borderColor = isVast?'var(--border2)':'rgba(155,93,229,0.4)';
-  if(tVastLabel) tVastLabel.style.borderColor = isVast?'rgba(255,214,10,0.4)':'var(--border2)';
-}
-
-document.getElementById('adPosition')?.addEventListener('change',function(){ adUpdateFreqFields(this.value); });
-
-function adAdminNew(){
-  document.getElementById('adEditorTitle').textContent='New Ad';
-  document.getElementById('adName').value='';
-  document.getElementById('adAdvertiser').value='';
-  document.getElementById('adPosition').value='homepage_top';
-  document.getElementById('adCode').value='';
-  document.getElementById('adVastUrl').value='';
-  document.getElementById('adSkipAfter').value='5';
-  document.getElementById('adFreqEps').value='1';
-  document.getElementById('adCooldownMins').value='30';
-  document.getElementById('adMidrollMins').value='8';
-  document.getElementById('adEditId').value='';
-  document.getElementById('adEnabled').classList.add('on');
-  const cr=document.getElementById('adTypeCode'); if(cr) cr.checked=true;
-  adUpdateFreqFields('homepage_top'); adUpdateTypeFields();
-  document.getElementById('adEditorWrap').style.display='flex';
-}
-
-function adAdminEdit(id){
-  const ad=adminAdGetAll().find(a=>a.id===id);
-  if(!ad) return;
-  document.getElementById('adEditorTitle').textContent='Edit Ad';
-  document.getElementById('adName').value=ad.name||'';
-  document.getElementById('adAdvertiser').value=ad.advertiser||'';
-  document.getElementById('adPosition').value=ad.position||'homepage_top';
-  document.getElementById('adCode').value=ad.code||'';
-  document.getElementById('adVastUrl').value=ad.vast_url||'';
-  document.getElementById('adSkipAfter').value=ad.skip_after||5;
-  document.getElementById('adFreqEps').value=ad.freq_eps||1;
-  document.getElementById('adCooldownMins').value=ad.cooldown_mins||30;
-  document.getElementById('adMidrollMins').value=ad.midroll_mins||8;
-  document.getElementById('adEditId').value=ad.id;
-  document.getElementById('adEnabled').classList.toggle('on',!!ad.enabled);
-  const isVast=ad.ad_type==='vast';
-  const cr=document.getElementById('adTypeCode'); if(cr) cr.checked=!isVast;
-  const vr=document.getElementById('adTypeVast'); if(vr) vr.checked=isVast;
-  adUpdateFreqFields(ad.position||'homepage_top'); adUpdateTypeFields();
-  document.getElementById('adEditorWrap').style.display='flex';
-}
-
-function adEditorClose(){
-  document.getElementById('adEditorWrap').style.display='none';
-}
-
-function adEditorSave(){
-  const name=document.getElementById('adName').value.trim();
-  const advertiser=document.getElementById('adAdvertiser').value.trim();
-  const position=document.getElementById('adPosition').value;
-  const adType=document.getElementById('adTypeVast')?.checked?'vast':'code';
-  const code=document.getElementById('adCode').value.trim();
-  const vastUrl=document.getElementById('adVastUrl').value.trim();
-  const skipAfter=parseInt(document.getElementById('adSkipAfter').value||'5');
-  const freqEps=parseInt(document.getElementById('adFreqEps').value||'1');
-  const cooldown=parseInt(document.getElementById('adCooldownMins').value||'30');
-  const midrollMins=parseInt(document.getElementById('adMidrollMins').value||'8');
-  const enabled=document.getElementById('adEnabled').classList.contains('on');
-  const editId=document.getElementById('adEditId').value;
-  if(!name){ showToast('Enter an ad name','err'); return; }
-  if(adType==='vast'&&!vastUrl){ showToast('Enter a VAST URL','err'); return; }
-  if(adType==='code'&&!code){ showToast('Paste ad code','err'); return; }
-  const ads=adminAdGetAll();
-  const adObj={name,advertiser,position,ad_type:adType,
-    code:adType==='code'?code:'',vast_url:adType==='vast'?vastUrl:'',
-    skip_after:skipAfter,freq_eps:freqEps,cooldown_mins:cooldown,
-    midroll_mins:midrollMins,enabled,updated_at:new Date().toISOString()};
-  if(editId){
-    const idx=ads.findIndex(a=>a.id===editId);
-    if(idx>-1) ads[idx]={...ads[idx],...adObj};
-  } else {
-    ads.push({id:'ad_'+Date.now(),...adObj,created_at:new Date().toISOString()});
-  }
-  adminAdSave(ads);
-  adEditorClose(); adAdminLoad();
-  showToast('✅ Ad saved'+(adType==='vast'?' (VAST)':''),'ok');
-  addLog((editId?'Ad updated':'New ad created')+': '+name+' ['+adType+']','green');
-}
-
-// Close editor on backdrop click
-document.getElementById('adEditorWrap')?.addEventListener('click',e=>{
-  if(e.target.id==='adEditorWrap') adEditorClose();
-});
-
-// ── Revenue Dashboard ──
-async function revLoad(){
-  const sb=getSB();
-  const stats=adminAdStats();
-  const ads=adminAdGetAll();
-  let totalImp=0,totalClk=0;
-  ads.forEach(ad=>{ const st=stats[ad.id]||{impressions:0,clicks:0}; totalImp+=st.impressions; totalClk+=st.clicks; });
-  const avgCtr=totalImp>0?((totalClk/totalImp)*100).toFixed(1)+'%':'0%';
-  const set=(id,v)=>{ const el=document.getElementById(id); if(el) el.textContent=v; };
-  set('revTotalImpressions',fmtN(totalImp));
-  set('revTotalClicks',fmtN(totalClk));
-  set('revAvgCTR',avgCtr);
-
-  let premiumCount=0,totalRev=0,todayRev=0;
-  if(sb){
-    // Premium count — separate try so it never fails silently
-    try{
-      const {count}=await sb.from('profiles').select('*',{count:'exact',head:true}).eq('is_premium',true);
-      premiumCount=count||0;
-    }catch(e){}
-    // Payments — graceful if table doesn't exist yet
-    try{
-      const {data:pays,error:payErr}=await sb.from('payments').select('amount,created_at,plan,reference,user_id').eq('status','success').order('created_at',{ascending:false}).limit(100);
-      if(!payErr && pays){
-        totalRev=pays.reduce((s,p)=>s+(parseFloat(p.amount)||0),0);
-        const today=new Date().toDateString();
-        todayRev=pays.filter(p=>new Date(p.created_at).toDateString()===today).reduce((s,p)=>s+(parseFloat(p.amount)||0),0);
-        const ptbody=document.getElementById('revPayTable');
-        if(ptbody) ptbody.innerHTML=pays.slice(0,20).map(p=>`
-          <tr>
-            <td style="font-size:11px;color:var(--text3);">${(p.user_id||'').slice(0,12)}…</td>
-            <td><span style="font-size:10px;background:rgba(155,93,229,0.12);color:var(--purple);padding:2px 7px;border-radius:5px;">${p.plan||'—'}</span></td>
-            <td style="font-weight:700;color:var(--green);">$${(parseFloat(p.amount)||0).toFixed(2)}</td>
-            <td style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text3);">${(p.reference||'').slice(0,16)||'—'}</td>
-            <td style="font-size:11px;color:var(--text3);">${new Date(p.created_at).toLocaleDateString()}</td>
-          </tr>`).join('');
-      } else {
-        const ptbody=document.getElementById('revPayTable');
-        if(ptbody) ptbody.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--text3);padding:20px;font-size:12px;">No payment records yet.</td></tr>';
-      }
-    }catch(e){
-      const ptbody=document.getElementById('revPayTable');
-      if(ptbody) ptbody.innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--text3);padding:20px;font-size:12px;">Payments table not set up yet — no revenue data.</td></tr>';
-    }
-  }
-  set('revTotalRev','$'+(totalRev).toFixed(2));
-  set('revTodayRev','$'+(todayRev).toFixed(2));
-  set('revPremiumCount',premiumCount);
-
-  const atbody=document.getElementById('revAdTable');
-  if(atbody){
-    const posLabels={homepage_top:'Top Banner',homepage_mid:'Mid Banner',player_preroll:'Pre-roll',player_overlay:'Overlay',popup:'Popup',native:'Native'};
-    const sorted=[...ads].map(ad=>{
-      const st=stats[ad.id]||{impressions:0,clicks:0};
-      return {...ad,imp:st.impressions,clk:st.clicks,ctr:st.impressions>0?(st.clicks/st.impressions*100).toFixed(1):0};
-    }).sort((a,b)=>b.ctr-a.ctr);
-    atbody.innerHTML=sorted.length?sorted.map(ad=>`
-      <tr>
-        <td><strong style="color:#fff;">${ad.name||'Unnamed'}</strong></td>
-        <td style="font-size:10px;color:var(--text3);">${posLabels[ad.position]||ad.position}</td>
-        <td>${fmtN(ad.imp)}</td>
-        <td>${fmtN(ad.clk)}</td>
-        <td style="font-weight:700;color:${ad.ctr>2?'var(--green)':'var(--text3)'};">${ad.ctr}%</td>
-        <td><span style="font-size:10px;padding:2px 7px;border-radius:5px;font-weight:700;background:${ad.enabled?'rgba(6,214,160,0.1)':'rgba(255,71,87,0.1)'};color:${ad.enabled?'var(--green)':'var(--red)'};">${ad.enabled?'Active':'Off'}</span></td>
-      </tr>`).join(''):'<tr><td colspan="6" style="text-align:center;color:var(--text3);padding:16px;">No ads yet</td></tr>';
-  }
-}
 
 </script>
 
