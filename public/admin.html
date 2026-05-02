@@ -5073,7 +5073,7 @@ async function jaiBulkRegenerateAllEmbeds(){
 
   // Re-enable buttons (both the one in autoimport tab and the new one in anime manager header)
   if(btn){ btn.disabled=false; btn.textContent=orig; }
-  const animeManagerBtn = document.getElementById('animeManagerRegenBtn');
+  animeManagerBtn = document.getElementById('animeManagerRegenBtn');
   if(animeManagerBtn){ animeManagerBtn.disabled=false; animeManagerBtn.textContent='⚡ Auto-Generate All Embeds'; }
 
   // Build detailed report
