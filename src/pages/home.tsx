@@ -4,7 +4,9 @@ import { AnimeCard } from '@/components/AnimeCard';
 import { GridSkeleton } from '@/components/LoadingSkeleton';
 import { useWatchlist } from '@/hooks/useWatchlist';
 import { useWatchHistory } from '@/hooks/useWatchHistory';
-import { ChevronRight, Star, Flame, Sparkles, BookMarked, Clock } from 'lucide-react';
+import { ChevronRight, Star, Flame, Sparkles, BookMarked, Clock, Radio } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { getAiringSchedule } from '@/lib/anilist';
 import { Link } from 'wouter';
 
 export default function Home() {
@@ -21,6 +23,22 @@ export default function Home() {
   const activeHero = heroAnimes[heroIndex];
 
   const recentHistory = getRecentAnime().slice(0, 12);
+
+  const { data: airingSchedule } = useQuery({
+    queryKey: ['anilist', 'airing-schedule'],
+    queryFn: getAiringSchedule,
+    staleTime: 15 * 60 * 1000,
+  });
+
+  // Group by day
+  const airingByDay = (airingSchedule || []).reduce((acc: any, item: any) => {
+    const d = new Date(item.airingAt * 1000);
+    const key = d.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(item);
+    return acc;
+  }, {});
+  const airingDays = Object.keys(airingByDay).slice(0, 3);
 
   useEffect(() => {
     if (heroAnimes.length === 0 || isHovered) return;
@@ -183,6 +201,55 @@ export default function Home() {
           </div>
         )}
       </section>
+
+      {/* ── Airing This Week ── */}
+      {airingDays.length > 0 && (
+        <section>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-[16px] font-heading font-black text-white flex items-center gap-2">
+              <Radio className="w-4 h-4 text-[var(--pink)] animate-pulse" /> Airing This Week
+            </h2>
+          </div>
+          <div className="space-y-6">
+            {airingDays.map((day: string) => (
+              <div key={day}>
+                <div className="text-[11px] font-black text-[var(--text3)] uppercase tracking-widest mb-3">{day}</div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                  {airingByDay[day].map((item: any) => {
+                    const m = item.media;
+                    const title = m?.title?.english || m?.title?.romaji || 'Unknown';
+                    const malId = m?.idMal;
+                    const now = Math.floor(Date.now() / 1000);
+                    const secs = item.airingAt - now;
+                    const h = Math.floor(secs / 3600);
+                    const min = Math.floor((secs % 3600) / 60);
+                    const timeStr = secs <= 0 ? 'Out now!' : h > 0 ? `in ${h}h ${min}m` : `in ${min}m`;
+                    return (
+                      <Link key={`${m?.id}-${item.episode}`} href={malId ? `/anime/${malId}` : '#'}>
+                        <div className="group bg-[var(--card)] border border-[var(--border)] rounded-xl overflow-hidden hover:border-[var(--pink)] transition-all cursor-pointer">
+                          <div className="aspect-[3/4] relative overflow-hidden">
+                            {m?.coverImage?.large
+                              ? <img src={m.coverImage.large} alt={title} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                              : <div className="w-full h-full bg-[var(--bg3)] flex items-center justify-center text-2xl">📺</div>
+                            }
+                            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 to-transparent p-2">
+                              <div className="text-[10px] font-black text-[var(--pink)]">EP {item.episode}</div>
+                              <div className="text-[10px] font-bold text-white">{timeStr}</div>
+                            </div>
+                          </div>
+                          <div className="p-2">
+                            <div className="text-[11px] font-bold text-white line-clamp-2 leading-tight">{title}</div>
+                          </div>
+                        </div>
+                      </Link>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       <div id="home-ad" className="min-h-[1px]"
         ref={el => { if (el && (window as any).KamiAds) (window as any).KamiAds.loadInPagePush('home-ad'); }}

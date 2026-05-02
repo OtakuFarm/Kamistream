@@ -3,7 +3,8 @@ import { useRoute, Link } from 'wouter';
 import { useAnimeDetail, useAnimeEpisodes, useAnimeRecommendations } from '@/lib/jikan';
 import { useWatchlist } from '@/hooks/useWatchlist';
 import { useWatchHistory } from '@/hooks/useWatchHistory';
-import { Play, Plus, Check, Star, ChevronDown, ChevronUp } from 'lucide-react';
+import { Play, Plus, Check, Star, Timer } from 'lucide-react';
+import { getNextAiring } from '@/lib/anilist';
 import { LoadingSkeleton } from '@/components/LoadingSkeleton';
 
 const EP_PAGE_SIZE = 50;
@@ -19,6 +20,8 @@ export default function AnimeDetail() {
   const { getHistory } = useWatchHistory();
 
   const [epPage, setEpPage] = useState(1);
+  const [nextAiring, setNextAiring] = useState<any>(null);
+  const [countdown, setCountdown] = useState('');
 
   const anime = detail?.data;
 
@@ -30,6 +33,29 @@ export default function AnimeDetail() {
 
   // Reset episode page when anime changes
   useEffect(() => { setEpPage(1); }, [id]);
+
+  // Fetch next airing episode from AniList
+  useEffect(() => {
+    if (!anime || anime.status !== 'Currently Airing') return;
+    getNextAiring(id).then(setNextAiring).catch(() => {});
+  }, [id, anime?.status]);
+
+  // Countdown timer
+  useEffect(() => {
+    if (!nextAiring?.timeUntilAiring) return;
+    const update = () => {
+      const secs = nextAiring.airingAt - Math.floor(Date.now() / 1000);
+      if (secs <= 0) { setCountdown('Available now!'); return; }
+      const d = Math.floor(secs / 86400);
+      const h = Math.floor((secs % 86400) / 3600);
+      const m = Math.floor((secs % 3600) / 60);
+      const s = secs % 60;
+      setCountdown(d > 0 ? \`\${d}d \${h}h \${m}m\` : \`\${h}h \${m}m \${s}s\`);
+    };
+    update();
+    const t = setInterval(update, 1000);
+    return () => clearInterval(t);
+  }, [nextAiring]);
 
   if (detailLoading) return <LoadingSkeleton />;
   if (!anime) return <div className="p-8 text-center">Anime not found.</div>;
@@ -112,6 +138,22 @@ export default function AnimeDetail() {
 
       <div className="max-w-7xl mx-auto px-4 md:px-8 mt-16 md:mt-28 grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-8">
+          {/* Next Episode Countdown */}
+          {nextAiring && countdown && (
+            <div className="bg-gradient-to-r from-[var(--pink)]/10 to-[var(--purple)]/10 border border-[var(--pink)]/30 rounded-xl p-4 flex items-center gap-4">
+              <Timer className="w-6 h-6 text-[var(--pink)] shrink-0 animate-pulse" />
+              <div>
+                <div className="text-[10px] font-black text-[var(--pink)] uppercase tracking-wider">Next Episode</div>
+                <div className="text-[15px] font-heading font-black text-white">
+                  EP {nextAiring.episode} — <span className="text-[var(--pink)]">{countdown}</span>
+                </div>
+                <div className="text-[11px] text-[var(--text3)] mt-0.5">
+                  {new Date(nextAiring.airingAt * 1000).toLocaleString(undefined, { weekday:'short', month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' })}
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Synopsis */}
           <section>
             <h2 className="text-[16px] font-heading font-black text-white mb-3">Synopsis</h2>
