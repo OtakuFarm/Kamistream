@@ -4,8 +4,8 @@ import { useAnimeDetail, useAnimeEpisodes, useAnimeRecommendations } from '@/lib
 import { useWatchlist } from '@/hooks/useWatchlist';
 import { useWatchHistory } from '@/hooks/useWatchHistory';
 import { Play, Plus, Check, Star, Timer } from 'lucide-react';
-import { getNextAiring } from '@/lib/anilist';
 import { LoadingSkeleton } from '@/components/LoadingSkeleton';
+import { getNextAiring } from '@/lib/anilist';
 
 const EP_PAGE_SIZE = 50;
 
@@ -13,15 +13,15 @@ export default function AnimeDetail() {
   const [, params] = useRoute('/anime/:id');
   const id = params?.id || '';
 
-  const { data: detail, isLoading: detailLoading } = useAnimeDetail(id);
+  const { data: detail,   isLoading: detailLoading } = useAnimeDetail(id);
   const { data: episodes, isLoading: episodesLoading } = useAnimeEpisodes(id);
   const { data: recs } = useAnimeRecommendations(id);
   const { toggleWatchlist, isInWatchlist } = useWatchlist();
-  const { getHistory } = useWatchHistory();
+  const { getRecentAnime } = useWatchHistory();
 
-  const [epPage, setEpPage] = useState(1);
+  const [epPage,    setEpPage]    = useState(1);
   const [nextAiring, setNextAiring] = useState<any>(null);
-  const [countdown, setCountdown] = useState('');
+  const [countdown,  setCountdown]  = useState('');
 
   const anime = detail?.data;
 
@@ -31,18 +31,16 @@ export default function AnimeDetail() {
     return () => { document.title = 'KamiStream'; };
   }, [anime]);
 
-  // Reset episode page when anime changes
   useEffect(() => { setEpPage(1); }, [id]);
 
-  // Fetch next airing episode from AniList
+  // Next airing countdown
   useEffect(() => {
     if (!anime || anime.status !== 'Currently Airing') return;
     getNextAiring(id).then(setNextAiring).catch(() => {});
   }, [id, anime?.status]);
 
-  // Countdown timer
   useEffect(() => {
-    if (!nextAiring?.timeUntilAiring) return;
+    if (!nextAiring?.airingAt) return;
     const update = () => {
       const secs = nextAiring.airingAt - Math.floor(Date.now() / 1000);
       if (secs <= 0) { setCountdown('Available now!'); return; }
@@ -50,7 +48,7 @@ export default function AnimeDetail() {
       const h = Math.floor((secs % 86400) / 3600);
       const m = Math.floor((secs % 3600) / 60);
       const s = secs % 60;
-      setCountdown(d > 0 ? \`\${d}d \${h}h \${m}m\` : \`\${h}h \${m}m \${s}s\`);
+      setCountdown(d > 0 ? `${d}d ${h}h ${m}m` : `${h}h ${m}m ${s}s`);
     };
     update();
     const t = setInterval(update, 1000);
@@ -61,13 +59,27 @@ export default function AnimeDetail() {
   if (!anime) return <div className="p-8 text-center">Anime not found.</div>;
 
   const isSaved = isInWatchlist(anime.mal_id);
-  const eps = episodes?.data || [];
-  const totalEps = eps.length;
+  const history = getRecentAnime();
+  const lastWatched = history.find(h => h.mal_id === anime.mal_id);
+  const resumeEp = lastWatched?.ep_id;
+  const recommendations = (recs?.data || []).slice(0, 8);
+
+  // Episode list — Jikan episodes if available, otherwise generate from count
+  const jikanEps: any[] = episodes?.data || [];
+  const knownCount: number = anime.episodes || 0;
+
+  const eps: any[] = jikanEps.length > 0
+    ? jikanEps
+    : knownCount > 0
+      ? Array.from({ length: knownCount }, (_, i) => ({
+          mal_id: i + 1,
+          title: `Episode ${i + 1}`,
+        }))
+      : [];
+
+  const totalEps   = eps.length;
   const totalPages = Math.ceil(totalEps / EP_PAGE_SIZE);
   const visibleEps = eps.slice((epPage - 1) * EP_PAGE_SIZE, epPage * EP_PAGE_SIZE);
-  const recommendations = (recs?.data || []).slice(0, 8);
-  const lastWatched = getHistory().find((h) => h.mal_id === anime.mal_id);
-  const resumeEp = lastWatched?.ep_id;
 
   return (
     <div className="pb-20">
@@ -95,15 +107,14 @@ export default function AnimeDetail() {
               <span>•</span>
               <span>
                 {episodesLoading
-                  ? `Loading episodes…`
+                  ? 'Loading…'
                   : totalEps > 0
                     ? `${totalEps} Episodes`
-                    : anime.episodes
-                      ? `${anime.episodes} Episodes`
+                    : knownCount > 0
+                      ? `${knownCount} Episodes`
                       : 'Ongoing'}
               </span>
-              <span>•</span>
-              <span>{anime.rating}</span>
+              {anime.rating && <><span>•</span><span>{anime.rating}</span></>}
             </div>
             <div className="flex flex-wrap gap-3">
               {resumeEp ? (
@@ -121,11 +132,9 @@ export default function AnimeDetail() {
               )}
               <button
                 onClick={() => toggleWatchlist({
-                  mal_id: anime.mal_id,
-                  title: anime.title,
+                  mal_id: anime.mal_id, title: anime.title,
                   image_url: anime.images?.webp?.large_image_url || '',
-                  episodes: anime.episodes,
-                  score: anime.score,
+                  episodes: anime.episodes, score: anime.score,
                 })}
                 className="bg-[var(--card)] border border-[var(--border)] text-white px-4 py-2.5 rounded-xl text-[13px] font-bold hover:bg-white/10 transition-all flex items-center gap-2"
               >
@@ -138,7 +147,8 @@ export default function AnimeDetail() {
 
       <div className="max-w-7xl mx-auto px-4 md:px-8 mt-16 md:mt-28 grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-8">
-          {/* Next Episode Countdown */}
+
+          {/* Countdown */}
           {nextAiring && countdown && (
             <div className="bg-gradient-to-r from-[var(--pink)]/10 to-[var(--purple)]/10 border border-[var(--pink)]/30 rounded-xl p-4 flex items-center gap-4">
               <Timer className="w-6 h-6 text-[var(--pink)] shrink-0 animate-pulse" />
@@ -166,15 +176,11 @@ export default function AnimeDetail() {
               <h2 className="text-[16px] font-heading font-black text-white">
                 Episodes
                 {totalEps > 0 && (
-                  <span className="ml-2 text-[12px] font-normal text-[var(--text3)]">
-                    ({totalEps} total)
-                  </span>
+                  <span className="ml-2 text-[12px] font-normal text-[var(--text3)]">({totalEps} total)</span>
                 )}
               </h2>
               {episodesLoading && (
-                <span className="text-[11px] text-[var(--pink)] font-bold animate-pulse">
-                  Loading all episodes…
-                </span>
+                <span className="text-[11px] text-[var(--pink)] font-bold animate-pulse">Loading…</span>
               )}
             </div>
 
@@ -204,33 +210,29 @@ export default function AnimeDetail() {
                   })}
                 </div>
 
-                {/* Pagination for 100+ episode anime */}
                 {totalPages > 1 && (
                   <div className="flex items-center justify-center gap-2 mt-6 flex-wrap">
                     {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
-                      <button
-                        key={p}
-                        onClick={() => { setEpPage(p); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
-                        className={`w-10 h-10 rounded-xl text-[12px] font-bold transition-all ${p === epPage ? 'bg-gradient-to-r from-[var(--pink)] to-[var(--purple)] text-white' : 'bg-[var(--card)] border border-[var(--border)] text-[var(--text2)] hover:text-white hover:border-[var(--purple)]'}`}
-                      >
+                      <button key={p} onClick={() => { setEpPage(p); window.scrollTo({ top: 0, behavior: 'smooth' }); }}
+                        className={`w-10 h-10 rounded-xl text-[12px] font-bold transition-all ${p === epPage ? 'bg-gradient-to-r from-[var(--pink)] to-[var(--purple)] text-white' : 'bg-[var(--card)] border border-[var(--border)] text-[var(--text2)] hover:text-white hover:border-[var(--purple)]'}`}>
                         {p}
                       </button>
                     ))}
                     <span className="text-[11px] text-[var(--text3)] ml-2">
-                      EP {(epPage - 1) * EP_PAGE_SIZE + 1}–{Math.min(epPage * EP_PAGE_SIZE, totalEps)} of {totalEps}
+                      EP {(epPage-1)*EP_PAGE_SIZE+1}–{Math.min(epPage*EP_PAGE_SIZE, totalEps)} of {totalEps}
                     </span>
                   </div>
                 )}
               </>
             ) : (
               <div className="text-[13px] text-[var(--text3)] p-4 bg-[var(--card)] rounded-xl border border-[var(--border)] text-center">
-                Episodes list not available for this anime yet.
+                No episodes available yet for this anime.
               </div>
             )}
           </section>
         </div>
 
-        {/* Sidebar details */}
+        {/* Details sidebar */}
         <div className="space-y-6">
           <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-5">
             <h3 className="font-heading font-black text-[14px] text-white mb-4">Details</h3>
@@ -239,7 +241,7 @@ export default function AnimeDetail() {
               <div className="flex justify-between"><span className="text-[var(--text3)]">Status</span><span className="font-bold text-white">{anime.status}</span></div>
               <div className="flex justify-between"><span className="text-[var(--text3)]">Aired</span><span className="font-bold text-white text-right max-w-[150px]">{anime.aired?.string}</span></div>
               <div className="flex justify-between"><span className="text-[var(--text3)]">Studios</span><span className="font-bold text-[var(--pink)]">{anime.studios?.map((s: any) => s.name).join(', ') || 'N/A'}</span></div>
-              <div className="flex justify-between"><span className="text-[var(--text3)]">Episodes</span><span className="font-bold text-white">{totalEps > 0 ? totalEps : anime.episodes || '?'}</span></div>
+              <div className="flex justify-between"><span className="text-[var(--text3)]">Episodes</span><span className="font-bold text-white">{totalEps > 0 ? totalEps : knownCount || '?'}</span></div>
             </div>
             <div className="mt-4 pt-4 border-t border-[var(--border)]">
               <h4 className="font-bold text-[11px] text-[var(--text3)] uppercase tracking-wider mb-2">Genres</h4>
@@ -264,11 +266,8 @@ export default function AnimeDetail() {
                 <Link key={a.mal_id} href={`/anime/${a.mal_id}`}>
                   <div className="group cursor-pointer">
                     <div className="aspect-[2/3] rounded-xl overflow-hidden bg-[var(--card)] relative">
-                      <img
-                        src={a.images?.webp?.large_image_url || a.images?.jpg?.large_image_url}
-                        alt={a.title}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                      />
+                      <img src={a.images?.webp?.large_image_url || a.images?.jpg?.large_image_url} alt={a.title}
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                     </div>
                     <p className="text-[11px] font-bold text-white mt-2 line-clamp-2 leading-snug">{a.title}</p>
                   </div>
