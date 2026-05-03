@@ -8,6 +8,7 @@ import { ChevronRight, Star, Flame, Sparkles, BookMarked, Clock, Radio } from 'l
 import { useQuery } from '@tanstack/react-query';
 import { getAiringSchedule } from '@/lib/anilist';
 import { Link } from 'wouter';
+import { useSEO } from '@/hooks/useSEO';
 
 export default function Home() {
   const { data: trending,  isLoading: trendingLoading  } = useTrendingAnime();
@@ -23,6 +24,7 @@ export default function Home() {
   const activeHero = heroAnimes[heroIndex];
 
   const recentHistory = getRecentAnime().slice(0, 12);
+  useSEO({ title: 'Home', description: 'Stream anime free on KamiStream — trending, seasonal and top rated all in one place.' });
 
   const { data: airingSchedule } = useQuery({
     queryKey: ['anilist', 'airing-schedule'],

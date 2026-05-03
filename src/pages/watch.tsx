@@ -5,6 +5,8 @@ import { supabase } from '@/lib/supabase';
 import { useWatchHistory } from '@/hooks/useWatchHistory';
 import { ChevronLeft, ChevronRight, Settings, SkipForward, X } from 'lucide-react';
 import { LoadingSkeleton } from '@/components/LoadingSkeleton';
+import { useSEO } from '@/hooks/useSEO';
+import { useEpisodeProgress } from '@/hooks/useEpisodeProgress';
 import { EpisodeSocial } from '@/components/EpisodeSocial';
 
 // ── AniList ID resolver ───────────────────────────────────────────────
@@ -72,6 +74,7 @@ export default function Watch() {
   const { data: detail,   isLoading: detailLoading } = useAnimeDetail(malId);
   const { data: episodes }                            = useAnimeEpisodes(malId);
   const { logEpisode }                                = useWatchHistory();
+  const { markWatched, isWatched }                    = useEpisodeProgress();
 
   const eps            = episodes?.data || [];
   const currentEpIndex = eps.findIndex((e: any) => e.mal_id.toString() === epId);
@@ -128,6 +131,13 @@ export default function Watch() {
     try { (window as any).KamiAds?.onEpisodeChange?.(); } catch {}
   }, [malId, epId]);
 
+  // Auto-mark as watched after 30 seconds on the episode
+  useEffect(() => {
+    if (!malId || !epId) return;
+    const t = setTimeout(() => markWatched(malId, epId), 30_000);
+    return () => clearTimeout(t);
+  }, [malId, epId]);
+
   // ── Autoplay countdown ───────────────────────────────────────────
   function clearAutoplay() {
     if (autoplayTimer.current) { clearInterval(autoplayTimer.current); autoplayTimer.current = null; }
@@ -158,6 +168,14 @@ export default function Watch() {
 
   // Cleanup on unmount
   useEffect(() => () => clearAutoplay(), []);
+
+  // SEO
+  useSEO(detail?.data ? {
+    title:       `${detail.data.title} Episode ${epId}`,
+    description: detail.data.synopsis?.slice(0, 160),
+    image:       detail.data.images?.webp?.large_image_url,
+    type:        'video.other',
+  } : {});
 
   if (detailLoading) return <LoadingSkeleton />;
   if (!detail?.data) return <div className="p-8 text-center">Anime not found.</div>;
@@ -287,8 +305,16 @@ export default function Watch() {
         </div>
       </div>
 
+      {/* Mobile overlay when sidebar open */}
+      {showEpList && (
+        <div
+          className="fixed inset-0 bg-black/60 z-40 lg:hidden"
+          onClick={() => setShowEpList(false)}
+        />
+      )}
+
       {/* Episode List Sidebar */}
-      <div className={`w-[320px] bg-[var(--bg2)] border-l border-[var(--border)] flex flex-col shrink-0 absolute lg:relative inset-y-0 right-0 z-40 transform transition-transform duration-300 ${showEpList ? 'translate-x-0' : 'translate-x-full lg:translate-x-0'}`}>
+      <div className={`w-[300px] bg-[var(--bg2)] border-l border-[var(--border)] flex flex-col shrink-0 fixed lg:relative top-0 bottom-0 right-0 z-50 transform transition-transform duration-300 ${showEpList ? 'translate-x-0' : 'translate-x-full lg:translate-x-0'}`}>
         <div className="p-4 border-b border-[var(--border)] flex justify-between items-center">
           <h3 className="font-heading font-black text-[14px]">Episodes</h3>
           <button className="lg:hidden p-1 text-[var(--text3)]" onClick={() => setShowEpList(false)}>
@@ -298,6 +324,7 @@ export default function Watch() {
         <div className="flex-1 overflow-y-auto p-2 space-y-1">
           {eps.map((ep: any) => {
             const isCurrent = ep.mal_id.toString() === epId;
+            const watched = isWatched(malId, ep.mal_id);
             return (
               <Link key={ep.mal_id} href={`/watch/${malId}/${ep.mal_id}`}
                 onClick={() => !isCurrent && fireEpAd('list')} data-ep-item="true">

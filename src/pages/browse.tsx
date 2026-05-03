@@ -4,6 +4,7 @@ import { GridSkeleton } from '@/components/LoadingSkeleton';
 import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
 import { SlidersHorizontal, X, Search, Database, Loader2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { useSEO } from '@/hooks/useSEO';
 
 // ── Supabase library ──────────────────────────────────────────────────
 async function fetchSupabaseLibrary() {
@@ -93,6 +94,7 @@ const YEARS = ['', ...Array.from({ length: 35 }, (_, i) => String(THIS_YEAR - i)
 type Tab = 'library' | 'top' | 'search';
 
 export default function Browse() {
+  useSEO({ title: 'Browse Anime', description: 'Browse thousands of anime — search by genre, type, year and score on KamiStream.' });
   const [tab,         setTab]         = useState<Tab>('library');
   const [inputVal,    setInputVal]    = useState('');
   const [filters,     setFilters]     = useState<Filters>(DEFAULT_FILTERS);
