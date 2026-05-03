@@ -985,7 +985,7 @@ tr:hover td{background:rgba(124,58,237,0.04);}
       <div class="page-hdr">
         <div>
           <div class="page-title">Anime <span>Manager</span></div>
-          <div class="page-sub">Import from AniList, manage embed sources, auto-schedule updates.</div>
+          <div class="page-sub">Import from AniList, manage embed sources, auto-schedule updates. <strong style="color:#06d6a0;">This is what the main site uses.</strong></div>
         </div>
         <div class="page-actions">
           <button class="btn btn-ghost btn-sm" onclick="runScheduler()">▶ Run Sync Now</button>
@@ -1133,6 +1133,9 @@ tr:hover td{background:rgba(124,58,237,0.04);}
         <div>
           <div class="page-title">Auto Import <span>Anime</span></div>
           <div class="page-sub">Search Jikan (MyAnimeList), import with one click, auto-update episodes every 6 hours.</div>
+          <div style="background:rgba(255,200,0,0.08);border:1px solid rgba(255,200,0,0.3);border-radius:10px;padding:10px 14px;margin-top:10px;font-size:11px;color:#fbbf24;line-height:1.6;">
+            ⚠️ <strong>Note:</strong> This tab stores anime in your browser only. To show anime on the main site, use the <strong>Anime Manager</strong> tab — or click <strong>🔄 Sync</strong> on each imported anime here to push it to Supabase.
+          </div>
         </div>
         <div class="page-actions">
           <button class="btn btn-ghost btn-sm" onclick="jaiImportByMalId()">🔢 Import by MAL ID</button>
@@ -3306,8 +3309,24 @@ async function escAutoSearchAll(){
 
 // ── Load from existing library ──
 async function escLoadSelected(){
+  // Try Supabase Anime Manager library first
+  if(animeLibrary && animeLibrary.length > 0){
+    const names = animeLibrary.map((a,i)=>String(i+1)+'. '+(a.title_english||a.title_romaji||'Unknown'));
+    const choice = prompt('Select anime by number:\n'+names.slice(0,30).join('\n')+(animeLibrary.length>30?'\n…and '+(animeLibrary.length-30)+' more':''));
+    if(!choice) return;
+    const idx = parseInt(choice.trim())-1;
+    if(isNaN(idx)||idx<0||idx>=animeLibrary.length){showToast('Invalid selection','warn');return;}
+    const a = animeLibrary[idx];
+    escAnime = {mal_id:a.mal_id, title:a.title_english||a.title_romaji, anilist_id:a.anilist_id};
+    escSbAnimeId = a.id;
+    const titleEl = document.getElementById('escAnimeTitle');
+    if(titleEl) titleEl.textContent = escAnime.title;
+    await escLoadEpisodesFromSB(a.id);
+    return;
+  }
+  // Fallback to Auto Import localStorage library
   const all=jaiGetAll();
-  if(!all.length){showToast('No anime in library yet. Import first.','warn');return;}
+  if(!all.length){showToast('No anime in library yet. Import anime first.','warn');return;}
   const names=all.map((a,i)=>String(i+1)+'. '+(a.title||a.title_romaji||'Untitled')).join('\n');
   const pick=prompt('Pick anime by number:\n\n'+names);
   if(!pick)return;
@@ -5021,6 +5040,7 @@ async function jaiBulkRegenerateAllEmbeds(){
 
   const btn = document.getElementById('jaiBulkRegenBtn');
   const orig = btn ? btn.textContent : '';
+  let animeManagerBtn = null; // declared here to avoid redeclaration error
 
   // Always ensure library is loaded first so count matches what admin sees
   if(!animeLibrary.length){
@@ -5061,6 +5081,20 @@ async function jaiBulkRegenerateAllEmbeds(){
         anilist_id: a.anilist_id,
         title:      title,
       };
+
+      // Auto-create episode rows if none exist yet
+      const {count} = await sb.from('episodes')
+        .select('id', {count:'exact', head:true}).eq('anime_id', a.id);
+      if((count||0) === 0 && a.episodes_total > 0){
+        const epRows = Array.from({length: a.episodes_total}, (_,i)=>({
+          anime_id:       a.id,
+          episode_number: i+1,
+          title:          'Episode '+(i+1),
+          created_at:     new Date().toISOString()
+        }));
+        await sb.from('episodes').upsert(epRows, {onConflict:'anime_id,episode_number'});
+      }
+
       const r = await adminGenAllEmbedsForAnime(sb, a.id, meta);
       if(r.saved===0) skipped++;
       else { succeeded++; totalSaved += r.saved; }
@@ -5073,7 +5107,7 @@ async function jaiBulkRegenerateAllEmbeds(){
 
   // Re-enable buttons (both the one in autoimport tab and the new one in anime manager header)
   if(btn){ btn.disabled=false; btn.textContent=orig; }
-  animeManagerBtn = document.getElementById('animeManagerRegenBtn');
+  animeManagerBtn = document.getElementById('animeManagerRegenBtn');  // re-fetch in case DOM changed
   if(animeManagerBtn){ animeManagerBtn.disabled=false; animeManagerBtn.textContent='⚡ Auto-Generate All Embeds'; }
 
   // Build detailed report
