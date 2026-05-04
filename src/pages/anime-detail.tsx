@@ -124,7 +124,7 @@ export default function AnimeDetail() {
             <div className="flex flex-wrap items-center gap-3 text-[12px] font-bold text-[var(--text2)] mb-4">
               {anime.score && <span className="flex items-center gap-1 text-[var(--gold)]"><Star className="w-3 h-3 fill-current" /> {anime.score}</span>}
               <span>•</span><span>{anime.year || anime.status}</span><span>•</span>
-              <span>{episodesLoading ? 'Loading…' : totalEps > 0 ? `${totalEps} Episodes` : knownCount > 0 ? `${knownCount} Episodes` : 'Ongoing'}</span>
+              <span>{episodesLoading ? 'Loading…' : totalEps > 0 ? `${totalEps} Episodes` : malCount > 0 ? `${malCount} Episodes` : 'Ongoing'}</span>
               {anime.rating && <><span>•</span><span>{anime.rating}</span></>}
             </div>
             <div className="flex flex-wrap gap-3">
@@ -253,7 +253,7 @@ export default function AnimeDetail() {
               <div className="flex justify-between"><span className="text-[var(--text3)]">Status</span><span className="font-bold text-white">{anime.status}</span></div>
               <div className="flex justify-between"><span className="text-[var(--text3)]">Aired</span><span className="font-bold text-white text-right max-w-[150px]">{anime.aired?.string}</span></div>
               <div className="flex justify-between"><span className="text-[var(--text3)]">Studios</span><span className="font-bold text-[var(--pink)]">{anime.studios?.map((s: any) => s.name).join(', ') || 'N/A'}</span></div>
-              <div className="flex justify-between"><span className="text-[var(--text3)]">Episodes</span><span className="font-bold text-white">{totalEps > 0 ? totalEps : knownCount || '?'}</span></div>
+              <div className="flex justify-between"><span className="text-[var(--text3)]">Episodes</span><span className="font-bold text-white">{totalEps > 0 ? totalEps : malCount || '?'}</span></div>
             </div>
             {anime.genres?.length > 0 && (
               <div className="mt-4 pt-4 border-t border-[var(--border)]">

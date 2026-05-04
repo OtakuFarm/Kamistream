@@ -103,7 +103,7 @@ export default function Watch() {
       }
       setLoadingPlayer(false);
     });
-  }, [malId, epId]);
+  }, [malId, epId, dub]);
 
   // Log episode to watch history once anime data is available
   useEffect(() => {
