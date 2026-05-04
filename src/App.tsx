@@ -26,6 +26,7 @@ const Signup = lazy(() => import("@/pages/auth/signup"));
 const Admin = lazy(() => import("@/pages/admin"));
 const NotFound = lazy(() => import("@/pages/not-found"));
 const Genre = lazy(() => import("@/pages/genre"));
+const Search = lazy(() => import("@/pages/search"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -69,6 +70,7 @@ function Router() {
         <Route path="/profile" component={() => <Layout><Profile /></Layout>} />
         <Route path="/creator/:username" component={() => <Layout><Creator /></Layout>} />
         <Route path="/genre/:id" component={() => <Layout><Genre /></Layout>} />
+        <Route path="/search" component={() => <Layout><Search /></Layout>} />
         
         {/* Admin has its own full-page layout embedded in the component */}
         <Route path="/admin" component={Admin} />
