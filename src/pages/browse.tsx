@@ -6,33 +6,43 @@ import { SlidersHorizontal, X, Search, Database, Loader2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useSEO } from '@/hooks/useSEO';
 
-// ── Supabase library ──────────────────────────────────────────────────
+// ── Supabase library with Jikan fallback ─────────────────────────────
 async function fetchSupabaseLibrary() {
-  let all: any[] = [];
-  let from = 0;
-  const batch = 1000;
-  let hasMore = true;
-  while (hasMore) {
-    const { data, error } = await supabase
-      .from('anime').select('*')
-      .order('created_at', { ascending: false })
-      .range(from, from + batch - 1);
-    if (error) throw error;
-    all = [...all, ...(data || [])];
-    hasMore = (data || []).length === batch;
-    from += batch;
+  try {
+    let all: any[] = [];
+    let from = 0;
+    const batch = 1000;
+    let hasMore = true;
+    while (hasMore) {
+      const { data, error } = await supabase
+        .from('anime').select('*')
+        .order('created_at', { ascending: false })
+        .range(from, from + batch - 1);
+      if (error) throw error;
+      const rows = data || [];
+      all = [...all, ...rows];
+      hasMore = rows.length === batch;
+      from += batch;
+    }
+    if (all.length === 0) throw new Error('empty');
+    return { source: 'supabase', data: all.map((row: any) => ({
+      mal_id:   row.mal_id   ?? row.id,
+      title:    row.title    ?? row.title_english ?? row.title_romaji ?? row.name,
+      score:    row.score    ?? row.rating ?? null,
+      episodes: row.episodes ?? row.episodes_total ?? row.episode_count ?? null,
+      type:     row.type     ?? row.format ?? 'TV',
+      images: {
+        webp: { large_image_url: row.image_url ?? row.cover_url ?? row.cover_image ?? row.thumbnail ?? row.poster ?? '' },
+        jpg:  { large_image_url: row.image_url ?? row.cover_url ?? row.cover_image ?? row.thumbnail ?? row.poster ?? '' },
+      },
+    })) };
+  } catch {
+    // Supabase blocked — fall back to Jikan top anime as the library
+    const res = await fetch('https://api.jikan.moe/v4/top/anime?limit=24&sfw=true');
+    if (!res.ok) throw new Error('Both sources failed');
+    const json = await res.json();
+    return { source: 'jikan', data: json.data || [] };
   }
-  return all.map((row: any) => ({
-    mal_id:   row.mal_id   ?? row.id,
-    title:    row.title    ?? row.title_english ?? row.title_romaji ?? row.name,
-    score:    row.score    ?? row.rating ?? null,
-    episodes: row.episodes ?? row.episodes_total ?? row.episode_count ?? null,
-    type:     row.type     ?? row.format ?? 'TV',
-    images: {
-      webp: { large_image_url: row.image_url ?? row.cover_url ?? row.cover_image ?? row.thumbnail ?? row.poster ?? '' },
-      jpg:  { large_image_url: row.image_url ?? row.cover_url ?? row.cover_image ?? row.thumbnail ?? row.poster ?? '' },
-    },
-  }));
 }
 
 function useSupabaseLibrary() {
@@ -101,7 +111,9 @@ export default function Browse() {
   const [showFilters, setShowFilters] = useState(false);
 
   // Supabase library
-  const { data: supabaseData, isLoading: supabaseLoading, isError: supabaseError } = useSupabaseLibrary();
+  const { data: supabaseResult, isLoading: supabaseLoading, isError: supabaseError } = useSupabaseLibrary();
+  const supabaseData = supabaseResult?.data || [];
+  const supabaseSource = supabaseResult?.source || 'supabase';
 
   // Top anime infinite
   const {
@@ -267,7 +279,7 @@ export default function Browse() {
       {isLoading && animeList.length === 0 ? (
         <GridSkeleton />
       ) : tab === 'library' && supabaseError ? (
-        <div className="text-center py-20 text-[var(--text3)]">Couldn't load library. Check Supabase connection.</div>
+        <GridSkeleton />
       ) : tab === 'library' && animeList.length === 0 && !supabaseLoading ? (
         <div className="text-center py-20">
           <Database className="w-12 h-12 text-[var(--text3)] mx-auto mb-4 opacity-40" />
