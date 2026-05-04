@@ -9,6 +9,7 @@ import { Layout, MinimalLayout } from "@/components/Layout";
 import { ProgressBar } from "@/components/ProgressBar";
 import { AdblockBanner } from "@/components/AdblockBanner";
 import { LoadingSkeleton } from "@/components/LoadingSkeleton";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 const Home = lazy(() => import("@/pages/home"));
 const Browse = lazy(() => import("@/pages/browse"));
@@ -24,6 +25,7 @@ const Login = lazy(() => import("@/pages/auth/login"));
 const Signup = lazy(() => import("@/pages/auth/signup"));
 const Admin = lazy(() => import("@/pages/admin"));
 const NotFound = lazy(() => import("@/pages/not-found"));
+const Genre = lazy(() => import("@/pages/genre"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -66,6 +68,7 @@ function Router() {
         <Route path="/community" component={() => <Layout><Community /></Layout>} />
         <Route path="/profile" component={() => <Layout><Profile /></Layout>} />
         <Route path="/creator/:username" component={() => <Layout><Creator /></Layout>} />
+        <Route path="/genre/:id" component={() => <Layout><Genre /></Layout>} />
         
         {/* Admin has its own full-page layout embedded in the component */}
         <Route path="/admin" component={Admin} />
@@ -78,6 +81,7 @@ function Router() {
 
 function App() {
   return (
+    <ErrorBoundary>
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <TooltipProvider>
@@ -91,6 +95,7 @@ function App() {
         </TooltipProvider>
       </AuthProvider>
     </QueryClientProvider>
+    </ErrorBoundary>
   );
 }
 
