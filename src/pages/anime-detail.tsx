@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useRoute, Link } from 'wouter';
+import { useQuery } from '@tanstack/react-query';
 import { useAnimeDetail, useAnimeEpisodes, useAnimeRecommendations } from '@/lib/jikan';
 import { useWatchlist } from '@/hooks/useWatchlist';
 import { useWatchHistory } from '@/hooks/useWatchHistory';
@@ -7,7 +8,7 @@ import { useEpisodeProgress } from '@/hooks/useEpisodeProgress';
 import { useSEO } from '@/hooks/useSEO';
 import { getNextAiring } from '@/lib/anilist';
 import { Play, Plus, Check, Star, Timer, CheckCircle2, Circle } from 'lucide-react';
-import { LoadingSkeleton } from '@/components/LoadingSkeleton';
+import { DetailSkeleton } from '@/components/LoadingSkeleton';
 
 const EP_PAGE_SIZE = 50;
 
@@ -23,6 +24,20 @@ export default function AnimeDetail() {
   const { toggleWatched, isWatched, getWatchedCount }  = useEpisodeProgress();
 
   const [epPage,     setEpPage]     = useState(1);
+  const [showTrailer, setShowTrailer] = useState(false);
+
+  // Fetch characters
+  const { data: charsData } = useQuery({
+    queryKey: ['anime', id, 'characters'],
+    queryFn: async () => {
+      const res = await fetch(\`https://api.jikan.moe/v4/anime/\${id}/characters\`);
+      if (!res.ok) return { data: [] };
+      return res.json();
+    },
+    enabled: !!id,
+    staleTime: 30 * 60 * 1000,
+  });
+  const characters = (charsData?.data || []).slice(0, 12);
   const [nextAiring, setNextAiring] = useState<any>(null);
   const [countdown,  setCountdown]  = useState('');
 
@@ -60,7 +75,7 @@ export default function AnimeDetail() {
     return () => clearInterval(t);
   }, [nextAiring]);
 
-  if (detailLoading) return <LoadingSkeleton />;
+  if (detailLoading) return <DetailSkeleton />;
   if (!anime) return <div className="p-8 text-center text-[var(--text3)]">Anime not found.</div>;
 
   const isSaved    = isInWatchlist(anime.mal_id);
@@ -122,6 +137,12 @@ export default function AnimeDetail() {
                 className="bg-[var(--card)] border border-[var(--border)] text-white px-4 py-2.5 rounded-xl text-[13px] font-bold hover:bg-white/10 transition-all flex items-center gap-2">
                 {isSaved ? <><Check className="w-4 h-4" /> Saved</> : <><Plus className="w-4 h-4" /> Watchlist</>}
               </button>
+              {anime.trailer?.youtube_id && (
+                <button onClick={() => setShowTrailer(true)}
+                  className="bg-[var(--card)] border border-[var(--border)] text-white px-4 py-2.5 rounded-xl text-[13px] font-bold hover:bg-white/10 transition-all flex items-center gap-2">
+                  ▶ Trailer
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -247,6 +268,42 @@ export default function AnimeDetail() {
           </div>
         </div>
       </div>
+
+      {/* Trailer modal */}
+      {showTrailer && anime.trailer?.youtube_id && (
+        <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4" onClick={() => setShowTrailer(false)}>
+          <div className="w-full max-w-3xl aspect-video rounded-2xl overflow-hidden" onClick={e => e.stopPropagation()}>
+            <iframe
+              src={`https://www.youtube.com/embed/${anime.trailer.youtube_id}?autoplay=1`}
+              className="w-full h-full border-0"
+              allow="autoplay; fullscreen"
+              allowFullScreen
+            />
+          </div>
+          <button onClick={() => setShowTrailer(false)} className="absolute top-4 right-4 w-10 h-10 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center text-white text-xl">✕</button>
+        </div>
+      )}
+
+      {/* Characters */}
+      {characters.length > 0 && (
+        <div className="max-w-7xl mx-auto px-4 md:px-8 mt-8">
+          <h2 className="text-[16px] font-heading font-black text-white mb-4">Characters</h2>
+          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-12 gap-3">
+            {characters.map((c: any) => (
+              <div key={c.character.mal_id} className="text-center">
+                <div className="aspect-square rounded-xl overflow-hidden bg-[var(--card)] mb-1.5">
+                  <img src={c.character.images?.webp?.image_url || c.character.images?.jpg?.image_url}
+                    alt={c.character.name}
+                    className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
+                  />
+                </div>
+                <p className="text-[9px] font-bold text-white line-clamp-2 leading-tight">{c.character.name}</p>
+                <p className="text-[8px] text-[var(--text3)] mt-0.5">{c.role}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Recommendations */}
       {recommendations.length > 0 && (

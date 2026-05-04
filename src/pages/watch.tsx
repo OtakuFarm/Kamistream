@@ -4,7 +4,7 @@ import { useAnimeDetail, useAnimeEpisodes } from '@/lib/jikan';
 import { supabase } from '@/lib/supabase';
 import { useWatchHistory } from '@/hooks/useWatchHistory';
 import { ChevronLeft, ChevronRight, Settings, SkipForward, X } from 'lucide-react';
-import { LoadingSkeleton } from '@/components/LoadingSkeleton';
+import { WatchSkeleton } from '@/components/LoadingSkeleton';
 import { useSEO } from '@/hooks/useSEO';
 import { useEpisodeProgress } from '@/hooks/useEpisodeProgress';
 import { EpisodeSocial } from '@/components/EpisodeSocial';
@@ -177,7 +177,7 @@ export default function Watch() {
     type:        'video.other',
   } : {});
 
-  if (detailLoading) return <LoadingSkeleton />;
+  if (detailLoading) return <WatchSkeleton />;
   if (!detail?.data) return <div className="p-8 text-center">Anime not found.</div>;
 
   const anime = detail.data;
