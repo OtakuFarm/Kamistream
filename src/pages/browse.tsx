@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { AnimeCard } from '@/components/AnimeCard';
 import { GridSkeleton } from '@/components/LoadingSkeleton';
 import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
@@ -133,6 +133,17 @@ export default function Browse() {
     staleTime: 10 * 60 * 1000,
     enabled: tab === 'top',
   });
+
+  // Auto-fetch first 4 pages (100 anime) when Top 1000 tab opens
+  useEffect(() => {
+    if (tab !== 'top' || topLoading || loadingMoreTop) return;
+    const loaded = topPages?.pages.length ?? 0;
+    if (loaded > 0 && loaded < 4 && hasMoreTop) {
+      // Small delay to avoid rate limiting
+      const t = setTimeout(() => fetchNextTop(), 400);
+      return () => clearTimeout(t);
+    }
+  }, [tab, topPages?.pages.length, topLoading, loadingMoreTop, hasMoreTop]);
 
   // Search infinite
   const {
@@ -293,9 +304,21 @@ export default function Browse() {
           </div>
           {hasMore && (
             <div className="flex justify-center mt-10">
-              <button onClick={() => loadMore()} disabled={loadingMore}
+              <button
+                onClick={async () => {
+                  // Load 4 pages at once (100 anime) for top tab, 1 page for search
+                  if (tab === 'top') {
+                    for (let i = 0; i < 4; i++) {
+                      await fetchNextTop();
+                      await new Promise(r => setTimeout(r, 400));
+                    }
+                  } else {
+                    loadMore();
+                  }
+                }}
+                disabled={loadingMore}
                 className="flex items-center gap-2 bg-gradient-to-r from-[var(--pink)] to-[var(--purple)] text-white px-8 py-3 rounded-xl text-[13px] font-bold hover:brightness-110 transition-all disabled:opacity-60">
-                {loadingMore ? <><Loader2 className="w-4 h-4 animate-spin" /> Loading…</> : `Load More (${animeList.length} shown)`}
+                {loadingMore ? <><Loader2 className="w-4 h-4 animate-spin" /> Loading…</> : `Load More — ${animeList.length} shown`}
               </button>
             </div>
           )}
