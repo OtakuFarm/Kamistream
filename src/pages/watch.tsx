@@ -103,7 +103,7 @@ export default function Watch() {
       }
       setLoadingPlayer(false);
     });
-  }, [malId, epId, dub]);
+  }, [malId, epId]);
 
   // Log episode to watch history once anime data is available
   useEffect(() => {
@@ -321,6 +321,12 @@ export default function Watch() {
             <ChevronRight className="w-5 h-5" />
           </button>
         </div>
+        {/* Sidebar ad slot */}
+        <div
+          id="sidebar-ad"
+          className="min-h-[1px] px-2 pt-2"
+          ref={el => { if (el && (window as any).KamiAds) (window as any).KamiAds.loadSidebarAd(); }}
+        />
         <div className="flex-1 overflow-y-auto p-2 space-y-1">
           {eps.map((ep: any) => {
             const isCurrent = ep.mal_id.toString() === epId;
