@@ -16,5 +16,27 @@ export default defineConfig({
   },
   build: {
     outDir: "dist",
+    chunkSizeWarningLimit: 1000, // kB — warn only above 1MB
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // Split heavy vendor libs into separate chunks
+          "vendor-react":   ["react", "react-dom"],
+          "vendor-radix":   [
+            "@radix-ui/react-dialog",
+            "@radix-ui/react-dropdown-menu",
+            "@radix-ui/react-select",
+            "@radix-ui/react-tabs",
+            "@radix-ui/react-tooltip",
+            "@radix-ui/react-accordion",
+            "@radix-ui/react-popover",
+          ],
+          "vendor-query":   ["@tanstack/react-query"],
+          "vendor-supabase": ["@supabase/supabase-js"],
+          "vendor-charts":  ["recharts"],
+          "vendor-ui":      ["sonner", "vaul", "cmdk"],
+        },
+      },
+    },
   },
 });
