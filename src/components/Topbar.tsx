@@ -25,7 +25,7 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (search.trim()) {
-      setLocation(`/browse?q=${encodeURIComponent(search.trim())}`);
+      setLocation(`/search?q=${encodeURIComponent(search.trim())}`);
       setShowDropdown(false);
     }
   };
@@ -82,7 +82,7 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
                   </Link>
                 ))}
                 <button 
-                  onClick={() => { if (search.trim()) { setLocation(`/browse?q=${encodeURIComponent(search.trim())}`); setShowDropdown(false); } }}
+                  onClick={() => { if (search.trim()) { setLocation(`/search?q=${encodeURIComponent(search.trim())}`); setShowDropdown(false); } }}
                   className="p-3 text-center text-[12px] font-bold text-[var(--pink)] hover:bg-[var(--bg3)] transition-colors"
                 >
                   View all results
@@ -96,7 +96,11 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
       </div>
 
       <div className="flex items-center gap-2 md:gap-4 ml-auto">
-        <button className="w-9 h-9 flex items-center justify-center rounded-xl bg-[var(--bg3)] border border-[var(--border)] text-[var(--text3)] hover:text-white transition-colors relative">
+        <button
+          title="Notifications — coming soon"
+          className="w-9 h-9 flex items-center justify-center rounded-xl bg-[var(--bg3)] border border-[var(--border)] text-[var(--text3)] hover:text-white transition-colors relative cursor-not-allowed opacity-60"
+          disabled
+        >
           <Bell className="w-4 h-4" />
         </button>
 
