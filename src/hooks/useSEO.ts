@@ -1,3 +1,5 @@
+import { useEffect } from 'react';
+
 interface SEOProps {
   title?: string;
   description?: string;
@@ -16,28 +18,31 @@ export function useSEO({ title, description, image, url, type = 'website' }: SEO
   const img       = image || DEFAULT_IMAGE;
   const pageUrl   = url || (typeof window !== 'undefined' ? window.location.href : 'https://kamistream.fun');
 
-  function setMeta(property: string, content: string, isName = false) {
-    const attr = isName ? 'name' : 'property';
-    let el = document.querySelector(`meta[${attr}="${property}"]`) as HTMLMetaElement;
-    if (!el) {
-      el = document.createElement('meta');
-      el.setAttribute(attr, property);
-      document.head.appendChild(el);
+  useEffect(() => {
+    function setMeta(property: string, content: string, isName = false) {
+      const attr = isName ? 'name' : 'property';
+      let el = document.querySelector(`meta[${attr}="${property}"]`) as HTMLMetaElement;
+      if (!el) {
+        el = document.createElement('meta');
+        el.setAttribute(attr, property);
+        document.head.appendChild(el);
+      }
+      el.content = content;
     }
-    el.content = content;
-  }
 
-  // Set all meta tags
-  document.title = fullTitle;
-  setMeta('description',       desc,     true);
-  setMeta('og:type',           type);
-  setMeta('og:title',          fullTitle);
-  setMeta('og:description',    desc);
-  setMeta('og:image',          img);
-  setMeta('og:url',            pageUrl);
-  setMeta('og:site_name',      'KamiStream');
-  setMeta('twitter:card',      'summary_large_image', true);
-  setMeta('twitter:title',     fullTitle, true);
-  setMeta('twitter:description', desc,   true);
-  setMeta('twitter:image',     img,      true);
+    document.title = fullTitle;
+    setMeta('description',         desc,      true);
+    setMeta('og:type',             type);
+    setMeta('og:title',            fullTitle);
+    setMeta('og:description',      desc);
+    setMeta('og:image',            img);
+    setMeta('og:url',              pageUrl);
+    setMeta('og:site_name',        'KamiStream');
+    setMeta('twitter:card',        'summary_large_image', true);
+    setMeta('twitter:title',       fullTitle,             true);
+    setMeta('twitter:description', desc,                  true);
+    setMeta('twitter:image',       img,                   true);
+
+    return () => { document.title = DEFAULT_TITLE; };
+  }, [fullTitle, desc, img, pageUrl, type]);
 }

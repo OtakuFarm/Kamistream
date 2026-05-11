@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
 const WATCHED_KEY  = 'kami_watched_eps';   // Set of "malId_epId" strings
 const PROGRESS_KEY = 'kami_ep_progress';   // Map of "malId_epId" → seconds
@@ -29,12 +29,12 @@ function _notifyAll() { _listeners.forEach(fn => fn()); }
 export function useEpisodeProgress() {
   const [, forceUpdate] = useState(0);
 
-  // Subscribe to cross-component updates
-  useState(() => {
+  // Subscribe to cross-component updates — useEffect so cleanup actually runs on unmount
+  useEffect(() => {
     const refresh = () => forceUpdate(n => n + 1);
     _listeners.add(refresh);
-    return () => { _listeners.delete(refresh); };
-  });
+    return () => _listeners.delete(refresh);
+  }, []);
 
   const markWatched = useCallback((malId: string | number, epId: string | number) => {
     const s = readWatched();
