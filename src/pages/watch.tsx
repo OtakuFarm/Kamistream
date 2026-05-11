@@ -122,9 +122,11 @@ export default function Watch() {
     if (adminSources.length > 0) {
       const match = adminSources.find((s: any) => s.language === (dub ? 'dub' : 'sub')) || adminSources[0];
       setActiveSource(match.embed_url);
-    } else if (alId !== null) {
+    } else if (alId !== null && alId !== undefined) {
+      // alId can be empty string '' if AniList lookup failed — fall back to malId in that case
       setActiveSource(`https://vidnest.fun/animepahe/${alId || malId}/${epId}/${dub ? 'dub' : 'sub'}`);
     }
+    // If alId is still null, the first effect hasn't resolved yet — it will set the source correctly
   }, [dub]);
 
   useEffect(() => {

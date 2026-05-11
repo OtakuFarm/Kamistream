@@ -151,7 +151,7 @@ export default function Browse() {
     hasNextPage: hasMoreSearch, isFetchingNextPage: loadingMoreSearch,
     isLoading: searchLoading, isFetching: searchFetching,
   } = useInfiniteQuery({
-    queryKey: ['browse', 'search', JSON.stringify(filters)],
+    queryKey: ['browse', 'search', filters],
     queryFn: ({ pageParam = 1 }) => fetchJikanFiltered(filters, pageParam as number),
     getNextPageParam: (last: any) => {
       const cur = last?.pagination?.current_page ?? 1;

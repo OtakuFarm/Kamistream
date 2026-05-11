@@ -14,7 +14,7 @@ interface Submission {
 }
 
 export default function Profile() {
-  const { user, signOut } = useAuth();
+  const { user, signOut, loading } = useAuth();
   const [, setLocation]   = useLocation();
   const { getHistory, getRecentAnime, clearHistory } = useWatchHistory();
   const { watchlist }     = useWatchlist();
@@ -23,6 +23,11 @@ export default function Profile() {
   const [totalLikes,  setTotalLikes]  = useState(0);
 
   useSEO({ title: 'My Profile' });
+
+  // Redirect unauthenticated users — must be in useEffect, not render
+  useEffect(() => {
+    if (!loading && !user) setLocation('/login');
+  }, [user, loading]);
 
   useEffect(() => {
     if (!user) return;
@@ -43,7 +48,7 @@ export default function Profile() {
       });
   }, [user]);
 
-  if (!user) { setLocation('/login'); return null; }
+  if (loading || !user) return null;
 
   const history     = getHistory();
   const recentAnime = getRecentAnime();

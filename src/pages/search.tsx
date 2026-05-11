@@ -1,9 +1,10 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { useSearch } from 'wouter';
 import { useAnimeSearch } from '@/lib/jikan';
 import { AnimeCard } from '@/components/AnimeCard';
 import { GridSkeleton } from '@/components/LoadingSkeleton';
 import { SearchIcon } from 'lucide-react';
+import { useSEO } from '@/hooks/useSEO';
 
 export default function SearchPage() {
   const searchStr = useSearch();
@@ -12,10 +13,10 @@ export default function SearchPage() {
 
   const { data, isLoading } = useAnimeSearch(q);
 
-  useEffect(() => {
-    document.title = q ? `Search: "${q}" — KamiStream` : 'Search — KamiStream';
-    return () => { document.title = 'KamiStream'; };
-  }, [q]);
+  useSEO({
+    title: q ? `Search: "${q}"` : 'Search',
+    description: q ? `Anime search results for "${q}" on KamiStream` : 'Search for anime on KamiStream',
+  });
 
   return (
     <div className="p-4 md:p-6 pb-20">
