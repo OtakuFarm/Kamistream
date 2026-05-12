@@ -45,6 +45,23 @@ function ScrollToTop() {
   return null;
 }
 
+// ── Stable route components (not inline arrows — those remount on every render) ──
+const HomeRoute       = () => <Layout><Home /></Layout>;
+const BrowseRoute     = () => <Layout><Browse /></Layout>;
+const AnimeRoute      = () => <Layout><AnimeDetail /></Layout>;
+const WatchlistRoute  = () => <Layout><Watchlist /></Layout>;
+const ChallengesRoute = () => <Layout><Challenges /></Layout>;
+const LeaderboardRoute= () => <Layout><Leaderboard /></Layout>;
+const CommunityRoute  = () => <Layout><Community /></Layout>;
+const ProfileRoute    = () => <Layout><Profile /></Layout>;
+const CreatorRoute    = () => <Layout><Creator /></Layout>;
+const GenreRoute      = () => <Layout><Genre /></Layout>;
+const SearchRoute     = () => <Layout><Search /></Layout>;
+const WatchRoute      = () => <MinimalLayout><Watch /></MinimalLayout>;
+const LoginRoute      = () => <MinimalLayout><Login /></MinimalLayout>;
+const SignupRoute      = () => <MinimalLayout><Signup /></MinimalLayout>;
+const NotFoundRoute   = () => <Layout><NotFound /></Layout>;
+
 function Router() {
   return (
     <Suspense fallback={
@@ -53,29 +70,22 @@ function Router() {
       </Layout>
     }>
       <Switch>
-        <Route path="/" component={() => <Layout><Home /></Layout>} />
-        <Route path="/browse" component={() => <Layout><Browse /></Layout>} />
-        <Route path="/anime/:id" component={() => <Layout><AnimeDetail /></Layout>} />
-        
-        {/* Minimal Layout for watch & auth */}
-        <Route path="/watch/:id/:ep" component={() => <MinimalLayout><Watch /></MinimalLayout>} />
-        <Route path="/login" component={() => <MinimalLayout><Login /></MinimalLayout>} />
-        <Route path="/signup" component={() => <MinimalLayout><Signup /></MinimalLayout>} />
-        
-        {/* Standard Layout for others */}
-        <Route path="/watchlist" component={() => <Layout><Watchlist /></Layout>} />
-        <Route path="/challenges" component={() => <Layout><Challenges /></Layout>} />
-        <Route path="/leaderboard" component={() => <Layout><Leaderboard /></Layout>} />
-        <Route path="/community" component={() => <Layout><Community /></Layout>} />
-        <Route path="/profile" component={() => <Layout><Profile /></Layout>} />
-        <Route path="/creator/:username" component={() => <Layout><Creator /></Layout>} />
-        <Route path="/genre/:id" component={() => <Layout><Genre /></Layout>} />
-        <Route path="/search" component={() => <Layout><Search /></Layout>} />
-        
-        {/* Admin has its own full-page layout embedded in the component */}
-        <Route path="/admin" component={Admin} />
-        
-        <Route component={() => <Layout><NotFound /></Layout>} />
+        <Route path="/"                  component={HomeRoute} />
+        <Route path="/browse"            component={BrowseRoute} />
+        <Route path="/anime/:id"         component={AnimeRoute} />
+        <Route path="/watch/:id/:ep"     component={WatchRoute} />
+        <Route path="/login"             component={LoginRoute} />
+        <Route path="/signup"            component={SignupRoute} />
+        <Route path="/watchlist"         component={WatchlistRoute} />
+        <Route path="/challenges"        component={ChallengesRoute} />
+        <Route path="/leaderboard"       component={LeaderboardRoute} />
+        <Route path="/community"         component={CommunityRoute} />
+        <Route path="/profile"           component={ProfileRoute} />
+        <Route path="/creator/:username" component={CreatorRoute} />
+        <Route path="/genre/:id"         component={GenreRoute} />
+        <Route path="/search"            component={SearchRoute} />
+        <Route path="/admin"             component={Admin} />
+        <Route                           component={NotFoundRoute} />
       </Switch>
     </Suspense>
   );
