@@ -1,66 +1,10 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AnimeCard } from '@/components/AnimeCard';
 import { GridSkeleton } from '@/components/LoadingSkeleton';
-import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
-import { SlidersHorizontal, X, Search, Database, Loader2 } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { useInfiniteQuery } from '@tanstack/react-query';
+import { SlidersHorizontal, X, Search, Loader2 } from 'lucide-react';
 import { useSEO } from '@/hooks/useSEO';
-
-// ── Supabase library with Jikan fallback ─────────────────────────────
-async function fetchSupabaseLibrary() {
-  try {
-    let all: any[] = [];
-    let from = 0;
-    const batch = 1000;
-    let hasMore = true;
-    while (hasMore) {
-      const { data, error } = await supabase
-        .from('anime')
-        // Select only the columns we actually need (avoids schema mismatch errors)
-        .select('id, anilist_id, mal_id, title_english, title_romaji, cover_image, episodes_total, score, type')
-        .order('imported_at', { ascending: false }) // ← was 'created_at' which doesn't exist
-        .range(from, from + batch - 1);
-      if (error) {
-        console.error('[library] Supabase error:', error.message, error.details);
-        throw error;
-      }
-      const rows = data || [];
-      all = [...all, ...rows];
-      hasMore = rows.length === batch;
-      from += batch;
-    }
-    if (all.length === 0) throw new Error('empty');
-    return {
-      source: 'supabase',
-      data: all.map((row: any) => ({
-        mal_id:   row.mal_id   ?? row.id,
-        title:    row.title_english || row.title_romaji || 'Unknown',
-        score:    row.score    ?? null,
-        episodes: row.episodes_total ?? null,
-        type:     row.type     ?? 'TV',
-        images: {
-          webp: { large_image_url: row.cover_image ?? '' },
-          jpg:  { large_image_url: row.cover_image ?? '' },
-        },
-      })),
-    };
-  } catch (err: any) {
-    console.warn('[library] Supabase failed, falling back to Jikan:', err?.message);
-    const res = await fetch('https://api.jikan.moe/v4/top/anime?limit=24&sfw=true');
-    if (!res.ok) throw new Error('Both sources failed');
-    const json = await res.json();
-    return { source: 'jikan', data: json.data || [] };
-  }
-}
-
-function useSupabaseLibrary() {
-  return useQuery({
-    queryKey: ['browse', 'supabase'],
-    queryFn: fetchSupabaseLibrary,
-    staleTime: 2 * 60 * 1000,
-    retry: 1,
-  });
-}
+import { useSearch } from 'wouter';
 
 // ── Jikan top anime (infinite) ────────────────────────────────────────
 async function fetchTopPage(page: number) {
@@ -109,19 +53,27 @@ const ORDER_BY = [
 const THIS_YEAR = new Date().getFullYear();
 const YEARS = ['', ...Array.from({ length: 35 }, (_, i) => String(THIS_YEAR - i))];
 
-type Tab = 'library' | 'top' | 'search';
+type Tab = 'top' | 'search';
 
 export default function Browse() {
   useSEO({ title: 'Browse Anime', description: 'Browse thousands of anime — search by genre, type, year and score on KamiStream.' });
-  const [tab,         setTab]         = useState<Tab>('library');
-  const [inputVal,    setInputVal]    = useState('');
-  const [filters,     setFilters]     = useState<Filters>(DEFAULT_FILTERS);
+
+  const searchString = useSearch();
+  const urlParams    = new URLSearchParams(searchString);
+  const urlQ         = urlParams.get('q') || '';
+
+  const [tab,         setTab]         = useState<Tab>(urlQ ? 'search' : 'top');
+  const [inputVal,    setInputVal]    = useState(urlQ);
+  const [filters,     setFilters]     = useState<Filters>(urlQ ? { ...DEFAULT_FILTERS, q: urlQ } : DEFAULT_FILTERS);
   const [showFilters, setShowFilters] = useState(false);
 
-  // Supabase library
-  const { data: supabaseResult, isLoading: supabaseLoading, isError: supabaseError } = useSupabaseLibrary();
-  const supabaseData = supabaseResult?.data || [];
-  const supabaseSource = supabaseResult?.source || 'supabase';
+  // When the URL ?q= changes (e.g. topbar search from another page), sync state
+  useEffect(() => {
+    if (!urlQ) return;
+    setInputVal(urlQ);
+    setFilters(f => ({ ...f, q: urlQ }));
+    setTab('search');
+  }, [urlQ]);
 
   // Top anime infinite
   const {
@@ -189,10 +141,9 @@ export default function Browse() {
   const activeFilterCount = [filters.genre, filters.type, filters.status, filters.minScore, filters.year]
     .filter(Boolean).length + (filters.orderBy !== 'popularity' ? 1 : 0);
 
-  // Current tab data
-  const animeList   = tab === 'library' ? (supabaseData || []) : tab === 'top' ? topAnime : searchAnime;
-  const isLoading   = tab === 'library' ? supabaseLoading : tab === 'top' ? topLoading : (searchLoading || searchFetching);
-  const hasMore     = tab === 'top' ? hasMoreTop : tab === 'search' ? hasMoreSearch : false;
+  const animeList   = tab === 'top' ? topAnime : searchAnime;
+  const isLoading   = tab === 'top' ? topLoading : (searchLoading || searchFetching);
+  const hasMore     = tab === 'top' ? hasMoreTop : hasMoreSearch;
   const loadingMore = tab === 'top' ? loadingMoreTop : loadingMoreSearch;
   const loadMore    = tab === 'top' ? fetchNextTop : fetchNextSearch;
 
@@ -225,7 +176,7 @@ export default function Browse() {
             Search
           </button>
           {tab === 'search' && (
-            <button onClick={() => { setTab('library'); setInputVal(''); setFilters(DEFAULT_FILTERS); }}
+            <button onClick={() => { setTab('top'); setInputVal(''); setFilters(DEFAULT_FILTERS); }}
               className="flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-[12px] font-bold text-[var(--text3)] border border-[var(--border)] hover:text-white transition-all">
               <X className="w-3.5 h-3.5" /> Clear
             </button>
@@ -234,15 +185,6 @@ export default function Browse() {
 
         {/* Tabs */}
         <div className="flex gap-2 flex-wrap">
-          <button onClick={() => setTab('library')}
-            className={`px-5 py-2 rounded-xl text-[13px] font-bold transition-all flex items-center gap-2 ${tab === 'library' ? 'bg-gradient-to-r from-[var(--pink)] to-[var(--purple)] text-white' : 'bg-[var(--card)] text-[var(--text2)] border border-[var(--border)] hover:text-white'}`}>
-            <Database className="w-3.5 h-3.5" /> Our Library
-            {supabaseData && supabaseData.length > 0 && (
-              <span className={`px-1.5 py-0.5 rounded-md text-[10px] ${tab === 'library' ? 'bg-white/20' : 'bg-[var(--pink)]/20 text-[var(--pink)]'}`}>
-                {supabaseData.length}
-              </span>
-            )}
-          </button>
           <button onClick={() => setTab('top')}
             className={`px-5 py-2 rounded-xl text-[13px] font-bold transition-all ${tab === 'top' ? 'bg-gradient-to-r from-[var(--pink)] to-[var(--purple)] text-white' : 'bg-[var(--card)] text-[var(--text2)] border border-[var(--border)] hover:text-white'}`}>
             🔥 Top 1000
@@ -297,14 +239,6 @@ export default function Browse() {
       {/* Grid */}
       {isLoading && animeList.length === 0 ? (
         <GridSkeleton />
-      ) : tab === 'library' && supabaseError ? (
-        <GridSkeleton />
-      ) : tab === 'library' && animeList.length === 0 && !supabaseLoading ? (
-        <div className="text-center py-20">
-          <Database className="w-12 h-12 text-[var(--text3)] mx-auto mb-4 opacity-40" />
-          <p className="text-[var(--text3)] text-[14px] font-bold">No anime in your library yet.</p>
-          <p className="text-[var(--text3)] text-[12px] mt-1 opacity-60">Import anime via the Admin panel → Anime Manager.</p>
-        </div>
       ) : animeList.length > 0 ? (
         <>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
@@ -330,7 +264,7 @@ export default function Browse() {
               </button>
             </div>
           )}
-          {!hasMore && tab !== 'library' && (
+          {!hasMore && (
             <p className="text-center text-[12px] text-[var(--text3)] mt-8">All {animeList.length} anime loaded</p>
           )}
         </>
