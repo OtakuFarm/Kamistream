@@ -66,23 +66,21 @@ export default function Leaderboard() {
     return () => { cancelled = true; };
   }, [tab, week?.id]);
 
-  // Weekly countdown
+  // Weekly countdown — use actual week.ends_at from Supabase
   useEffect(() => {
+    if (!week?.ends_at) { setCountdown(''); return; }
     const update = () => {
-      const now  = new Date();
-      const next = new Date();
-      next.setDate(now.getDate() + (7 - now.getDay()) % 7 || 7);
-      next.setHours(0, 0, 0, 0);
-      const diff = next.getTime() - now.getTime();
-      const d    = Math.floor(diff / 86400000);
-      const h    = Math.floor((diff % 86400000) / 3600000);
-      const m    = Math.floor((diff % 3600000) / 60000);
-      setCountdown(`${d}d ${h}h ${m}m`);
+      const diff = new Date(week.ends_at).getTime() - Date.now();
+      if (diff <= 0) { setCountdown('Ended'); return; }
+      const d = Math.floor(diff / 86400000);
+      const h = Math.floor((diff % 86400000) / 3600000);
+      const m = Math.floor((diff % 3600000) / 60000);
+      setCountdown(d > 0 ? `${d}d ${h}h ${m}m` : `${h}h ${m}m`);
     };
     update();
     const t = setInterval(update, 60000);
     return () => clearInterval(t);
-  }, []);
+  }, [week?.ends_at]);
 
   // Find current user's rank
   const myRank = user ? entries.findIndex(e => e.user_id === user.id) + 1 : 0;

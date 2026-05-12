@@ -53,17 +53,37 @@ export default function Community() {
       });
   }, []);
 
-  // Realtime subscription
+  // Real online count via Supabase Presence
+  useEffect(() => {
+    const presenceChannel = supabase.channel('community_presence', {
+      config: { presence: { key: Math.random().toString(36).slice(2) } },
+    });
+    presenceChannel
+      .on('presence', { event: 'sync' }, () => {
+        const state = presenceChannel.presenceState();
+        setOnline(Object.keys(state).length || 1);
+      })
+      .subscribe(async (status) => {
+        if (status === 'SUBSCRIBED') {
+          await presenceChannel.track({ online_at: new Date().toISOString() });
+        }
+      });
+    return () => { supabase.removeChannel(presenceChannel); };
+  }, []);
+
+  // Realtime messages subscription (separate channel from presence)
   useEffect(() => {
     const channel = supabase
-      .channel('community_chat')
+      .channel('community_chat_feed')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'community_chat' }, payload => {
-        setMessages(prev => [...prev, payload.new as Message].slice(-100));
+        setMessages(prev => {
+          const msg = payload.new as Message;
+          // Deduplicate in case initial load and subscription overlap
+          if (prev.some(m => m.id === msg.id)) return prev;
+          return [...prev, msg].slice(-100);
+        });
       })
-      .subscribe(status => {
-        if (status === 'SUBSCRIBED') setOnline(prev => prev + Math.floor(Math.random() * 3));
-      });
-
+      .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, []);
 

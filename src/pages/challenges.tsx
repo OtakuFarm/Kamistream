@@ -8,6 +8,7 @@ import {
   useCountdown,
 } from '@/hooks/useChallenge';
 import { UploadModal } from '@/components/UploadModal';
+import { useSEO } from '@/hooks/useSEO';
 
 export default function Challenges() {
   const { user } = useAuth();
@@ -19,6 +20,7 @@ export default function Challenges() {
   const countdown = useCountdown(week?.ends_at);
   const [showUpload, setShowUpload] = useState(false);
   const pad = (n: number) => n.toString().padStart(2, '0');
+  useSEO({ title: 'Weekly Challenge', description: 'Submit your anime video clip, vote for your favourites and win prizes on KamiStream.' });
 
   return (
     <div className="min-h-[calc(100vh-60px)] bg-black text-white pb-24">

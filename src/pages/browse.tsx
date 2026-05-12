@@ -15,29 +15,37 @@ async function fetchSupabaseLibrary() {
     let hasMore = true;
     while (hasMore) {
       const { data, error } = await supabase
-        .from('anime').select('*')
-        .order('created_at', { ascending: false })
+        .from('anime')
+        // Select only the columns we actually need (avoids schema mismatch errors)
+        .select('id, anilist_id, mal_id, title_english, title_romaji, cover_image, episodes_total, score, type')
+        .order('imported_at', { ascending: false }) // ← was 'created_at' which doesn't exist
         .range(from, from + batch - 1);
-      if (error) throw error;
+      if (error) {
+        console.error('[library] Supabase error:', error.message, error.details);
+        throw error;
+      }
       const rows = data || [];
       all = [...all, ...rows];
       hasMore = rows.length === batch;
       from += batch;
     }
     if (all.length === 0) throw new Error('empty');
-    return { source: 'supabase', data: all.map((row: any) => ({
-      mal_id:   row.mal_id   ?? row.id,
-      title:    row.title    ?? row.title_english ?? row.title_romaji ?? row.name,
-      score:    row.score    ?? row.rating ?? null,
-      episodes: row.episodes ?? row.episodes_total ?? row.episode_count ?? null,
-      type:     row.type     ?? row.format ?? 'TV',
-      images: {
-        webp: { large_image_url: row.image_url ?? row.cover_url ?? row.cover_image ?? row.thumbnail ?? row.poster ?? '' },
-        jpg:  { large_image_url: row.image_url ?? row.cover_url ?? row.cover_image ?? row.thumbnail ?? row.poster ?? '' },
-      },
-    })) };
-  } catch {
-    // Supabase blocked — fall back to Jikan top anime as the library
+    return {
+      source: 'supabase',
+      data: all.map((row: any) => ({
+        mal_id:   row.mal_id   ?? row.id,
+        title:    row.title_english || row.title_romaji || 'Unknown',
+        score:    row.score    ?? null,
+        episodes: row.episodes_total ?? null,
+        type:     row.type     ?? 'TV',
+        images: {
+          webp: { large_image_url: row.cover_image ?? '' },
+          jpg:  { large_image_url: row.cover_image ?? '' },
+        },
+      })),
+    };
+  } catch (err: any) {
+    console.warn('[library] Supabase failed, falling back to Jikan:', err?.message);
     const res = await fetch('https://api.jikan.moe/v4/top/anime?limit=24&sfw=true');
     if (!res.ok) throw new Error('Both sources failed');
     const json = await res.json();

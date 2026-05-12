@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useTrendingAnime, useTopRatedAnime, useSeasonalAnime } from '@/lib/jikan';
 import { AnimeCard } from '@/components/AnimeCard';
 import { GridSkeleton } from '@/components/LoadingSkeleton';
@@ -20,10 +20,11 @@ export default function Home() {
   const [heroIndex, setHeroIndex] = useState(0);
   const [isHovered, setIsHovered] = useState(false);
 
-  const heroAnimes = trending?.data?.slice(0, 10) || [];
+  const heroAnimes = useMemo(() => trending?.data?.slice(0, 10) || [], [trending?.data]);
   const activeHero = heroAnimes[heroIndex];
 
-  const recentHistory = getRecentAnime().slice(0, 12);
+  const recentHistory = useMemo(() => getRecentAnime().slice(0, 12), [getRecentAnime]);
+
   useSEO({ title: 'Home', description: 'Stream anime free on KamiStream — trending, seasonal and top rated all in one place.' });
 
   const { data: airingSchedule } = useQuery({
@@ -32,16 +33,38 @@ export default function Home() {
     staleTime: 15 * 60 * 1000,
   });
 
-  // Group by day
-  const airingByDay = (airingSchedule || []).reduce((acc: any, item: any) => {
-    const d = new Date(item.airingAt * 1000);
-    const key = d.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
-    if (!acc[key]) acc[key] = [];
-    acc[key].push(item);
-    return acc;
-  }, {});
-  const airingDays = Object.keys(airingByDay).slice(0, 3);
+  const { airingByDay, airingDays } = useMemo(() => {
+    const byDay = (airingSchedule || []).reduce((acc: any, item: any) => {
+      const d = new Date(item.airingAt * 1000);
+      const key = d.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
+      if (!acc[key]) acc[key] = [];
+      acc[key].push(item);
+      return acc;
+    }, {});
+    return { airingByDay: byDay, airingDays: Object.keys(byDay).slice(0, 3) };
+  }, [airingSchedule]);
 
+  // Normalise a watchlist item to what AnimeCard expects — guard against missing mal_id
+  const wlToCard = useMemo(() => (item: any) => ({
+    mal_id: item.mal_id,
+    title: item.title,
+    score: item.score,
+    episodes: item.episodes,
+    type: 'TV',
+    images: { webp: { large_image_url: item.image_url || '' }, jpg: { large_image_url: item.image_url || '' } },
+  }), []);
+
+  // Normalise watch history entry — guard against missing mal_id
+  const histToCard = useMemo(() => (item: any) => ({
+    mal_id: item.mal_id,
+    title: item.title,
+    score: null,
+    episodes: null,
+    type: 'TV',
+    images: { webp: { large_image_url: item.image_url || '' }, jpg: { large_image_url: item.image_url || '' } },
+  }), []);
+
+  // Auto-advance hero carousel
   useEffect(() => {
     if (heroAnimes.length === 0 || isHovered) return;
     const interval = setInterval(() => {
@@ -49,26 +72,6 @@ export default function Home() {
     }, 8000);
     return () => clearInterval(interval);
   }, [heroAnimes.length, isHovered]);
-
-  // Normalise a watchlist item to what AnimeCard expects
-  const wlToCard = (item: any) => ({
-    mal_id: item.mal_id,
-    title: item.title,
-    score: item.score,
-    episodes: item.episodes,
-    type: 'TV',
-    images: { webp: { large_image_url: item.image_url }, jpg: { large_image_url: item.image_url } },
-  });
-
-  // Normalise watch history entry to AnimeCard shape
-  const histToCard = (item: any) => ({
-    mal_id: item.mal_id,
-    title: item.title,
-    score: null,
-    episodes: null,
-    type: 'TV',
-    images: { webp: { large_image_url: item.image_url }, jpg: { large_image_url: item.image_url } },
-  });
 
   return (
     <div className="p-4 md:p-6 space-y-10 pb-20">
@@ -81,7 +84,7 @@ export default function Home() {
           onMouseLeave={() => setIsHovered(false)}
         >
           <img
-            src={activeHero.trailer?.images?.maximum_image_url || activeHero.images.webp.large_image_url}
+            src={activeHero.trailer?.images?.maximum_image_url || activeHero.images?.webp?.large_image_url || activeHero.images?.jpg?.large_image_url || ''}
             alt={activeHero.title}
             className="absolute inset-0 w-full h-full object-cover transition-all duration-700"
           />

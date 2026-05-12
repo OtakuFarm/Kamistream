@@ -335,13 +335,15 @@ export default function Watch() {
             const watched = isWatched(malId, ep.mal_id);
             return (
               <Link key={ep.mal_id} href={`/watch/${malId}/${ep.mal_id}`}
-                onClick={() => !isCurrent && fireEpAd('list')} data-ep-item="true">
-                <div className={`p-3 rounded-xl cursor-pointer transition-colors flex items-center gap-3 ${isCurrent ? 'bg-[var(--pink)]/10 border border-[var(--pink)]' : 'hover:bg-[var(--card)] border border-transparent'}`}>
-                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-mono text-[11px] font-bold ${isCurrent ? 'bg-[var(--pink)] text-white' : 'bg-[var(--bg3)] text-[var(--text3)]'}`}>
+                onClick={() => { if (!isCurrent) fireEpAd('list'); setShowEpList(false); }}
+                data-ep-item="true">
+                <div className={`p-3 rounded-xl cursor-pointer transition-colors flex items-center gap-3 ${isCurrent ? 'bg-[var(--pink)]/10 border border-[var(--pink)]' : watched ? 'bg-[#06d6a0]/5 border border-[#06d6a0]/20 hover:bg-[var(--card)]' : 'hover:bg-[var(--card)] border border-transparent'}`}>
+                  <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-mono text-[11px] font-bold shrink-0 ${isCurrent ? 'bg-[var(--pink)] text-white' : watched ? 'bg-[#06d6a0]/20 text-[#06d6a0]' : 'bg-[var(--bg3)] text-[var(--text3)]'}`}>
                     {ep.mal_id}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className={`text-[12px] font-bold truncate ${isCurrent ? 'text-[var(--pink)]' : 'text-white'}`}>{ep.title}</div>
+                    <div className={`text-[12px] font-bold truncate ${isCurrent ? 'text-[var(--pink)]' : watched ? 'text-[#06d6a0]' : 'text-white'}`}>{ep.title}</div>
+                    {watched && !isCurrent && <div className="text-[9px] text-[#06d6a0] font-bold mt-0.5">✓ Watched</div>}
                   </div>
                 </div>
               </Link>
