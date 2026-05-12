@@ -25,7 +25,7 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (search.trim()) {
-      setLocation(`/search?q=${encodeURIComponent(search.trim())}`);
+      setLocation(`/browse?q=${encodeURIComponent(search.trim())}`);
       setShowDropdown(false);
     }
   };
@@ -82,7 +82,7 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
                   </Link>
                 ))}
                 <button 
-                  onClick={() => { if (search.trim()) { setLocation(`/search?q=${encodeURIComponent(search.trim())}`); setShowDropdown(false); } }}
+                  onClick={() => { if (search.trim()) { setLocation(`/browse?q=${encodeURIComponent(search.trim())}`); setShowDropdown(false); } }}
                   className="p-3 text-center text-[12px] font-bold text-[var(--pink)] hover:bg-[var(--bg3)] transition-colors"
                 >
                   View all results
