@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link } from 'wouter';
+import { useLocation } from 'wouter';
 import { Play, Plus, Check } from 'lucide-react';
 import { useWatchlist } from '@/hooks/useWatchlist';
 import { useWatchHistory } from '@/hooks/useWatchHistory';
@@ -11,26 +11,29 @@ interface AnimeCardProps {
 export function AnimeCard({ anime }: AnimeCardProps) {
   const { toggleWatchlist, isInWatchlist } = useWatchlist();
   const { getRecentAnime } = useWatchHistory();
+  const [, setLocation] = useLocation();
   const isSaved = isInWatchlist(anime.mal_id);
 
-  // Progress bar — last watched ep / total eps
   const history = getRecentAnime();
-  const lastWatched = history.find(h => h.mal_id === anime.mal_id);
+  const lastWatched = history.find((h: any) => h.mal_id === anime.mal_id);
   const totalEps = anime.episodes;
   const progressPct = lastWatched && totalEps
     ? Math.min(100, Math.round((lastWatched.ep_id / totalEps) * 100))
-    : lastWatched && !totalEps
-      ? null   // ongoing — show indicator but no %
-      : null;
+    : null;
 
   return (
-    <div className="tr-card group relative bg-[var(--card)] rounded-xl overflow-hidden cursor-pointer transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl hover:shadow-[var(--purple)]/20">
-      <Link href={`/anime/${anime.mal_id}`} className="block aspect-[3/4] relative overflow-hidden">
+    <div
+      className="tr-card group relative bg-[var(--card)] rounded-xl overflow-hidden cursor-pointer transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl hover:shadow-[var(--purple)]/20"
+      onClick={() => setLocation(`/anime/${anime.mal_id}`)}
+    >
+      {/* Poster image */}
+      <div className="block aspect-[3/4] relative overflow-hidden">
         <img
           src={anime.images?.webp?.large_image_url || anime.images?.jpg?.large_image_url}
           alt={anime.title}
           loading="lazy"
           decoding="async"
+          onError={(e) => { e.currentTarget.src = '/fallback-poster.jpg'; }}
           className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-[#000000e6] via-transparent opacity-60 group-hover:opacity-80 transition-opacity" />
@@ -47,10 +50,8 @@ export function AnimeCard({ anime }: AnimeCardProps) {
           </div>
         )}
 
-        {/* Continue watching badge */}
         {lastWatched && (
           <div className="absolute bottom-0 left-0 right-0">
-            {/* Progress bar */}
             {progressPct !== null ? (
               <div className="h-1 bg-white/20">
                 <div
@@ -66,8 +67,9 @@ export function AnimeCard({ anime }: AnimeCardProps) {
             </div>
           </div>
         )}
-      </Link>
+      </div>
 
+      {/* Info */}
       <div className="p-3">
         <h3 className="font-heading text-[13px] font-bold text-white line-clamp-1 mb-1 group-hover:text-[var(--pink)] transition-colors">
           {anime.title}
@@ -78,9 +80,9 @@ export function AnimeCard({ anime }: AnimeCardProps) {
         </div>
       </div>
 
+      {/* Watchlist button — stopPropagation so it doesn't trigger card navigation */}
       <button
         onClick={(e) => {
-          e.preventDefault();
           e.stopPropagation();
           toggleWatchlist({
             mal_id: anime.mal_id,
