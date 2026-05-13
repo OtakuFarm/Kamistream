@@ -9,6 +9,7 @@ import { useSEO } from '@/hooks/useSEO';
 import { getNextAiring } from '@/lib/anilist';
 import { Play, Plus, Check, Star, Timer, CheckCircle2, Circle } from 'lucide-react';
 import { DetailSkeleton } from '@/components/LoadingSkeleton';
+import { AnimeLoader } from '@/components/AnimeLoader';
 
 const EP_PAGE_SIZE = 50;
 
@@ -30,7 +31,7 @@ export default function AnimeDetail() {
   const { data: charsData } = useQuery({
     queryKey: ['anime', id, 'characters'],
     queryFn: async () => {
-      const res = await fetch(\`https://api.jikan.moe/v4/anime/\${id}/characters\`);
+      const res = await fetch(`https://api.jikan.moe/v4/anime/\${id}/characters`);
       if (!res.ok) return { data: [] };
       return res.json();
     },
@@ -75,7 +76,7 @@ export default function AnimeDetail() {
     return () => clearInterval(t);
   }, [nextAiring]);
 
-  if (detailLoading) return <DetailSkeleton />;
+  if (detailLoading) return <AnimeLoader />;
   if (!anime) return <div className="p-8 text-center text-[var(--text3)]">Anime not found.</div>;
 
   const isSaved    = isInWatchlist(anime.mal_id);
