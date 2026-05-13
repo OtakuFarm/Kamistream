@@ -11,64 +11,74 @@ import { AdblockBanner } from "@/components/AdblockBanner";
 import { LoadingSkeleton } from "@/components/LoadingSkeleton";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 
-const Home = lazy(() => import("@/pages/home"));
-const Browse = lazy(() => import("@/pages/browse"));
+// ── Lazy page imports ─────────────────────────────────────────────────
+const Home        = lazy(() => import("@/pages/home"));
+const Browse      = lazy(() => import("@/pages/browse"));
 const AnimeDetail = lazy(() => import("@/pages/anime-detail"));
-const Watch = lazy(() => import("@/pages/watch"));
-const Watchlist = lazy(() => import("@/pages/watchlist"));
-const Challenges = lazy(() => import("@/pages/challenges"));
+const Watch       = lazy(() => import("@/pages/watch"));
+const Watchlist   = lazy(() => import("@/pages/watchlist"));
+const Challenges  = lazy(() => import("@/pages/challenges"));
 const Leaderboard = lazy(() => import("@/pages/leaderboard"));
-const Community = lazy(() => import("@/pages/community"));
-const Profile = lazy(() => import("@/pages/profile"));
-const Creator = lazy(() => import("@/pages/creator"));
-const Login = lazy(() => import("@/pages/auth/login"));
-const Signup = lazy(() => import("@/pages/auth/signup"));
-const Admin = lazy(() => import("@/pages/admin"));
-const NotFound = lazy(() => import("@/pages/not-found"));
-const Genre = lazy(() => import("@/pages/genre"));
-const Search = lazy(() => import("@/pages/search"));
+const Community   = lazy(() => import("@/pages/community"));
+const Profile     = lazy(() => import("@/pages/profile"));
+const Creator     = lazy(() => import("@/pages/creator"));
+const Login       = lazy(() => import("@/pages/auth/login"));
+const Signup      = lazy(() => import("@/pages/auth/signup"));
+const Admin       = lazy(() => import("@/pages/admin"));
+const NotFound    = lazy(() => import("@/pages/not-found"));
+const Genre       = lazy(() => import("@/pages/genre"));
+const Search      = lazy(() => import("@/pages/search"));
 
+// ── Query client ──────────────────────────────────────────────────────
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 300_000, // 5 minutes
+      staleTime: 300_000,
       refetchOnWindowFocus: false,
+      retry: 2,
     },
   },
 });
 
+// ── Scroll to top on route change ─────────────────────────────────────
 function ScrollToTop() {
   const [location] = useLocation();
-  useEffect(() => {
-    window.scrollTo(0, 0);
-  }, [location]);
+  useEffect(() => { window.scrollTo({ top: 0, behavior: "instant" as ScrollBehavior }); }, [location]);
   return null;
 }
 
-// ── Stable route components (not inline arrows — those remount on every render) ──
-const HomeRoute       = () => <Layout><Home /></Layout>;
-const BrowseRoute     = () => <Layout><Browse /></Layout>;
-const AnimeRoute      = () => <Layout><AnimeDetail /></Layout>;
-const WatchlistRoute  = () => <Layout><Watchlist /></Layout>;
-const ChallengesRoute = () => <Layout><Challenges /></Layout>;
-const LeaderboardRoute= () => <Layout><Leaderboard /></Layout>;
-const CommunityRoute  = () => <Layout><Community /></Layout>;
-const ProfileRoute    = () => <Layout><Profile /></Layout>;
-const CreatorRoute    = () => <Layout><Creator /></Layout>;
-const GenreRoute      = () => <Layout><Genre /></Layout>;
-const SearchRoute     = () => <Layout><Search /></Layout>;
-const WatchRoute      = () => <MinimalLayout><Watch /></MinimalLayout>;
-const LoginRoute      = () => <MinimalLayout><Login /></MinimalLayout>;
-const SignupRoute      = () => <MinimalLayout><Signup /></MinimalLayout>;
-const NotFoundRoute   = () => <Layout><NotFound /></Layout>;
+// ── Shared Suspense fallback ──────────────────────────────────────────
+function PageFallback() {
+  return (
+    <Layout>
+      <LoadingSkeleton />
+    </Layout>
+  );
+}
 
+// ── Stable named route components ─────────────────────────────────────
+// Must be named functions (not arrow constants) so React error boundaries
+// show meaningful names and components don't remount on parent re-renders.
+function HomeRoute()        { return <Layout><Home /></Layout>; }
+function BrowseRoute()      { return <Layout><Browse /></Layout>; }
+function AnimeRoute()       { return <Layout><AnimeDetail /></Layout>; }
+function WatchlistRoute()   { return <Layout><Watchlist /></Layout>; }
+function ChallengesRoute()  { return <Layout><Challenges /></Layout>; }
+function LeaderboardRoute() { return <Layout><Leaderboard /></Layout>; }
+function CommunityRoute()   { return <Layout><Community /></Layout>; }
+function ProfileRoute()     { return <Layout><Profile /></Layout>; }
+function CreatorRoute()     { return <Layout><Creator /></Layout>; }
+function GenreRoute()       { return <Layout><Genre /></Layout>; }
+function SearchRoute()      { return <Layout><Search /></Layout>; }
+function NotFoundRoute()    { return <Layout><NotFound /></Layout>; }
+function WatchRoute()       { return <MinimalLayout><Watch /></MinimalLayout>; }
+function LoginRoute()       { return <MinimalLayout><Login /></MinimalLayout>; }
+function SignupRoute()      { return <MinimalLayout><Signup /></MinimalLayout>; }
+
+// ── Router ─────────────────────────────────────────────────────────────
 function Router() {
   return (
-    <Suspense fallback={
-      <Layout>
-        <LoadingSkeleton />
-      </Layout>
-    }>
+    <Suspense fallback={<PageFallback />}>
       <Switch>
         <Route path="/"                  component={HomeRoute} />
         <Route path="/browse"            component={BrowseRoute} />
@@ -91,22 +101,23 @@ function Router() {
   );
 }
 
+// ── App root ──────────────────────────────────────────────────────────
 function App() {
   return (
     <ErrorBoundary>
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <TooltipProvider>
-          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-            <ScrollToTop />
-            <ProgressBar />
-            <AdblockBanner />
-            <Router />
-          </WouterRouter>
-          <Toaster theme="dark" position="bottom-right" />
-        </TooltipProvider>
-      </AuthProvider>
-    </QueryClientProvider>
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <TooltipProvider>
+            <WouterRouter base={import.meta.env.BASE_URL?.replace(/\/$/, "") || ""}>
+              <ScrollToTop />
+              <ProgressBar />
+              <AdblockBanner />
+              <Router />
+            </WouterRouter>
+            <Toaster theme="dark" position="bottom-right" />
+          </TooltipProvider>
+        </AuthProvider>
+      </QueryClientProvider>
     </ErrorBoundary>
   );
 }
