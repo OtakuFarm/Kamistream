@@ -49,7 +49,7 @@ function fireEpAd(type: string) {
 
 type Ids = { mal: string; al: string | null };
 const FALLBACK_SOURCES = [
-  { id: 'vidnest',  name: 'VidNest',  build: ({ al, mal }: Ids, ep: string, dub: boolean) => `https://vidnest.fun/animepahe/${al || mal}/${ep}/${dub ? 'dub' : 'sub'}` },
+  { id: 'vidnest',  name: 'VidNest',  build: ({ al, mal }: Ids, ep: string, dub: boolean) => `https://vidnest.fun/anime/${al || mal}/${ep}/${dub ? 'dub' : 'sub'}` },
   { id: 'cinetaro', name: 'Cinetaro', build: ({ al, mal }: Ids, ep: string, dub: boolean) => `https://api.cinetaro.buzz/anime/${al || mal}/${ep}/${dub ? 'dub' : 'sub'}` },
 ];
 
@@ -99,7 +99,7 @@ export default function Watch() {
         const preferred = sources.find((s: any) => s.language === (dub ? 'dub' : 'sub')) || sources[0];
         setActiveSource(preferred.embed_url);
       } else {
-        setActiveSource(`https://vidnest.fun/animepahe/${al || malId}/${epId}/${dub ? 'dub' : 'sub'}`);
+        setActiveSource(`https://vidnest.fun/anime/${al || malId}/${epId}/${dub ? 'dub' : 'sub'}`);
       }
       setLoadingPlayer(false);
     });
@@ -124,7 +124,7 @@ export default function Watch() {
       setActiveSource(match.embed_url);
     } else if (alId !== null && alId !== undefined) {
       // alId can be empty string '' if AniList lookup failed — fall back to malId in that case
-      setActiveSource(`https://vidnest.fun/animepahe/${alId || malId}/${epId}/${dub ? 'dub' : 'sub'}`);
+      setActiveSource(`https://vidnest.fun/anime/${alId || malId}/${epId}/${dub ? 'dub' : 'sub'}`);
     }
     // If alId is still null, the first effect hasn't resolved yet — it will set the source correctly
   }, [dub]);
