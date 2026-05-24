@@ -28,6 +28,7 @@ const Admin       = lazy(() => import("@/pages/admin"));
 const NotFound    = lazy(() => import("@/pages/not-found"));
 const Genre       = lazy(() => import("@/pages/genre"));
 const Search      = lazy(() => import("@/pages/search"));
+const Schedule    = lazy(() => import("@/pages/schedule"));
 
 // ── Query client ──────────────────────────────────────────────────────
 const queryClient = new QueryClient({
@@ -70,6 +71,7 @@ function ProfileRoute()     { return <Layout><Profile /></Layout>; }
 function CreatorRoute()     { return <Layout><Creator /></Layout>; }
 function GenreRoute()       { return <Layout><Genre /></Layout>; }
 function SearchRoute()      { return <Layout><Search /></Layout>; }
+function ScheduleRoute()    { return <Layout><Schedule /></Layout>; }
 function NotFoundRoute()    { return <Layout><NotFound /></Layout>; }
 function WatchRoute()       { return <MinimalLayout><Watch /></MinimalLayout>; }
 function LoginRoute()       { return <MinimalLayout><Login /></MinimalLayout>; }
@@ -94,6 +96,7 @@ function Router() {
         <Route path="/creator/:username" component={CreatorRoute} />
         <Route path="/genre/:id"         component={GenreRoute} />
         <Route path="/search"            component={SearchRoute} />
+        <Route path="/schedule"          component={ScheduleRoute} />
         <Route path="/admin"             component={Admin} />
         <Route                           component={NotFoundRoute} />
       </Switch>
