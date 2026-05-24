@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useLocation } from 'wouter';
-import { Home, Compass, Bookmark, Trophy, BarChart3, Users, User, Settings } from 'lucide-react';
+import { Home, Compass, Bookmark, Trophy, BarChart3, Users, User, Settings, Calendar } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { isAdminEmail } from '@/lib/admin';
 
@@ -42,6 +42,7 @@ export function Sidebar({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
           <SectionLabel>Discover</SectionLabel>
           <NavItem href="/" icon={Home} label="Home" />
           <NavItem href="/browse" icon={Compass} label="Browse" />
+          <NavItem href="/schedule" icon={Calendar} label="Schedule" />
           <NavItem href="/watchlist" icon={Bookmark} label="Watchlist" />
 
           <div className="h-[1px] bg-[var(--border)] mx-4 my-3" />
