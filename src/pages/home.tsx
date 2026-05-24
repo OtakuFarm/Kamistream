@@ -4,11 +4,12 @@ import { AnimeCard } from '@/components/AnimeCard';
 import { GridSkeleton } from '@/components/LoadingSkeleton';
 import { useWatchlist } from '@/hooks/useWatchlist';
 import { useWatchHistory } from '@/hooks/useWatchHistory';
-import { ChevronRight, Star, Flame, Sparkles, BookMarked, Clock, Radio } from 'lucide-react';
+import { ChevronRight, Star, Flame, Sparkles, BookMarked, Clock, Radio, Shuffle, Calendar } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { getAiringSchedule } from '@/lib/anilist';
-import { Link } from 'wouter';
+import { Link, useLocation } from 'wouter';
 import { useSEO } from '@/hooks/useSEO';
+import { supabase } from '@/lib/supabase';
 
 export default function Home() {
   const { data: trending,  isLoading: trendingLoading  } = useTrendingAnime();
@@ -16,9 +17,48 @@ export default function Home() {
   const { data: seasonal,  isLoading: seasonalLoading  } = useSeasonalAnime();
   const { watchlist } = useWatchlist();
   const { getRecentAnime } = useWatchHistory();
+  const [, setLocation] = useLocation();
 
   const [heroIndex, setHeroIndex] = useState(0);
   const [isHovered, setIsHovered] = useState(false);
+
+  // Recently Updated — anime with most recently added embed sources
+  const { data: recentlyUpdated } = useQuery({
+    queryKey: ['home', 'recently-updated'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('embed_sources')
+        .select('created_at, episodes(episode_number, anime(mal_id, title_english, title_romaji, cover_image, score, episodes_total))')
+        .eq('is_active', true)
+        .order('created_at', { ascending: false })
+        .limit(60);
+      if (error || !data) return [];
+      const seen = new Set<number>();
+      return data.filter((row: any) => {
+        const mal = row.episodes?.anime?.mal_id;
+        if (!mal || seen.has(mal)) return false;
+        seen.add(mal);
+        return true;
+      }).slice(0, 12).map((row: any) => {
+        const a = row.episodes?.anime;
+        return {
+          mal_id: a.mal_id, title: a.title_english || a.title_romaji || 'Unknown',
+          score: a.score, episodes: a.episodes_total, type: 'TV',
+          latestEp: row.episodes?.episode_number,
+          images: { webp: { large_image_url: a.cover_image || '' }, jpg: { large_image_url: a.cover_image || '' } },
+        };
+      });
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Random anime from trending
+  function goToRandom() {
+    const pool = trending?.data;
+    if (!pool?.length) return;
+    const pick = pool[Math.floor(Math.random() * pool.length)];
+    setLocation(`/anime/${pick.mal_id}`);
+  }
 
   const heroAnimes = useMemo(() => trending?.data?.slice(0, 10) || [], [trending?.data]);
   const activeHero = heroAnimes[heroIndex];
@@ -107,6 +147,9 @@ export default function Home() {
                   <ChevronRight className="w-4 h-4" /> Watch Now
                 </button>
               </Link>
+              <button onClick={goToRandom} className="bg-white/10 backdrop-blur-md border border-white/20 text-white px-4 py-2.5 rounded-xl text-[13px] font-bold flex items-center gap-2 hover:bg-white/20 transition-all">
+                <Shuffle className="w-4 h-4" /> Random
+              </button>
               {activeHero.score && (
                 <div className="bg-white/10 backdrop-blur-md border border-white/20 text-white px-4 py-2.5 rounded-xl text-[13px] font-bold flex items-center gap-1.5">
                   <Star className="w-4 h-4 text-yellow-400 fill-yellow-400" /> {activeHero.score}
@@ -126,6 +169,46 @@ export default function Home() {
       ) : (
         <div className="w-full h-[320px] md:h-[420px] rounded-2xl bg-[var(--card)] animate-pulse" />
       )}
+
+      {/* ── Recently Updated ── */}
+      {recentlyUpdated && recentlyUpdated.length > 0 && (
+        <section>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-[18px] font-heading font-black flex items-center gap-2">
+              <Radio className="w-4 h-4 text-[var(--green)]" /> Recently Updated
+            </h2>
+            <Link href="/browse" className="text-[12px] font-bold text-[var(--text3)] hover:text-[var(--pink)] transition-colors flex items-center gap-1">
+              View All <ChevronRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+          <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3">
+            {recentlyUpdated.map((anime: any) => (
+              <div key={anime.mal_id} className="relative">
+                <AnimeCard anime={anime} />
+                {anime.latestEp && (
+                  <div className="absolute top-2 left-2 bg-[var(--green)] text-black text-[9px] font-black px-1.5 py-0.5 rounded-md z-10">
+                    EP {anime.latestEp}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* ── Schedule shortcut ── */}
+      <Link href="/schedule">
+        <div className="bg-gradient-to-r from-[var(--purple)]/20 to-[var(--pink)]/20 border border-[var(--purple)]/30 rounded-2xl p-5 flex items-center justify-between hover:border-[var(--pink)]/50 transition-all group cursor-pointer">
+          <div className="flex items-center gap-3">
+            <Calendar className="w-8 h-8 text-[var(--purple)]" />
+            <div>
+              <p className="font-heading font-black text-white text-[15px]">Airing This Week</p>
+              <p className="text-[12px] text-[var(--text3)]">See what's airing today and this week</p>
+            </div>
+          </div>
+          <ChevronRight className="w-5 h-5 text-[var(--text3)] group-hover:text-[var(--pink)] transition-colors" />
+        </div>
+      </Link>
 
       {/* ── Continue Watching ── */}
       {recentHistory.length > 0 && (

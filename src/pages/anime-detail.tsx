@@ -6,7 +6,7 @@ import { useWatchlist } from '@/hooks/useWatchlist';
 import { useWatchHistory } from '@/hooks/useWatchHistory';
 import { useEpisodeProgress } from '@/hooks/useEpisodeProgress';
 import { useSEO } from '@/hooks/useSEO';
-import { getNextAiring } from '@/lib/anilist';
+import { getNextAiring, getAnimeRelations } from '@/lib/anilist';
 import { Play, Plus, Check, Star, Timer, CheckCircle2, Circle } from 'lucide-react';
 import { DetailSkeleton } from '@/components/LoadingSkeleton';
 import { AnimeLoader } from '@/components/AnimeLoader';
@@ -38,7 +38,17 @@ export default function AnimeDetail() {
     enabled: !!id,
     staleTime: 30 * 60 * 1000,
   });
-  const characters = (charsData?.data || []).slice(0, 12);
+  // Fetch relations (sequels, prequels, etc.)
+  const { data: relations } = useQuery({
+    queryKey: ['anime', id, 'relations'],
+    queryFn: () => getAnimeRelations(id),
+    enabled: !!id,
+    staleTime: 60 * 60 * 1000,
+  });
+
+  const relationsFiltered = (relations || []).filter((e: any) =>
+    ['SEQUEL','PREQUEL','SIDE_STORY','SPIN_OFF','ALTERNATIVE','PARENT','COMPILATION','CONTAINS'].includes(e.relationType)
+  );
   const [nextAiring, setNextAiring] = useState<any>(null);
   const [countdown,  setCountdown]  = useState('');
 
@@ -298,7 +308,55 @@ export default function AnimeDetail() {
       )}
 
       {/* Characters */}
-      {characters.length > 0 && (
+      {/* Relations */}
+      {relationsFiltered.length > 0 && (
+        <section className="mt-8">
+          <h2 className="text-[18px] font-heading font-black mb-4 flex items-center gap-2">🔗 Related Anime</h2>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+            {relationsFiltered.map((edge: any) => {
+              const node  = edge.node;
+              const malId = node?.idMal;
+              const label: Record<string, string> = {
+                SEQUEL: '▶ Sequel', PREQUEL: '◀ Prequel', SIDE_STORY: '↪ Side Story',
+                SPIN_OFF: '↩ Spin-off', ALTERNATIVE: '⚡ Alt', PARENT: '⬆ Parent',
+                COMPILATION: '📦 Compilation', CONTAINS: '📂 Contains',
+              };
+              return (
+                <div key={node?.id} className="group">
+                  {malId ? (
+                    <Link href={`/anime/${malId}`}>
+                      <div className="relative aspect-[3/4] rounded-xl overflow-hidden bg-[var(--card)] cursor-pointer">
+                        <img src={node?.coverImage?.large} alt={node?.title?.english || node?.title?.romaji}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                          onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent" />
+                        <div className="absolute bottom-0 left-0 right-0 p-2">
+                          <div className="text-[9px] font-black text-[var(--pink)] mb-0.5">{label[edge.relationType] || edge.relationType}</div>
+                          <div className="text-[11px] font-bold text-white line-clamp-2 leading-tight">{node?.title?.english || node?.title?.romaji}</div>
+                          {node?.format && <div className="text-[9px] text-[var(--text3)] mt-0.5">{node.format} · {node.episodes ? `${node.episodes} eps` : node.status}</div>}
+                        </div>
+                      </div>
+                    </Link>
+                  ) : (
+                    <div className="relative aspect-[3/4] rounded-xl overflow-hidden bg-[var(--card)]">
+                      <img src={node?.coverImage?.large} alt={node?.title?.english || node?.title?.romaji}
+                        className="w-full h-full object-cover"
+                        onError={(e) => { e.currentTarget.style.display = 'none'; }} />
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-transparent" />
+                      <div className="absolute bottom-0 left-0 right-0 p-2">
+                        <div className="text-[9px] font-black text-[var(--pink)] mb-0.5">{label[edge.relationType] || edge.relationType}</div>
+                        <div className="text-[11px] font-bold text-white line-clamp-2">{node?.title?.english || node?.title?.romaji}</div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {/* Characters */}
         <div className="max-w-7xl mx-auto px-4 md:px-8 mt-8">
           <h2 className="text-[16px] font-heading font-black text-white mb-4">Characters</h2>
           <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-12 gap-3">
