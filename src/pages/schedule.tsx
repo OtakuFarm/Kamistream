@@ -2,16 +2,19 @@ import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'wouter';
 import { getAiringSchedule } from '@/lib/anilist';
-import { Calendar, Clock, Radio } from 'lucide-react';
+import { Play } from 'lucide-react';
 import { useSEO } from '@/hooks/useSEO';
 
 const DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+const SHORT = ['SUN','MON','TUE','WED','THU','FRI','SAT'];
 
 export default function Schedule() {
-  useSEO({ title: 'Airing Schedule', description: 'Weekly anime airing schedule — see what episodes are airing today and this week on KamiStream.' });
+  useSEO({ title: 'Estimated Schedule', description: 'Weekly anime airing schedule on KamiStream.' });
 
-  const todayIdx = new Date().getDay();
+  const today   = new Date();
+  const todayIdx = today.getDay();
   const [activeDay, setActiveDay] = useState(todayIdx);
+  const [showAll, setShowAll] = useState(false);
 
   const { data: schedule, isLoading } = useQuery({
     queryKey: ['anilist', 'airing-schedule'],
@@ -19,111 +22,121 @@ export default function Schedule() {
     staleTime: 15 * 60 * 1000,
   });
 
-  // Group by weekday index
   const byDay: Record<number, any[]> = { 0:[], 1:[], 2:[], 3:[], 4:[], 5:[], 6:[] };
   (schedule || []).forEach((item: any) => {
     const d = new Date(item.airingAt * 1000).getDay();
     byDay[d]?.push(item);
   });
 
-  const todayItems  = byDay[activeDay] || [];
-  const totalToday  = todayItems.length;
+  const items = (byDay[activeDay] || []).sort((a: any, b: any) => a.airingAt - b.airingAt);
+  const visible = showAll ? items : items.slice(0, 8);
+
+  // Build 7-day date labels starting from today-1
+  const dateLabels = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(today);
+    d.setDate(today.getDate() - 1 + i);
+    return { day: d.getDay(), date: d, label: `${d.toLocaleString('default', { month: 'short' }).toUpperCase()} ${d.getDate()}` };
+  });
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-8">
-      <div className="flex items-center gap-3 mb-6">
-        <Calendar className="w-6 h-6 text-[var(--pink)]" />
-        <h1 className="text-2xl font-heading font-black text-white">Airing Schedule</h1>
-        <span className="ml-auto text-[12px] text-[var(--text3)] font-bold flex items-center gap-1">
-          <Radio className="w-3.5 h-3.5 text-[var(--green)]" /> Live AniList data
-        </span>
+    <div className="max-w-3xl mx-auto px-4 py-6">
+      {/* Header */}
+      <div className="mb-5">
+        <h1 className="text-[18px] font-heading font-black text-white flex items-center gap-2">
+          Estimated Schedule
+          <span className="text-[12px] text-[var(--text3)] font-normal">
+            — Now: {today.toLocaleString()}
+          </span>
+        </h1>
       </div>
 
-      {/* Day tabs */}
-      <div className="flex gap-1.5 mb-6 overflow-x-auto pb-1 scrollbar-hide">
-        {DAYS.map((day, i) => {
-          const count = byDay[i]?.length || 0;
-          const isToday = i === todayIdx;
-          return (
-            <button key={day} onClick={() => setActiveDay(i)}
-              className={`shrink-0 px-4 py-2 rounded-xl text-[12px] font-bold transition-all flex items-center gap-1.5 ${activeDay === i
-                ? 'bg-gradient-to-r from-[var(--pink)] to-[var(--purple)] text-white'
-                : 'bg-[var(--card)] border border-[var(--border)] text-[var(--text2)] hover:text-white'}`}>
-              {isToday && <Radio className="w-2.5 h-2.5 text-[var(--green)]" />}
-              {day.slice(0, 3)}
-              {count > 0 && <span className={`px-1.5 py-0.5 rounded-md text-[9px] font-black ${activeDay === i ? 'bg-white/20' : 'bg-[var(--pink)]/20 text-[var(--pink)]'}`}>{count}</span>}
-            </button>
-          );
-        })}
+      {/* Day tabs — AniWave style */}
+      <div className="relative mb-1">
+        <div className="flex items-center">
+          <div className="flex-1 overflow-x-auto scrollbar-hide">
+            <div className="flex border-b border-[var(--border)]">
+              {dateLabels.map(({ day, date, label }, i) => {
+                const isActive  = day === activeDay;
+                const isToday   = date.toDateString() === today.toDateString();
+                return (
+                  <button key={i} onClick={() => { setActiveDay(day); setShowAll(false); }}
+                    className={`shrink-0 flex flex-col items-center px-5 py-3 text-center transition-all border-b-2 -mb-px ${isActive ? 'border-[var(--pink)] text-white' : 'border-transparent text-[var(--text3)] hover:text-white'}`}>
+                    <span className="text-[10px] font-bold tracking-wider">{label}</span>
+                    <span className={`text-[18px] font-black leading-tight ${isActive ? 'text-white' : 'text-[var(--text3)]'} ${isToday ? 'text-[var(--pink)]' : ''}`}>
+                      {SHORT[day]}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* Count */}
-      <p className="text-[12px] text-[var(--text3)] mb-4 font-bold">
-        {totalToday} anime airing on {DAYS[activeDay]}
-        {activeDay === todayIdx && <span className="ml-2 text-[var(--green)]">· Today</span>}
-      </p>
-
-      {isLoading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {Array.from({ length: 8 }).map((_, i) => (
-            <div key={i} className="h-24 bg-[var(--card)] rounded-xl animate-pulse" />
-          ))}
-        </div>
-      ) : todayItems.length === 0 ? (
-        <div className="text-center py-20 text-[var(--text3)]">
-          <Calendar className="w-12 h-12 mx-auto mb-4 opacity-30" />
-          <p className="font-bold">No episodes airing on {DAYS[activeDay]}</p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {todayItems
-            .sort((a: any, b: any) => a.airingAt - b.airingAt)
-            .map((item: any) => {
-              const airingTime  = new Date(item.airingAt * 1000);
-              const isPast      = airingTime < new Date();
-              const timeStr     = airingTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-              const minutesLeft = Math.round((item.airingAt * 1000 - Date.now()) / 60000);
-              const malId       = item.media?.idMal;
+      {/* Timeline list */}
+      <div className="mt-4 flex flex-col">
+        {isLoading ? (
+          Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="flex items-center gap-4 py-4 border-b border-[var(--border)] animate-pulse">
+              <div className="w-16 h-4 bg-[var(--card)] rounded" />
+              <div className="flex-1 h-4 bg-[var(--card)] rounded" />
+              <div className="w-24 h-8 bg-[var(--card)] rounded-lg" />
+            </div>
+          ))
+        ) : items.length === 0 ? (
+          <div className="text-center py-16 text-[var(--text3)]">
+            <p className="font-bold">No schedule data for {DAYS[activeDay]}</p>
+          </div>
+        ) : (
+          <>
+            {visible.map((item: any) => {
+              const t        = new Date(item.airingAt * 1000);
+              const isPast   = t < today;
+              const timeStr  = t.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+              const malId    = item.media?.idMal;
+              const title    = item.media?.title?.english || item.media?.title?.romaji;
 
               return (
                 <div key={`${item.media?.id}-${item.episode}`}
-                  className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-4 flex gap-3 hover:border-[var(--pink)]/40 transition-all group">
-                  {/* Poster */}
-                  <div className="w-14 h-20 rounded-lg overflow-hidden shrink-0 bg-[var(--bg3)]">
-                    <img
-                      src={item.media?.coverImage?.large}
-                      alt={item.media?.title?.english || item.media?.title?.romaji}
-                      className="w-full h-full object-cover"
-                      onError={(e) => { e.currentTarget.style.display = 'none'; }}
-                    />
+                  className="flex items-center gap-4 py-3.5 border-b border-[var(--border)] hover:bg-[var(--bg3)] -mx-2 px-2 rounded transition-colors group">
+
+                  {/* Time */}
+                  <div className={`w-16 shrink-0 text-[13px] font-black tabular-nums ${isPast ? 'text-[var(--text3)]' : 'text-white'}`}>
+                    {timeStr}
                   </div>
 
-                  {/* Info */}
+                  {/* Title */}
                   <div className="flex-1 min-w-0">
-                    <h3 className="font-bold text-[13px] text-white line-clamp-2 leading-tight mb-1 group-hover:text-[var(--pink)] transition-colors">
-                      {item.media?.title?.english || item.media?.title?.romaji}
-                    </h3>
-                    <p className="text-[11px] text-[var(--text3)] mb-2">
-                      Episode <span className="text-[var(--pink)] font-black">{item.episode}</span>
+                    <p className={`text-[13px] font-bold truncate group-hover:text-[var(--pink)] transition-colors ${isPast ? 'text-[var(--text3)]' : 'text-white'}`}>
+                      {title}
                     </p>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className={`flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-lg ${isPast ? 'bg-[var(--bg3)] text-[var(--text3)]' : 'bg-[var(--pink)]/15 text-[var(--pink)]'}`}>
-                        <Clock className="w-2.5 h-2.5" />
-                        {isPast ? `Aired at ${timeStr}` : minutesLeft < 60 ? `${minutesLeft}m left` : timeStr}
-                      </span>
-                      {malId && (
-                        <Link href={`/anime/${malId}`}
-                          className="text-[10px] font-bold px-2 py-1 rounded-lg bg-[var(--purple)]/15 text-[var(--purple)] hover:bg-[var(--purple)]/30 transition-colors">
-                          View Anime →
-                        </Link>
-                      )}
-                    </div>
                   </div>
+
+                  {/* Episode + play button */}
+                  {malId ? (
+                    <Link href={`/watch/${malId}/${item.episode}`}
+                      className="shrink-0 flex items-center gap-2 bg-[var(--bg3)] hover:bg-[var(--pink)] border border-[var(--border)] hover:border-[var(--pink)] text-[var(--text3)] hover:text-white px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all">
+                      <Play className="w-3 h-3 fill-current" />
+                      Episode {item.episode}
+                    </Link>
+                  ) : (
+                    <span className="shrink-0 text-[11px] text-[var(--text3)] font-bold px-3 py-1.5 bg-[var(--bg3)] rounded-lg border border-[var(--border)]">
+                      Episode {item.episode}
+                    </span>
+                  )}
                 </div>
               );
             })}
-        </div>
-      )}
+
+            {items.length > 8 && (
+              <button onClick={() => setShowAll(s => !s)}
+                className="mt-4 w-full py-2.5 text-[12px] font-bold text-[var(--text3)] hover:text-white border border-[var(--border)] rounded-xl hover:bg-[var(--bg3)] transition-all">
+                {showAll ? 'Show less' : `Show more (${items.length - 8} more)`}
+              </button>
+            )}
+          </>
+        )}
+      </div>
     </div>
   );
 }

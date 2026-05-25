@@ -1,12 +1,14 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useTrendingAnime, useTopRatedAnime, useSeasonalAnime } from '@/lib/jikan';
 import { AnimeCard } from '@/components/AnimeCard';
+import { AnimeListCard } from '@/components/AnimeListCard';
 import { GridSkeleton } from '@/components/LoadingSkeleton';
 import { useWatchlist } from '@/hooks/useWatchlist';
 import { useWatchHistory } from '@/hooks/useWatchHistory';
 import { ChevronRight, Star, Flame, Sparkles, BookMarked, Clock, Radio, Shuffle, Calendar } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { getAiringSchedule } from '@/lib/anilist';
+import { useTrendingAnime, useTopRatedAnime, useSeasonalAnime } from '@/lib/jikan';
 import { Link, useLocation } from 'wouter';
 import { useSEO } from '@/hooks/useSEO';
 import { supabase } from '@/lib/supabase';
@@ -59,6 +61,26 @@ export default function Home() {
     const pick = pool[Math.floor(Math.random() * pool.length)];
     setLocation(`/anime/${pick.mal_id}`);
   }
+
+  // New Release (currently airing, sorted by members/popularity)
+  const { data: newRelease } = useQuery({
+    queryKey: ['home', 'new-release'],
+    queryFn: async () => {
+      const res = await fetch('https://api.jikan.moe/v4/anime?status=airing&order_by=members&sort=desc&limit=5&sfw=true');
+      const j = await res.json(); return j.data || [];
+    },
+    staleTime: 15 * 60 * 1000,
+  });
+
+  // Just Completed (recently finished airing)
+  const { data: justCompleted } = useQuery({
+    queryKey: ['home', 'just-completed'],
+    queryFn: async () => {
+      const res = await fetch('https://api.jikan.moe/v4/anime?status=complete&order_by=end_date&sort=desc&limit=5&sfw=true');
+      const j = await res.json(); return j.data || [];
+    },
+    staleTime: 15 * 60 * 1000,
+  });
 
   const heroAnimes = useMemo(() => trending?.data?.slice(0, 10) || [], [trending?.data]);
   const activeHero = heroAnimes[heroIndex];
@@ -213,12 +235,12 @@ export default function Home() {
       {/* ── Continue Watching ── */}
       {recentHistory.length > 0 && (
         <section>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-[16px] font-heading font-black text-white flex items-center gap-2">
-              <Clock className="w-4 h-4 text-[var(--purple)]" /> Continue Watching
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-[15px] font-heading font-black text-white flex items-center gap-2">
+              <Clock className="w-3.5 h-3.5 text-[var(--purple)]" /> Continue Watching
             </h2>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+          <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 xl:grid-cols-12 gap-2">
             {recentHistory.map((item: any) => (
               <AnimeCard key={item.mal_id} anime={histToCard(item)} />
             ))}
@@ -229,15 +251,15 @@ export default function Home() {
       {/* ── My Watchlist ── */}
       {watchlist.length > 0 && (
         <section>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-[16px] font-heading font-black text-white flex items-center gap-2">
-              <BookMarked className="w-4 h-4 text-[var(--pink)]" /> My Watchlist
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-[15px] font-heading font-black text-white flex items-center gap-2">
+              <BookMarked className="w-3.5 h-3.5 text-[var(--pink)]" /> My Watchlist
             </h2>
-            <Link href="/watchlist" className="text-[12px] font-bold text-[var(--pink)] hover:text-[var(--purple)] transition-colors">
-              View All ({watchlist.length})
+            <Link href="/watchlist" className="text-[11px] font-bold text-[var(--text3)] hover:text-[var(--pink)] transition-colors flex items-center gap-1">
+              View All ({watchlist.length}) <ChevronRight className="w-3 h-3" />
             </Link>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+          <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 xl:grid-cols-12 gap-2">
             {watchlist.slice(0, 12).map((item: any) => (
               <AnimeCard key={item.mal_id} anime={wlToCard(item)} />
             ))}
@@ -245,16 +267,51 @@ export default function Home() {
         </section>
       )}
 
+      {/* ── New Release / New Added / Just Completed ── */}
+      <section>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl overflow-hidden">
+            <div className="flex items-center justify-between px-3 py-2 border-b border-[var(--border)]">
+              <h3 className="text-[12px] font-heading font-black uppercase tracking-wide">🔥 New Release</h3>
+              <Link href="/browse" className="text-[10px] text-[var(--text3)] hover:text-[var(--pink)]">See All →</Link>
+            </div>
+            <div className="p-1">
+              {(newRelease || []).map((a: any) => <AnimeListCard key={a.mal_id} anime={a} badge="AIRING" />)}
+            </div>
+          </div>
+          <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl overflow-hidden">
+            <div className="flex items-center justify-between px-3 py-2 border-b border-[var(--border)]">
+              <h3 className="text-[12px] font-heading font-black uppercase tracking-wide">⚡ New Added</h3>
+              <Link href="/browse" className="text-[10px] text-[var(--text3)] hover:text-[var(--pink)]">See All →</Link>
+            </div>
+            <div className="p-1">
+              {(recentlyUpdated || []).slice(0, 5).map((a: any) => (
+                <AnimeListCard key={a.mal_id} anime={a} badge={a.latestEp ? `EP ${a.latestEp}` : undefined} badgeColor="var(--green)" />
+              ))}
+            </div>
+          </div>
+          <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl overflow-hidden">
+            <div className="flex items-center justify-between px-3 py-2 border-b border-[var(--border)]">
+              <h3 className="text-[12px] font-heading font-black uppercase tracking-wide">✅ Just Completed</h3>
+              <Link href="/browse" className="text-[10px] text-[var(--text3)] hover:text-[var(--pink)]">See All →</Link>
+            </div>
+            <div className="p-1">
+              {(justCompleted || []).map((a: any) => <AnimeListCard key={a.mal_id} anime={a} />)}
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* ── Trending Now ── */}
       <section>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-[16px] font-heading font-black text-white flex items-center gap-2">
-            <Flame className="w-4 h-4 text-[var(--pink)]" /> Trending Now
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-[15px] font-heading font-black text-white flex items-center gap-2">
+            <Flame className="w-3.5 h-3.5 text-[var(--pink)]" /> Trending Now
           </h2>
-          <Link href="/browse" className="text-[12px] font-bold text-[var(--pink)] hover:text-[var(--purple)] transition-colors">View All</Link>
+          <Link href="/browse" className="text-[11px] font-bold text-[var(--text3)] hover:text-[var(--pink)] transition-colors">View All</Link>
         </div>
         {trendingLoading ? <GridSkeleton /> : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+          <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-2">
             {trending?.data?.map((anime: any) => <AnimeCard key={anime.mal_id} anime={anime} />)}
           </div>
         )}
@@ -262,14 +319,14 @@ export default function Home() {
 
       {/* ── Top Rated ── */}
       <section>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-[16px] font-heading font-black text-white flex items-center gap-2">
-            <Star className="w-4 h-4 text-yellow-400" /> Top Rated
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-[15px] font-heading font-black text-white flex items-center gap-2">
+            <Star className="w-3.5 h-3.5 text-yellow-400" /> Top Rated
           </h2>
-          <Link href="/browse" className="text-[12px] font-bold text-[var(--pink)] hover:text-[var(--purple)] transition-colors">View All</Link>
+          <Link href="/browse" className="text-[11px] font-bold text-[var(--text3)] hover:text-[var(--pink)] transition-colors">View All</Link>
         </div>
         {topRatedLoading ? <GridSkeleton /> : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+          <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-2">
             {topRated?.data?.map((anime: any) => <AnimeCard key={anime.mal_id} anime={anime} />)}
           </div>
         )}
@@ -277,14 +334,14 @@ export default function Home() {
 
       {/* ── This Season ── */}
       <section>
-        <div className="flex items-center justify-between mb-4">
-          <h2 className="text-[16px] font-heading font-black text-white flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-[var(--purple)]" /> This Season
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-[15px] font-heading font-black text-white flex items-center gap-2">
+            <Sparkles className="w-3.5 h-3.5 text-[var(--purple)]" /> This Season
           </h2>
-          <Link href="/browse" className="text-[12px] font-bold text-[var(--pink)] hover:text-[var(--purple)] transition-colors">View All</Link>
+          <Link href="/browse" className="text-[11px] font-bold text-[var(--text3)] hover:text-[var(--pink)] transition-colors">View All</Link>
         </div>
         {seasonalLoading ? <GridSkeleton /> : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+          <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-2">
             {seasonal?.data?.map((anime: any) => <AnimeCard key={anime.mal_id} anime={anime} />)}
           </div>
         )}
