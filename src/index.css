@@ -71,3 +71,51 @@
 @keyframes shimmer {
   100% { transform: translateX(200%); }
 }
+
+/* ── Theme: Neon ── */
+[data-theme="neon"] {
+  --bg:     #050510;
+  --bg2:    #0a0a1a;
+  --bg3:    #0f0f24;
+  --card:   #0c0c1e;
+  --border: #00f5ff1a;
+  --pink:   #ff00aa;
+  --purple: #7b2fff;
+  --blue:   #00f5ff;
+  --gold:   #ffd60a;
+  --green:  #00ff9d;
+  --red:    #ff4757;
+  --text3:  #5878a3;
+}
+
+/* ── Theme: Sakura ── */
+[data-theme="sakura"] {
+  --bg:     #0f0a0f;
+  --bg2:    #180f18;
+  --bg3:    #1f121f;
+  --card:   #1a101a;
+  --border: #ff85a11a;
+  --pink:   #ff85a1;
+  --purple: #c77dff;
+  --blue:   #a8dadc;
+  --gold:   #ffd166;
+  --green:  #95d5b2;
+  --red:    #ff6b81;
+  --text3:  #8878a3;
+}
+
+/* ── Theme: Midnight ── */
+[data-theme="midnight"] {
+  --bg:     #070d1f;
+  --bg2:    #0d1530;
+  --bg3:    #131d3d;
+  --card:   #111a38;
+  --border: #4361ee1a;
+  --pink:   #f72585;
+  --purple: #7209b7;
+  --blue:   #4895ef;
+  --gold:   #ffd60a;
+  --green:  #06d6a0;
+  --red:    #ff4757;
+  --text3:  #6878a3;
+}
