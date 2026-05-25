@@ -3,6 +3,16 @@ import { useAuth } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
 import { toast } from 'sonner';
 
+export type WatchStatus = 'watching' | 'plan_to_watch' | 'on_hold' | 'dropped' | 'completed';
+
+export const WATCH_STATUS_LABELS: Record<WatchStatus, string> = {
+  watching:      '▶ Watching',
+  plan_to_watch: '📋 Plan to Watch',
+  on_hold:       '⏸ On Hold',
+  dropped:       '✕ Dropped',
+  completed:     '✓ Completed',
+};
+
 export interface WatchlistItem {
   mal_id: number;
   title: string;
@@ -11,7 +21,8 @@ export interface WatchlistItem {
   score: number | null;
 }
 
-const LS_KEY = 'kamistream_watchlist';
+const LS_KEY        = 'kamistream_watchlist';
+const LS_STATUS_KEY = 'kamistream_watch_statuses';
 
 function readLocal(): WatchlistItem[] {
   try { return JSON.parse(localStorage.getItem(LS_KEY) || '[]'); }
@@ -19,6 +30,13 @@ function readLocal(): WatchlistItem[] {
 }
 function writeLocal(items: WatchlistItem[]) {
   try { localStorage.setItem(LS_KEY, JSON.stringify(items)); } catch {}
+}
+function readStatuses(): Record<number, WatchStatus> {
+  try { return JSON.parse(localStorage.getItem(LS_STATUS_KEY) || '{}'); }
+  catch { return {}; }
+}
+function writeStatuses(s: Record<number, WatchStatus>) {
+  try { localStorage.setItem(LS_STATUS_KEY, JSON.stringify(s)); } catch {}
 }
 
 // Global listeners — any component using this hook stays in sync
@@ -28,11 +46,12 @@ function notifyAll() { listeners.forEach(fn => fn()); }
 export function useWatchlist() {
   const { user } = useAuth();
   const [watchlist, setWatchlistState] = useState<WatchlistItem[]>(() => readLocal());
+  const [statuses, setStatusesState]   = useState<Record<number, WatchStatus>>(() => readStatuses());
   const [loading, setLoading] = useState(false);
 
   // Subscribe to cross-component updates
   useEffect(() => {
-    const refresh = () => setWatchlistState(readLocal());
+    const refresh = () => { setWatchlistState(readLocal()); setStatusesState(readStatuses()); };
     listeners.add(refresh);
     window.addEventListener('storage', refresh);
     return () => {
@@ -111,5 +130,46 @@ export function useWatchlist() {
     [watchlist]
   );
 
-  return { watchlist, loading, toggleWatchlist, isInWatchlist };
+  const setWatchStatus = useCallback((mal_id: number, status: WatchStatus | null) => {
+    const current = readStatuses();
+    if (status === null) {
+      const { [mal_id]: _, ...rest } = current;
+      writeStatuses(rest);
+      setStatusesState(rest);
+    } else {
+      const updated = { ...current, [mal_id]: status };
+      writeStatuses(updated);
+      setStatusesState(updated);
+    }
+    notifyAll();
+    if (status) toast.success(`Status: ${WATCH_STATUS_LABELS[status]}`);
+  }, []);
+
+  const getWatchStatus = useCallback(
+    (mal_id: number): WatchStatus | null => statuses[mal_id] || null,
+    [statuses]
+  );
+
+  const getByStatus = useCallback(
+    (status: WatchStatus) => watchlist.filter(w => statuses[w.mal_id] === status),
+    [watchlist, statuses]
+  );
+
+  const exportCSV = useCallback(() => {
+    const rows = watchlist.map(w => {
+      const st = statuses[w.mal_id] || 'no_status';
+      return `"${w.mal_id}","${w.title.replace(/"/g, '""')}","${st}","${w.episodes || ''}","${w.score || ''}"`;
+    });
+    const csv = ['mal_id,title,status,episodes,score', ...rows].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = 'kamistream-watchlist.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success('Watchlist exported as CSV');
+  }, [watchlist, statuses]);
+
+  return { watchlist, loading, toggleWatchlist, isInWatchlist, setWatchStatus, getWatchStatus, getByStatus, exportCSV, statuses };
 }
