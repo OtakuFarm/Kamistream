@@ -3,7 +3,7 @@ import { useRoute, Link, useLocation } from 'wouter';
 import { useAnimeDetail, useAnimeEpisodes } from '@/lib/jikan';
 import { supabase } from '@/lib/supabase';
 import { useWatchHistory } from '@/hooks/useWatchHistory';
-import { ChevronLeft, ChevronRight, Settings, SkipForward, X, Download, AlertTriangle, RefreshCw, Maximize2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Settings, SkipForward, X, Download, AlertTriangle, RefreshCw, Maximize2, Minimize2 } from 'lucide-react';
 import { WatchSkeleton } from '@/components/LoadingSkeleton';
 import { useSEO } from '@/hooks/useSEO';
 import { useEpisodeProgress } from '@/hooks/useEpisodeProgress';
@@ -67,6 +67,13 @@ export default function Watch() {
 
   const [alId,           setAlId]           = useState<string | null>(null);
   const [dub,            setDub]            = useState(false);
+  const [autoPlay,   setAutoPlay]   = useState(() => localStorage.getItem('ks_autoplay')  !== 'false');
+  const [autoNext,   setAutoNext]   = useState(() => localStorage.getItem('ks_autonext')  !== 'false');
+  const [autoSkip,   setAutoSkip]   = useState(() => localStorage.getItem('ks_autoskip')  === 'true');
+
+  function toggleAutoPlay()  { const v = !autoPlay;  setAutoPlay(v);  localStorage.setItem('ks_autoplay',  v ? 'true' : 'false'); }
+  function toggleAutoNext()  { const v = !autoNext;  setAutoNext(v);  localStorage.setItem('ks_autonext',  v ? 'true' : 'false'); }
+  function toggleAutoSkip()  { const v = !autoSkip;  setAutoSkip(v);  localStorage.setItem('ks_autoskip',  v ? 'true' : 'false'); }
   const [adminSources,   setAdminSources]   = useState<any[]>([]);
   const [activeSource,   setActiveSource]   = useState('');
   const [showEpList,     setShowEpList]     = useState(false);
@@ -78,6 +85,7 @@ export default function Watch() {
   const [introEnd,       setIntroEnd]       = useState<number | null>(null);
   const [showSkipIntro,  setShowSkipIntro]  = useState(false);
   const [isLandscape,    setIsLandscape]    = useState(false);
+  const [theaterMode,    setTheaterMode]    = useState(() => localStorage.getItem('ks_theater') === 'true');
   const [elapsedSecs,    setElapsedSecs]    = useState(0);
   const [epSearch,       setEpSearch]       = useState('');
   const autoplayTimer  = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -96,6 +104,25 @@ export default function Watch() {
   const currentEp      = eps[currentEpIndex] || { title: `Episode ${epId}`, mal_id: epId };
   const prevEp         = currentEpIndex > 0              ? eps[currentEpIndex - 1] : null;
   const nextEp         = currentEpIndex < eps.length - 1 ? eps[currentEpIndex + 1] : null;
+
+  function toggleTheater() {
+    const v = !theaterMode;
+    setTheaterMode(v);
+    localStorage.setItem('ks_theater', v ? 'true' : 'false');
+  }
+
+  // ── Keyboard shortcuts ────────────────────────────────────────────
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      if (e.key === 't' || e.key === 'T') { e.preventDefault(); toggleTheater(); }
+      if (e.key === 'ArrowLeft'  && prevEp) { e.preventDefault(); fireEpAd('prev'); navigate(`/watch/${malId}/${prevEp.mal_id}`); }
+      if (e.key === 'ArrowRight' && nextEp) { e.preventDefault(); fireEpAd('next'); navigate(`/watch/${malId}/${nextEp.mal_id}`); }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [theaterMode, prevEp, nextEp, malId]);
 
   // ── Landscape detection ───────────────────────────────────────────
   useEffect(() => {
@@ -152,12 +179,21 @@ export default function Watch() {
     setPlayerError(false);
   }, [errorTimer]);
 
-  // ── Skip Intro show/hide based on elapsed time ────────────────────
+  // ── Skip Intro show/hide + auto-skip ────────────────────────────
   useEffect(() => {
     const start = introStart ?? 20;
     const end   = introEnd   ?? 90;
-    setShowSkipIntro(elapsedSecs >= start && elapsedSecs < end);
-  }, [elapsedSecs, introStart, introEnd]);
+    const shouldShow = elapsedSecs >= start && elapsedSecs < end;
+    setShowSkipIntro(shouldShow);
+    if (shouldShow && autoSkip) { skipIntro(); }
+  }, [elapsedSecs, introStart, introEnd, autoSkip]);
+
+  // ── Auto-play: start countdown automatically after 30s ───────────
+  useEffect(() => {
+    if (!autoPlay || !autoNext || !nextEp) return;
+    const t = setTimeout(() => { if (autoPlay && autoNext) startAutoplay(); }, 30_000);
+    return () => clearTimeout(t);
+  }, [malId, epId, autoPlay, autoNext]);
 
   // ── Log history ───────────────────────────────────────────────────
   useEffect(() => {
@@ -244,7 +280,8 @@ export default function Watch() {
         {/* ── Player ── */}
         <div className={`w-full bg-black flex justify-center items-start relative ${isLandscape ? 'fixed inset-0 z-[100] h-screen' : ''}`}>
           <div
-            className={`relative ${isLandscape ? 'w-full h-full pt-0' : 'w-full pt-[56.25%]'}`}
+            className={`relative ${isLandscape ? 'w-full h-full pt-0' : theaterMode ? 'w-full' : 'w-full pt-[56.25%]'}`}
+            style={(!isLandscape && theaterMode) ? { height: 'min(75vh, 600px)' } : {}}
             onClick={handlePlayerClick}
           >
             {loadingPlayer ? (
@@ -327,6 +364,26 @@ export default function Watch() {
             </div>
 
             <div className="flex items-center gap-2 flex-wrap">
+              {/* Theater mode */}
+              <button onClick={toggleTheater} title="Theater mode (T)"
+                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-bold border transition-all ${theaterMode ? 'bg-[var(--blue)]/15 border-[var(--blue)]/50 text-[var(--blue)]' : 'bg-[var(--card)] border-[var(--border)] text-[var(--text3)] hover:text-white'}`}>
+                {theaterMode ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+                Theater
+              </button>
+
+              {/* Auto Play / Next / Skip toggles */}
+              {[
+                { label: 'Auto Play', state: autoPlay, toggle: toggleAutoPlay },
+                { label: 'Auto Next', state: autoNext, toggle: toggleAutoNext },
+                { label: 'Auto Skip', state: autoSkip, toggle: toggleAutoSkip },
+              ].map(({ label, state, toggle }) => (
+                <button key={label} onClick={toggle}
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-bold border transition-all ${state ? 'bg-[var(--pink)]/15 border-[var(--pink)]/50 text-[var(--pink)]' : 'bg-[var(--card)] border-[var(--border)] text-[var(--text3)] hover:text-white'}`}>
+                  <span className={`w-3 h-3 rounded-full border-2 transition-all flex-shrink-0 ${state ? 'bg-[var(--pink)] border-[var(--pink)]' : 'border-[var(--text3)]'}`} />
+                  {label}
+                </button>
+              ))}
+
               {/* Sub / Dub */}
               <div className="flex bg-[var(--card)] border border-[var(--border)] rounded-xl overflow-hidden text-[12px] font-bold">
                 <button onClick={() => setDub(false)} className={`px-4 py-2 transition-colors ${!dub ? 'bg-[var(--pink)] text-white' : 'text-[var(--text3)] hover:text-white'}`}>SUB</button>

@@ -5,10 +5,9 @@ import { AnimeListCard } from '@/components/AnimeListCard';
 import { GridSkeleton } from '@/components/LoadingSkeleton';
 import { useWatchlist } from '@/hooks/useWatchlist';
 import { useWatchHistory } from '@/hooks/useWatchHistory';
-import { ChevronRight, Star, Flame, Sparkles, BookMarked, Clock, Radio, Shuffle, Calendar } from 'lucide-react';
+import { ChevronRight, Star, Flame, Sparkles, BookMarked, Clock, Radio, Shuffle, Calendar, Trophy } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { getAiringSchedule } from '@/lib/anilist';
-import { useTrendingAnime, useTopRatedAnime, useSeasonalAnime } from '@/lib/jikan';
 import { Link, useLocation } from 'wouter';
 import { useSEO } from '@/hooks/useSEO';
 import { supabase } from '@/lib/supabase';
@@ -23,6 +22,22 @@ export default function Home() {
 
   const [heroIndex, setHeroIndex] = useState(0);
   const [isHovered, setIsHovered] = useState(false);
+  const [topPeriod, setTopPeriod] = useState<'day' | 'week' | 'month'>('day');
+
+  const topPeriodFilter: Record<string, string> = {
+    day:   'filter=airing',
+    week:  'filter=bypopularity',
+    month: 'filter=favorite',
+  };
+  const { data: topAnimeData, isLoading: topAnimeLoading } = useQuery({
+    queryKey: ['home', 'top-anime', topPeriod],
+    queryFn: async () => {
+      const res = await fetch(`https://api.jikan.moe/v4/top/anime?${topPeriodFilter[topPeriod]}&limit=10&sfw=true`);
+      if (!res.ok) throw new Error('Failed');
+      return res.json();
+    },
+    staleTime: 15 * 60 * 1000,
+  });
 
   // Recently Updated — anime with most recently added embed sources
   const { data: recentlyUpdated } = useQuery({
@@ -345,6 +360,57 @@ export default function Home() {
             {seasonal?.data?.map((anime: any) => <AnimeCard key={anime.mal_id} anime={anime} />)}
           </div>
         )}
+      </section>
+
+      {/* ── Top Anime (Day / Week / Month) ── */}
+      <section>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-[15px] font-heading font-black text-white flex items-center gap-2">
+            <Trophy className="w-4 h-4 text-[var(--gold)]" /> Top Anime
+          </h2>
+          <div className="flex bg-[var(--card)] border border-[var(--border)] rounded-xl overflow-hidden text-[11px] font-black">
+            {(['day', 'week', 'month'] as const).map(p => (
+              <button key={p} onClick={() => setTopPeriod(p)}
+                className={`px-3 py-1.5 uppercase tracking-wide transition-colors ${topPeriod === p ? 'bg-gradient-to-r from-[var(--pink)] to-[var(--purple)] text-white' : 'text-[var(--text3)] hover:text-white'}`}>
+                {p}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-2">
+          {topAnimeLoading
+            ? Array.from({ length: 10 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-3 p-2 animate-pulse">
+                  <div className="w-7 text-center shrink-0"><div className="h-4 w-5 bg-[var(--card)] rounded mx-auto" /></div>
+                  <div className="w-11 h-14 bg-[var(--card)] rounded-lg shrink-0" />
+                  <div className="flex-1 space-y-1.5"><div className="h-3 bg-[var(--card)] rounded w-3/4" /><div className="h-2.5 bg-[var(--card)] rounded w-1/2" /></div>
+                </div>
+              ))
+            : (topAnimeData?.data || []).map((anime: any, i: number) => (
+                <Link key={anime.mal_id} href={`/anime/${anime.mal_id}`}>
+                  <div className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-[var(--bg3)] transition-colors group cursor-pointer">
+                    <div className={`w-7 shrink-0 text-center font-black text-[14px] leading-none ${i === 0 ? 'text-[var(--gold)]' : i === 1 ? 'text-[#C0C0C0]' : i === 2 ? 'text-[#cd7f32]' : 'text-[var(--text3)]'}`}>
+                      {i + 1}
+                    </div>
+                    <img
+                      src={anime.images?.webp?.small_image_url || anime.images?.jpg?.small_image_url}
+                      alt={anime.title}
+                      className="w-11 h-14 object-cover rounded-lg shrink-0 group-hover:scale-105 transition-transform duration-200"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[12px] font-bold text-white line-clamp-2 leading-snug group-hover:text-[var(--pink)] transition-colors">{anime.title}</p>
+                      <div className="flex items-center gap-2 mt-1">
+                        {anime.score && <span className="text-[10px] font-bold text-[var(--gold)] flex items-center gap-0.5"><Star className="w-2.5 h-2.5 fill-current" />{anime.score}</span>}
+                        {anime.type && <span className="text-[9px] text-[var(--text3)] font-bold">{anime.type}</span>}
+                        {anime.episodes && <span className="text-[9px] text-[var(--text3)]">{anime.episodes} ep</span>}
+                      </div>
+                    </div>
+                  </div>
+                </Link>
+              ))
+          }
+        </div>
       </section>
 
       {/* ── Airing This Week ── */}

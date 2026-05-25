@@ -7,7 +7,7 @@ import { useWatchHistory } from '@/hooks/useWatchHistory';
 import { useEpisodeProgress } from '@/hooks/useEpisodeProgress';
 import { useSEO } from '@/hooks/useSEO';
 import { getNextAiring, getAnimeRelations } from '@/lib/anilist';
-import { Play, Plus, Check, Star, Timer, CheckCircle2, Circle } from 'lucide-react';
+import { Play, Plus, Check, Star, Timer, CheckCircle2, Circle, Share2 } from 'lucide-react';
 import { DetailSkeleton } from '@/components/LoadingSkeleton';
 import { AnimeLoader } from '@/components/AnimeLoader';
 
@@ -117,6 +117,18 @@ export default function AnimeDetail() {
   const totalPages  = Math.ceil(totalEps / EP_PAGE_SIZE);
   const visibleEps  = eps.slice((epPage - 1) * EP_PAGE_SIZE, epPage * EP_PAGE_SIZE);
   const watchedCount = getWatchedCount(anime.mal_id);
+  const characters = charsData?.data || [];
+
+  const pageUrl = typeof window !== 'undefined' ? window.location.href : '';
+  const shareTitle = encodeURIComponent(`Watch ${anime.title} on KamiStream`);
+  const shareUrl = encodeURIComponent(pageUrl);
+  const shareLinks = [
+    { label: 'Twitter / X', color: '#1DA1F2', href: `https://twitter.com/intent/tweet?text=${shareTitle}&url=${shareUrl}` },
+    { label: 'Facebook', color: '#1877F2', href: `https://www.facebook.com/sharer/sharer.php?u=${shareUrl}` },
+    { label: 'Reddit', color: '#FF4500', href: `https://www.reddit.com/submit?url=${shareUrl}&title=${shareTitle}` },
+    { label: 'WhatsApp', color: '#25D366', href: `https://api.whatsapp.com/send?text=${shareTitle}%20${shareUrl}` },
+    { label: 'Telegram', color: '#2CA5E0', href: `https://t.me/share/url?url=${shareUrl}&text=${shareTitle}` },
+  ];
 
   return (
     <div className="pb-20">
@@ -154,6 +166,26 @@ export default function AnimeDetail() {
                   ▶ Trailer
                 </button>
               )}
+            </div>
+
+            {/* Social Share */}
+            <div className="flex items-center gap-2 mt-4 flex-wrap">
+              <span className="text-[11px] text-[var(--text3)] font-bold flex items-center gap-1.5">
+                <Share2 className="w-3.5 h-3.5" /> Share:
+              </span>
+              {shareLinks.map(link => (
+                <a key={link.label} href={link.href} target="_blank" rel="noopener noreferrer"
+                  title={`Share on ${link.label}`}
+                  style={{ borderColor: link.color + '44', color: link.color }}
+                  className="px-3 py-1.5 rounded-lg text-[11px] font-bold border bg-white/5 hover:bg-white/10 transition-all">
+                  {link.label}
+                </a>
+              ))}
+              <button
+                onClick={() => { navigator.clipboard.writeText(pageUrl); }}
+                className="px-3 py-1.5 rounded-lg text-[11px] font-bold border border-white/20 text-white bg-white/5 hover:bg-white/10 transition-all">
+                Copy Link
+              </button>
             </div>
           </div>
         </div>
@@ -357,6 +389,7 @@ export default function AnimeDetail() {
       )}
 
       {/* Characters */}
+      {characters.length > 0 && (
         <div className="max-w-7xl mx-auto px-4 md:px-8 mt-8">
           <h2 className="text-[16px] font-heading font-black text-white mb-4">Characters</h2>
           <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-12 gap-3">
