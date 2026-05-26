@@ -35,6 +35,7 @@ const Achievements = lazy(() => import("@/pages/achievements"));
 const Mood         = lazy(() => import("@/pages/mood"));
 const HiddenGems   = lazy(() => import("@/pages/hidden-gems"));
 const Quiz         = lazy(() => import("@/pages/quiz"));
+const Category     = lazy(() => import("@/pages/category"));
 
 // ── Query client ──────────────────────────────────────────────────────
 const queryClient = new QueryClient({
@@ -82,6 +83,7 @@ function AchievementsRoute() { return <Layout><Achievements /></Layout>; }
 function MoodRoute()         { return <Layout><Mood /></Layout>; }
 function HiddenGemsRoute()   { return <Layout><HiddenGems /></Layout>; }
 function QuizRoute()         { return <Layout><Quiz /></Layout>; }
+function CategoryRoute()     { return <Layout><Category /></Layout>; }
 function NotFoundRoute()     { return <Layout><NotFound /></Layout>; }
 function WatchRoute()        { return <MinimalLayout><Watch /></MinimalLayout>; }
 function LoginRoute()        { return <MinimalLayout><Login /></MinimalLayout>; }
@@ -113,6 +115,7 @@ function Router() {
         <Route path="/mood"               component={MoodRoute} />
         <Route path="/hidden-gems"        component={HiddenGemsRoute} />
         <Route path="/quiz"               component={QuizRoute} />
+        <Route path="/category/:slug"     component={CategoryRoute} />
         <Route path="/admin"              component={Admin} />
         <Route                            component={NotFoundRoute} />
       </Switch>
