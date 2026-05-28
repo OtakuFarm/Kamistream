@@ -233,7 +233,7 @@ export default function Watch() {
     autoplayTimer.current = setInterval(() => {
       setAutoplaySecs(prev => {
         if (prev === null) return null;
-        if (prev <= 1) { clearAutoplay(); fireEpAd('autoplay'); navigate(`/watch/${malId}/${nextEp.mal_id}`); return null; }
+        if (prev <= 1) { clearAutoplay(); navigate(`/watch/${malId}/${nextEp.mal_id}`); return null; }
         return prev - 1;
       });
     }, 1000);
@@ -553,7 +553,7 @@ export default function Watch() {
             </div>
             <div className="flex-1 flex flex-col gap-2">
               <Link href={`/watch/${malId}/${nextEp.mal_id}`}
-                onClick={() => { cancelAutoplay(); fireEpAd('autoplay'); }}
+                onClick={() => { cancelAutoplay(); }}
                 className="bg-gradient-to-r from-[var(--pink)] to-[var(--purple)] text-white text-[12px] font-bold py-2 rounded-xl text-center hover:brightness-110 transition-all">
                 Play Now
               </Link>
