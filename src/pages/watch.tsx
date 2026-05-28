@@ -88,6 +88,7 @@ export default function Watch() {
   const [theaterMode,    setTheaterMode]    = useState(() => localStorage.getItem('ks_theater') === 'true');
   const [elapsedSecs,    setElapsedSecs]    = useState(0);
   const [epSearch,       setEpSearch]       = useState('');
+  const [showServerMenu, setShowServerMenu] = useState(false);
   const autoplayTimer  = useRef<ReturnType<typeof setInterval> | null>(null);
   const elapsedTimer   = useRef<ReturnType<typeof setInterval> | null>(null);
   const playerClickRef = useRef(false);
@@ -178,6 +179,27 @@ export default function Watch() {
     if (errorTimer) clearTimeout(errorTimer);
     setPlayerError(false);
   }, [errorTimer]);
+
+  // ── Close server menu on outside click ───────────────────────────
+  useEffect(() => {
+    if (!showServerMenu) return;
+    const handler = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('[data-server-menu]')) setShowServerMenu(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showServerMenu]);
+
+  // ── Sync active source URL when Sub/Dub toggled (fallback sources only) ──
+  useEffect(() => {
+    if (adminSources.length > 0 || !alId) return;
+    const current = FALLBACK_SOURCES.find(s =>
+      activeSource.includes(s.id === 'onichan' ? 'vidnest.fun/anime/' : 'vidnest.fun/animepahe/')
+    );
+    if (!current) return;
+    setActiveSource(current.build({ mal: malId, al: alId }, epId, dub));
+  }, [dub]);
 
   // ── Skip Intro show/hide + auto-skip ────────────────────────────
   useEffect(() => {
@@ -391,20 +413,42 @@ export default function Watch() {
               </div>
 
               {/* Server picker */}
-              {serverList.length > 1 && (
-                <div className="relative group">
-                  <button className="bg-[var(--card)] border border-[var(--border)] px-4 py-2 rounded-xl text-[12px] font-bold flex items-center gap-2 hover:bg-[var(--bg3)] transition-colors">
+              {serverList.length > 0 && (
+                <div className="relative" data-server-menu>
+                  <button
+                    onClick={() => setShowServerMenu(v => !v)}
+                    className="bg-[var(--card)] border border-[var(--border)] px-4 py-2 rounded-xl text-[12px] font-bold flex items-center gap-2 hover:bg-[var(--bg3)] active:scale-95 transition-all"
+                  >
                     <Settings className="w-4 h-4" />
-                    {serverList.find(s => s.url === activeSource)?.name || serverList[0].name}
+                    {serverList.find(s => s.id === (activeSource.includes('animepahe') ? 'otaku' : 'onichan'))?.name
+                      ?? serverList[0].name}
                   </button>
-                  <div className="absolute right-0 top-full mt-2 w-48 bg-[var(--card)] border border-[var(--border)] rounded-xl shadow-xl overflow-hidden opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50">
-                    {serverList.map(s => (
-                      <button key={s.id} onClick={() => { setActiveSource(s.url); setPlayerError(false); }}
-                        className={`w-full text-left px-4 py-3 text-[12px] font-bold hover:bg-[var(--bg3)] transition-colors ${s.url === activeSource ? 'text-[var(--pink)]' : 'text-white'}`}>
-                        {s.name}
-                      </button>
-                    ))}
-                  </div>
+                  {showServerMenu && (
+                    <div className="absolute right-0 top-full mt-2 w-52 bg-[var(--card)] border border-[var(--border)] rounded-xl shadow-2xl overflow-hidden z-50">
+                      <div className="px-3 py-2 border-b border-[var(--border)] text-[10px] font-black text-[var(--text3)] uppercase tracking-widest">
+                        Select Server
+                      </div>
+                      {serverList.map(s => {
+                        const isActive = activeSource.includes('animepahe')
+                          ? s.id === 'otaku'
+                          : s.id === 'onichan';
+                        return (
+                          <button
+                            key={s.id}
+                            onClick={() => {
+                              setActiveSource(s.url);
+                              setPlayerError(false);
+                              setShowServerMenu(false);
+                            }}
+                            className={`w-full text-left px-4 py-3 text-[13px] font-bold flex items-center justify-between hover:bg-[var(--bg3)] transition-colors ${isActive ? 'text-[var(--pink)]' : 'text-white'}`}
+                          >
+                            {s.name}
+                            {isActive && <span className="text-[9px] font-black text-[var(--pink)] bg-[var(--pink)]/15 px-2 py-0.5 rounded-full">ACTIVE</span>}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
