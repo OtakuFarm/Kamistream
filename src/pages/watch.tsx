@@ -53,8 +53,8 @@ function fireEpAd(type: string) {
 
 type Ids = { mal: string; al: string | null };
 const FALLBACK_SOURCES = [
-  { id: 'vidnest',  name: 'VidNest',  build: ({ al, mal }: Ids, ep: string, dub: boolean) => `https://vidnest.fun/anime/${al || mal}/${ep}/${dub ? 'dub' : 'sub'}` },
-  { id: 'cinetaro', name: 'Cinetaro', build: ({ al, mal }: Ids, ep: string, dub: boolean) => `https://api.cinetaro.buzz/anime/${al || mal}/${ep}/${dub ? 'dub' : 'sub'}` },
+  { id: 'onichan', name: 'OniChan', build: ({ al, mal }: Ids, ep: string, dub: boolean) => `https://vidnest.fun/anime/${al || mal}/${ep}/${dub ? 'dub' : 'sub'}` },
+  { id: 'otaku',   name: 'Otaku',   build: ({ al, mal }: Ids, ep: string, dub: boolean) => `https://vidnest.fun/animepahe/${al || mal}/${ep}/${dub ? 'dub' : 'sub'}` },
 ];
 
 const AUTOPLAY_COUNTDOWN = 10;
