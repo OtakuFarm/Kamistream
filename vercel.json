@@ -3,7 +3,6 @@
   "buildCommand": "pnpm --filter @workspace/kamistream run build",
   "outputDirectory": "artifacts/kamistream/dist/public",
   "framework": null,
-  "engines": { "node": "20.x" },
   "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }
   ]
