@@ -308,6 +308,7 @@ export default function Watch() {
                   className="absolute top-0 left-0 w-full h-full border-0"
                   allowFullScreen
                   allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
+                  sandbox="allow-scripts allow-same-origin allow-forms allow-presentation"
                   scrolling="no"
                 />
 
