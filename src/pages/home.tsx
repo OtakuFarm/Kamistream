@@ -23,8 +23,10 @@ export default function Home() {
   const [heroIndex, setHeroIndex] = useState(0);
   const [isHovered, setIsHovered] = useState(false);
   const [topPeriod, setTopPeriod] = useState<'day' | 'week' | 'month'>('day');
-  const [scheduleDay, setScheduleDay] = useState(0);
-  const [scheduleShowCount, setScheduleShowCount] = useState(8);
+
+  // Schedule state
+  const [activeDayIndex, setActiveDayIndex] = useState(0);
+  const [showMoreCount, setShowMoreCount] = useState(7);
 
   const topPeriodFilter: Record<string, string> = {
     day:   'filter=airing',
@@ -112,46 +114,31 @@ export default function Home() {
     staleTime: 15 * 60 * 1000,
   });
 
-  // Build 7 day slots from today
-  const scheduleDays = useMemo(() => {
-    const days = [];
-    for (let i = 0; i < 7; i++) {
-      const d = new Date();
-      d.setDate(d.getDate() + i);
-      days.push(d);
-    }
-    return days;
-  }, []);
-
+  // Build schedule grouped by day
   const { airingByDay, airingDays } = useMemo(() => {
     const byDay: Record<string, any[]> = {};
     (airingSchedule || []).forEach((item: any) => {
       const d = new Date(item.airingAt * 1000);
-      const key = d.toDateString();
+      const key = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
       if (!byDay[key]) byDay[key] = [];
       byDay[key].push(item);
     });
-    return { airingByDay: byDay, airingDays: scheduleDays.map(d => d.toDateString()) };
-  }, [airingSchedule, scheduleDays]);
+    Object.keys(byDay).forEach(k => byDay[k].sort((a: any, b: any) => a.airingAt - b.airingAt));
+    return { airingByDay: byDay, airingDays: Object.keys(byDay).slice(0, 7) };
+  }, [airingSchedule]);
 
-  // Normalise a watchlist item to what AnimeCard expects — guard against missing mal_id
+  // Reset show-more count when switching days
+  useEffect(() => { setShowMoreCount(7); }, [activeDayIndex]);
+
+  // Normalise a watchlist item to what AnimeCard expects
   const wlToCard = useMemo(() => (item: any) => ({
-    mal_id: item.mal_id,
-    title: item.title,
-    score: item.score,
-    episodes: item.episodes,
-    type: 'TV',
-    images: { webp: { large_image_url: item.image_url || '' }, jpg: { large_image_url: item.image_url || '' } },
+    mal_id: item.mal_id, title: item.title, score: item.score, episodes: item.episodes,
+    type: 'TV', images: { webp: { large_image_url: item.image_url || '' }, jpg: { large_image_url: item.image_url || '' } },
   }), []);
 
-  // Normalise watch history entry — guard against missing mal_id
   const histToCard = useMemo(() => (item: any) => ({
-    mal_id: item.mal_id,
-    title: item.title,
-    score: null,
-    episodes: null,
-    type: 'TV',
-    images: { webp: { large_image_url: item.image_url || '' }, jpg: { large_image_url: item.image_url || '' } },
+    mal_id: item.mal_id, title: item.title, score: null, episodes: null,
+    type: 'TV', images: { webp: { large_image_url: item.image_url || '' }, jpg: { large_image_url: item.image_url || '' } },
   }), []);
 
   // Auto-advance hero carousel
@@ -231,12 +218,12 @@ export default function Home() {
               View All <ChevronRight className="w-3.5 h-3.5" />
             </Link>
           </div>
-          <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 xl:grid-cols-12 gap-2">
+          <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-7 lg:grid-cols-9 xl:grid-cols-11 gap-2">
             {recentlyUpdated.map((anime: any) => (
               <div key={anime.mal_id} className="relative">
                 <AnimeCard anime={anime} />
                 {anime.latestEp && (
-                  <div className="absolute top-1 left-1 bg-[var(--green)] text-black text-[8px] font-black px-1 py-0.5 rounded z-10">
+                  <div className="absolute top-2 left-2 bg-[var(--green)] text-black text-[9px] font-black px-1.5 py-0.5 rounded-md z-10">
                     EP {anime.latestEp}
                   </div>
                 )}
@@ -246,149 +233,154 @@ export default function Home() {
         </section>
       )}
 
-      {/* ── Airing This Week (Aniwave-style) ── */}
-      <section className="bg-[var(--card)] border border-[var(--border)] rounded-2xl overflow-hidden">
-        {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border)]">
-          <div className="flex items-center gap-2">
-            <Calendar className="w-4 h-4 text-[var(--purple)]" />
-            <span className="font-heading font-black text-white text-[14px]">Estimated Schedule</span>
-            <span className="text-[11px] text-[var(--text3)] hidden sm:block">
-              — {new Date().toLocaleDateString(undefined, { weekday: 'short', month: 'numeric', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
-            </span>
+      {/* ── Airing This Week — Schedule Style ── */}
+      {airingDays.length > 0 && (
+        <section>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-[16px] font-heading font-black text-white flex items-center gap-2">
+              <Calendar className="w-4 h-4 text-[var(--purple)]" /> Airing This Week
+            </h2>
+            <Link href="/schedule" className="text-[11px] font-bold text-[var(--text3)] hover:text-[var(--pink)] transition-colors flex items-center gap-1">
+              Full Schedule <ChevronRight className="w-3.5 h-3.5" />
+            </Link>
           </div>
-          <Link href="/schedule" className="text-[11px] font-bold text-[var(--text3)] hover:text-[var(--pink)] transition-colors flex items-center gap-1">
-            Full Schedule <ChevronRight className="w-3 h-3" />
-          </Link>
-        </div>
 
-        {/* Day tabs */}
-        <div className="flex border-b border-[var(--border)] overflow-x-auto scrollbar-none">
-          {scheduleDays.map((day, i) => {
-            const isToday = i === 0;
-            const active  = scheduleDay === i;
-            const count   = (airingByDay[day.toDateString()] || []).length;
-            return (
+          <div className="bg-[var(--card)] border border-[var(--border)] rounded-2xl overflow-hidden">
+            {/* Now timestamp */}
+            <div className="px-5 py-3 border-b border-[var(--border)] bg-[var(--bg3)]/60">
+              <p className="text-[11px] text-[var(--text3)] font-mono">
+                Estimated Schedule — Now: {new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+              </p>
+            </div>
+
+            {/* Day tabs with arrows */}
+            <div className="flex items-center border-b border-[var(--border)]">
               <button
-                key={i}
-                onClick={() => { setScheduleDay(i); setScheduleShowCount(8); }}
-                className={`flex-shrink-0 flex flex-col items-center px-5 py-3 text-center border-b-2 transition-all ${
-                  active
-                    ? 'border-[var(--pink)] text-white'
-                    : 'border-transparent text-[var(--text3)] hover:text-white'
-                }`}
+                onClick={() => setActiveDayIndex(i => Math.max(0, i - 1))}
+                disabled={activeDayIndex === 0}
+                className="p-3 text-[var(--text3)] hover:text-white disabled:opacity-30 transition-colors shrink-0"
               >
-                <span className="text-[11px] font-black uppercase tracking-widest">
-                  {isToday ? 'Today' : day.toLocaleDateString(undefined, { weekday: 'short' }).toUpperCase()}
-                </span>
-                <span className="text-[13px] font-bold mt-0.5">
-                  {day.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-                </span>
-                {count > 0 && (
-                  <span className="text-[9px] font-black text-[var(--pink)] mt-0.5">{count}</span>
-                )}
+                <ChevronLeft className="w-4 h-4" />
               </button>
-            );
-          })}
-        </div>
 
-        {/* Schedule list */}
-        {(() => {
-          const dayKey  = scheduleDays[scheduleDay]?.toDateString() ?? '';
-          const items   = (airingByDay[dayKey] || []).slice().sort((a: any, b: any) => a.airingAt - b.airingAt);
-          const visible = items.slice(0, scheduleShowCount);
-
-          if (!airingSchedule) {
-            return (
-              <div className="p-6 space-y-3">
-                {Array.from({ length: 6 }).map((_, i) => (
-                  <div key={i} className="flex items-center gap-4 animate-pulse">
-                    <div className="w-16 h-3 bg-[var(--bg3)] rounded" />
-                    <div className="flex-1 h-3 bg-[var(--bg3)] rounded" />
-                    <div className="w-20 h-3 bg-[var(--bg3)] rounded" />
-                  </div>
-                ))}
-              </div>
-            );
-          }
-
-          if (items.length === 0) {
-            return (
-              <div className="py-10 text-center text-[13px] text-[var(--text3)]">
-                No airing data for this day
-              </div>
-            );
-          }
-
-          return (
-            <>
-              <div className="divide-y divide-[var(--border)]">
-                {visible.map((item: any, idx: number) => {
-                  const t       = new Date(item.airingAt * 1000);
-                  const timeStr = t.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
-                  const title   = item.media?.title?.english || item.media?.title?.romaji || 'Unknown';
-                  const malId   = item.media?.idMal;
-                  const ep      = item.episode;
-                  const isPast  = item.airingAt * 1000 < Date.now();
-
+              <div className="flex-1 flex overflow-x-auto scrollbar-none">
+                {airingDays.map((day, idx) => {
+                  const parts = day.split(', '); // e.g. "Thu, May 28"
+                  const [weekday, monthDay] = parts;
                   return (
-                    <div
-                      key={idx}
-                      className="flex items-center gap-3 px-4 py-3 hover:bg-[var(--bg3)] transition-colors group"
+                    <button
+                      key={day}
+                      onClick={() => setActiveDayIndex(idx)}
+                      className={`flex flex-col items-center py-3 px-4 min-w-[70px] shrink-0 border-b-2 transition-all ${
+                        idx === activeDayIndex
+                          ? 'border-[var(--pink)] text-white'
+                          : 'border-transparent text-[var(--text3)] hover:text-white'
+                      }`}
                     >
-                      {/* Time */}
-                      <span className={`w-16 shrink-0 text-[12px] font-mono font-bold tabular-nums ${isPast ? 'text-[var(--text3)]' : 'text-[var(--pink)]'}`}>
-                        {timeStr}
+                      <span className="text-[9px] font-bold uppercase tracking-wide opacity-70">{monthDay}</span>
+                      <span className={`text-[15px] font-black uppercase mt-0.5 ${idx === activeDayIndex ? 'text-white' : ''}`}>
+                        {weekday?.toUpperCase()}
                       </span>
-
-                      {/* Cover thumb */}
-                      {item.media?.coverImage?.large && (
-                        <img
-                          src={item.media.coverImage.large}
-                          alt=""
-                          className="w-8 h-10 rounded object-cover shrink-0 hidden sm:block"
-                        />
-                      )}
-
-                      {/* Title */}
-                      {malId ? (
-                        <Link href={`/anime/${malId}`} className="flex-1 min-w-0">
-                          <span className="text-[13px] font-bold text-white line-clamp-1 group-hover:text-[var(--pink)] transition-colors cursor-pointer">
-                            {title}
-                          </span>
-                        </Link>
-                      ) : (
-                        <span className="flex-1 min-w-0 text-[13px] font-bold text-white line-clamp-1">{title}</span>
-                      )}
-
-                      {/* Episode badge */}
-                      <div className="shrink-0 flex items-center gap-1.5">
-                        {malId && (
-                          <Link href={`/watch/${malId}/${ep}`}>
-                            <button className="flex items-center gap-1 bg-[var(--bg3)] hover:bg-[var(--pink)] text-[var(--text3)] hover:text-white px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all">
-                              <Play className="w-2.5 h-2.5 fill-current" />
-                              Ep {ep}
-                            </button>
-                          </Link>
-                        )}
-                      </div>
-                    </div>
+                    </button>
                   );
                 })}
               </div>
 
-              {items.length > scheduleShowCount && (
-                <button
-                  onClick={() => setScheduleShowCount(c => c + 10)}
-                  className="w-full py-3 text-[12px] font-bold text-[var(--text3)] hover:text-[var(--pink)] transition-colors border-t border-[var(--border)]"
-                >
-                  Show more ({items.length - scheduleShowCount} remaining)
-                </button>
-              )}
-            </>
-          );
-        })()}
-      </section>
+              <button
+                onClick={() => setActiveDayIndex(i => Math.min(airingDays.length - 1, i + 1))}
+                disabled={activeDayIndex === airingDays.length - 1}
+                className="p-3 text-[var(--text3)] hover:text-white disabled:opacity-30 transition-colors shrink-0"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Schedule rows for active day */}
+            {(() => {
+              const dayKey = airingDays[activeDayIndex];
+              const items = airingByDay[dayKey] || [];
+              const visible = items.slice(0, showMoreCount);
+              const hasMore = items.length > showMoreCount;
+
+              return (
+                <div>
+                  {visible.map((item: any, i: number) => {
+                    const m = item.media;
+                    const title = m?.title?.english || m?.title?.romaji || 'Unknown';
+                    const malId = m?.idMal;
+                    const now = Math.floor(Date.now() / 1000);
+                    const isOut = item.airingAt <= now;
+                    const timeStr = new Date(item.airingAt * 1000).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+
+                    return (
+                      <div
+                        key={`${m?.id}-${item.episode}-${i}`}
+                        className="flex items-center gap-4 px-5 py-3 border-b border-[var(--border)]/50 last:border-0 hover:bg-[var(--bg3)]/60 transition-colors group"
+                      >
+                        {/* Time */}
+                        <div className="w-[68px] shrink-0 text-[12px] font-mono text-[var(--text3)] group-hover:text-[var(--text2)] transition-colors">
+                          {timeStr}
+                        </div>
+
+                        {/* Title */}
+                        <div className="flex-1 min-w-0">
+                          {malId ? (
+                            <Link href={`/anime/${malId}`}>
+                              <span className="text-[13px] font-bold text-white hover:text-[var(--pink)] transition-colors line-clamp-1 cursor-pointer">
+                                {title}
+                              </span>
+                            </Link>
+                          ) : (
+                            <span className="text-[13px] font-bold text-white line-clamp-1">{title}</span>
+                          )}
+                        </div>
+
+                        {/* Episode button */}
+                        <div className="shrink-0">
+                          {malId ? (
+                            <Link href={`/anime/${malId}`}>
+                              <button className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all ${
+                                isOut
+                                  ? 'bg-[var(--pink)]/15 border border-[var(--pink)]/40 text-[var(--pink)] hover:bg-[var(--pink)]/30'
+                                  : 'bg-[var(--bg3)] border border-[var(--border)] text-[var(--text3)] hover:text-white hover:border-[var(--border)]'
+                              }`}>
+                                <Play className="w-3 h-3 fill-current" />
+                                Episode {item.episode}
+                              </button>
+                            </Link>
+                          ) : (
+                            <span className="text-[11px] text-[var(--text3)] font-bold px-3 py-1.5">
+                              EP {item.episode}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {/* Show more */}
+                  {hasMore && (
+                    <div className="px-5 py-4 text-center border-t border-[var(--border)]/50">
+                      <button
+                        onClick={() => setShowMoreCount(c => c + 10)}
+                        className="text-[12px] font-bold text-[var(--text3)] hover:text-[var(--pink)] transition-colors"
+                      >
+                        Show more
+                      </button>
+                    </div>
+                  )}
+
+                  {items.length === 0 && (
+                    <div className="py-10 text-center text-[var(--text3)] text-[13px]">
+                      No airing anime scheduled for this day.
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+          </div>
+        </section>
+      )}
 
       {/* ── Continue Watching ── */}
       {recentHistory.length > 0 && (
@@ -398,7 +390,7 @@ export default function Home() {
               <Clock className="w-3.5 h-3.5 text-[var(--purple)]" /> Continue Watching
             </h2>
           </div>
-          <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 xl:grid-cols-12 gap-2">
+          <div className="grid grid-cols-5 sm:grid-cols-7 md:grid-cols-9 lg:grid-cols-11 xl:grid-cols-13 gap-2">
             {recentHistory.map((item: any) => (
               <AnimeCard key={item.mal_id} anime={histToCard(item)} />
             ))}
@@ -417,7 +409,7 @@ export default function Home() {
               View All ({watchlist.length}) <ChevronRight className="w-3 h-3" />
             </Link>
           </div>
-          <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 xl:grid-cols-12 gap-2">
+          <div className="grid grid-cols-5 sm:grid-cols-7 md:grid-cols-9 lg:grid-cols-11 xl:grid-cols-13 gap-2">
             {watchlist.slice(0, 12).map((item: any) => (
               <AnimeCard key={item.mal_id} anime={wlToCard(item)} />
             ))}
@@ -469,7 +461,7 @@ export default function Home() {
           <Link href="/category/trending" className="text-[11px] font-bold text-[var(--text3)] hover:text-[var(--pink)] transition-colors">View All →</Link>
         </div>
         {trendingLoading ? <GridSkeleton /> : (
-          <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-2">
+          <div className="grid grid-cols-5 sm:grid-cols-6 md:grid-cols-7 lg:grid-cols-9 xl:grid-cols-11 gap-2">
             {trending?.data?.map((anime: any) => <AnimeCard key={anime.mal_id} anime={anime} />)}
           </div>
         )}
@@ -484,7 +476,7 @@ export default function Home() {
           <Link href="/category/top-rated" className="text-[11px] font-bold text-[var(--text3)] hover:text-[var(--pink)] transition-colors">View All →</Link>
         </div>
         {topRatedLoading ? <GridSkeleton /> : (
-          <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-2">
+          <div className="grid grid-cols-5 sm:grid-cols-6 md:grid-cols-7 lg:grid-cols-9 xl:grid-cols-11 gap-2">
             {topRated?.data?.map((anime: any) => <AnimeCard key={anime.mal_id} anime={anime} />)}
           </div>
         )}
@@ -499,7 +491,7 @@ export default function Home() {
           <Link href="/category/this-season" className="text-[11px] font-bold text-[var(--text3)] hover:text-[var(--pink)] transition-colors">View All →</Link>
         </div>
         {seasonalLoading ? <GridSkeleton /> : (
-          <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 lg:grid-cols-8 xl:grid-cols-10 gap-2">
+          <div className="grid grid-cols-5 sm:grid-cols-6 md:grid-cols-7 lg:grid-cols-9 xl:grid-cols-11 gap-2">
             {seasonal?.data?.map((anime: any) => <AnimeCard key={anime.mal_id} anime={anime} />)}
           </div>
         )}
@@ -555,7 +547,6 @@ export default function Home() {
           }
         </div>
       </section>
-
 
       <div id="home-ad" className="min-h-[1px]"
         ref={el => { if (el && (window as any).KamiAds) (window as any).KamiAds.loadInPagePush('home-ad'); }}
