@@ -1,8 +1,7 @@
 {
-  "installCommand": "pnpm install",
-  "buildCommand": "pnpm --filter @workspace/kamistream run build",
-  "outputDirectory": "artifacts/kamistream/dist/public",
-  "framework": null,
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "framework": "vite",
   "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }
   ]
