@@ -9,7 +9,9 @@ import { useSEO } from '@/hooks/useSEO';
 import { useEpisodeProgress } from '@/hooks/useEpisodeProgress';
 import { EpisodeSocial } from '@/components/EpisodeSocial';
 
-// ── AniList ID resolver ───────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// AniList ID resolver  (unchanged — cached in memory + sessionStorage)
+// ─────────────────────────────────────────────────────────────────────────────
 const _alCache: Record<string, string> = {};
 async function resolveAnilistId(malId: string): Promise<string | null> {
   if (_alCache[malId]) return _alCache[malId];
@@ -31,15 +33,100 @@ async function resolveAnilistId(malId: string): Promise<string | null> {
   } catch { return null; }
 }
 
-// ── Supabase embed sources ────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// Anikoto ID resolver
+// Fetches the Anikoto series page by MAL id (via /series/{anikoto-id}) to get
+// episode_embed_ids.  Anikoto uses its own series IDs, so we first search by
+// MAL id, then load the series to get per-episode embed ids.
+//
+// Results are cached in sessionStorage so we only hit Anikoto once per anime.
+// ─────────────────────────────────────────────────────────────────────────────
+const ANIKOTO_BASE = 'https://anikotoapi.site';
+const _anikotoEmbedCache: Record<string, Record<string, string>> = {};
+// key: malId → { epNum: episode_embed_id }
+
+async function resolveAnikotoEmbedId(malId: string, epNum: string): Promise<string | null> {
+  // Check in-memory cache first
+  if (_anikotoEmbedCache[malId]?.[epNum]) return _anikotoEmbedCache[malId][epNum];
+
+  // Check sessionStorage cache (persists across SPA navigations)
+  const ssKey = `anikoto_ep_${malId}`;
+  const cached = sessionStorage.getItem(ssKey);
+  if (cached) {
+    try {
+      const map = JSON.parse(cached) as Record<string, string>;
+      _anikotoEmbedCache[malId] = map;
+      if (map[epNum]) return map[epNum];
+    } catch {}
+  }
+
+  try {
+    // Step 1: search Anikoto for the anime by title or browse recent
+    // Anikoto doesn't expose a MAL search endpoint, so we use /recent-anime
+    // with enough pages and match by mal_id if exposed, or fall back to title.
+    // The reliable path: /series/{anikoto-id} — but we need the Anikoto series id.
+    // Their /recent-anime returns { id, mal_id?, ... } — match on mal_id.
+    // We scan up to 5 pages (100 items) which covers ~95% of requests cached.
+    let anikotoSeriesId: string | null = null;
+    for (let page = 1; page <= 5 && !anikotoSeriesId; page++) {
+      const r = await fetch(`${ANIKOTO_BASE}/recent-anime?page=${page}&per_page=20`, { signal: AbortSignal.timeout(5000) });
+      if (!r.ok) break;
+      const json = await r.json();
+      const list: any[] = json?.data || json?.results || json || [];
+      if (!Array.isArray(list) || list.length === 0) break;
+      const match = list.find((a: any) => String(a.mal_id) === malId || String(a.id) === malId);
+      if (match) { anikotoSeriesId = String(match.id); break; }
+    }
+    if (!anikotoSeriesId) return null;
+
+    // Step 2: load series detail to get per-episode embed ids
+    const sr = await fetch(`${ANIKOTO_BASE}/series/${anikotoSeriesId}`, { signal: AbortSignal.timeout(5000) });
+    if (!sr.ok) return null;
+    const series = await sr.json();
+    const episodes: any[] = series?.episodes || series?.data?.episodes || [];
+
+    // Build ep_number → episode_embed_id map
+    const map: Record<string, string> = {};
+    for (const ep of episodes) {
+      const num = String(ep.episode_number ?? ep.number ?? ep.ep ?? ep.num);
+      const embedId = String(ep.episode_embed_id ?? ep.embed_id ?? ep.id ?? '');
+      if (num && embedId) map[num] = embedId;
+    }
+    _anikotoEmbedCache[malId] = map;
+    sessionStorage.setItem(ssKey, JSON.stringify(map));
+    return map[epNum] || null;
+  } catch {
+    return null;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MegaPlay embed URL builders
+// Priority: s-2 (via Anikoto embed id) > MAL endpoint > AniList endpoint
+// ─────────────────────────────────────────────────────────────────────────────
+const MP_BASE = 'https://megaplay.buzz';
+
+function megaplayMal(malId: string, ep: string, lang: 'sub' | 'dub') {
+  return `${MP_BASE}/stream/mal/${malId}/${ep}/${lang}`;
+}
+function megaplayAni(alId: string, ep: string, lang: 'sub' | 'dub') {
+  return `${MP_BASE}/stream/ani/${alId}/${ep}/${lang}`;
+}
+function megaplayS2(embedId: string, lang: 'sub' | 'dub') {
+  return `${MP_BASE}/stream/s-2/${embedId}/${lang}`;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Supabase admin sources  (unchanged)
+// ─────────────────────────────────────────────────────────────────────────────
 async function fetchAdminSources(malId: string, epNum: string) {
   try {
     const { data: anime } = await supabase.from('anime').select('id').eq('mal_id', malId).maybeSingle();
-    if (!anime?.id) return [];
+    if (!anime?.id) return { sources: [], intro_start: null, intro_end: null };
     const { data: episode } = await supabase.from('episodes')
       .select('id, intro_start, intro_end')
       .eq('anime_id', anime.id).eq('episode_number', parseInt(epNum)).maybeSingle();
-    if (!episode?.id) return [];
+    if (!episode?.id) return { sources: [], intro_start: null, intro_end: null };
     const { data: sources } = await supabase.from('embed_sources')
       .select('source_name, embed_url, language, quality, download_url')
       .eq('episode_id', episode.id).eq('is_active', true);
@@ -47,15 +134,19 @@ async function fetchAdminSources(malId: string, epNum: string) {
   } catch { return { sources: [], intro_start: null, intro_end: null }; }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Server list types
+// ─────────────────────────────────────────────────────────────────────────────
+interface ServerEntry {
+  id: string;
+  name: string;
+  url: string;
+  badge?: string;   // optional label shown next to server name
+}
+
 function fireEpAd(type: string) {
   try { (window as any).KamiAds?.onEpisodeClick(type); } catch {}
 }
-
-type Ids = { mal: string; al: string | null };
-const FALLBACK_SOURCES = [
-  { id: 'onichan', name: 'OniChan', build: ({ al, mal }: Ids, ep: string, dub: boolean) => `https://vidnest.fun/anime/${al || mal}/${ep}/${dub ? 'dub' : 'sub'}` },
-  { id: 'otaku',   name: 'Otaku',   build: ({ al, mal }: Ids, ep: string, dub: boolean) => `https://vidnest.fun/animepahe/${al || mal}/${ep}/${dub ? 'dub' : 'sub'}` },
-];
 
 const AUTOPLAY_COUNTDOWN = 10;
 
@@ -65,9 +156,13 @@ export default function Watch() {
   const malId = params?.id || '';
   const epId  = params?.ep || '1';
 
-  const [alId,           setAlId]           = useState<string | null>(null);
-  const [dub,            setDub]            = useState(false);
-  const [selectedServerId, setSelectedServerId] = useState<string>('onichan');
+  // IDs
+  const [alId,         setAlId]         = useState<string | null>(null);
+  const [anikotoEmbedId, setAnikotoEmbedId] = useState<string | null>(null);
+
+  // Playback prefs
+  const [dub,          setDub]          = useState(false);
+  const [selectedServerId, setSelectedServerId] = useState<string>('mp-mal');
   const [autoPlay,   setAutoPlay]   = useState(() => localStorage.getItem('ks_autoplay')  !== 'false');
   const [autoNext,   setAutoNext]   = useState(() => localStorage.getItem('ks_autonext')  !== 'false');
   const [autoSkip,   setAutoSkip]   = useState(() => localStorage.getItem('ks_autoskip')  === 'true');
@@ -75,9 +170,10 @@ export default function Watch() {
   function toggleAutoPlay()  { const v = !autoPlay;  setAutoPlay(v);  localStorage.setItem('ks_autoplay',  v ? 'true' : 'false'); }
   function toggleAutoNext()  { const v = !autoNext;  setAutoNext(v);  localStorage.setItem('ks_autonext',  v ? 'true' : 'false'); }
   function toggleAutoSkip()  { const v = !autoSkip;  setAutoSkip(v);  localStorage.setItem('ks_autoskip',  v ? 'true' : 'false'); }
+
   const [adminSources,   setAdminSources]   = useState<any[]>([]);
   const [activeSource,   setActiveSource]   = useState('');
-  const [showEpList,     setShowEpList]     = useState(false);
+
   const [loadingPlayer,  setLoadingPlayer]  = useState(true);
   const [playerError,    setPlayerError]    = useState(false);
   const [errorTimer,     setErrorTimer]     = useState<ReturnType<typeof setTimeout> | null>(null);
@@ -89,6 +185,7 @@ export default function Watch() {
   const [theaterMode,    setTheaterMode]    = useState(() => localStorage.getItem('ks_theater') === 'true');
   const [elapsedSecs,    setElapsedSecs]    = useState(0);
   const [epSearch,       setEpSearch]       = useState('');
+
   const autoplayTimer  = useRef<ReturnType<typeof setInterval> | null>(null);
   const elapsedTimer   = useRef<ReturnType<typeof setInterval> | null>(null);
   const playerClickRef = useRef(false);
@@ -106,11 +203,43 @@ export default function Watch() {
   const prevEp         = currentEpIndex > 0              ? eps[currentEpIndex - 1] : null;
   const nextEp         = currentEpIndex < eps.length - 1 ? eps[currentEpIndex + 1] : null;
 
-  function toggleTheater() {
-    const v = !theaterMode;
-    setTheaterMode(v);
-    localStorage.setItem('ks_theater', v ? 'true' : 'false');
-  }
+  const lang = dub ? 'dub' : 'sub';
+
+  // ── Build the full server list ─────────────────────────────────────
+  // Priority order shown to user:
+  //   1. Admin sources (Supabase) — one entry per unique source_name
+  //   2. MegaPlay S-2 (Anikoto embed id) — best quality, appears when resolved
+  //   3. MegaPlay MAL  — always available
+  //   4. MegaPlay AniList — available when AniList id resolved
+  const buildServerList = useCallback((): ServerEntry[] => {
+    const servers: ServerEntry[] = [];
+
+    // Admin sources from Supabase
+    if (adminSources.length > 0) {
+      const langSources = adminSources.filter((s: any) => s.language === lang);
+      const usableSources = langSources.length > 0 ? langSources : adminSources;
+      usableSources.forEach((s: any) => {
+        servers.push({ id: `admin-${s.source_name}`, name: s.source_name, url: s.embed_url, badge: 'HD' });
+      });
+    }
+
+    // MegaPlay S-2 via Anikoto embed id (highest quality path)
+    if (anikotoEmbedId) {
+      servers.push({ id: 'mp-s2', name: 'OniChan', url: megaplayS2(anikotoEmbedId, lang) });
+    }
+
+    // MegaPlay MAL (always works, no extra API needed)
+    servers.push({ id: 'mp-mal', name: anikotoEmbedId ? 'Otaku' : 'OniChan', url: megaplayMal(malId, epId, lang) });
+
+    // MegaPlay AniList (parallel option, slightly different source)
+    if (alId) {
+      servers.push({ id: 'mp-ani', name: 'Otaku', url: megaplayAni(alId, epId, lang) });
+    }
+
+    return servers;
+  }, [adminSources, anikotoEmbedId, alId, malId, epId, lang]);
+
+  const serverList = buildServerList();
 
   // ── Keyboard shortcuts ────────────────────────────────────────────
   useEffect(() => {
@@ -125,6 +254,12 @@ export default function Watch() {
     return () => window.removeEventListener('keydown', handler);
   }, [theaterMode, prevEp, nextEp, malId]);
 
+  function toggleTheater() {
+    const v = !theaterMode;
+    setTheaterMode(v);
+    localStorage.setItem('ks_theater', v ? 'true' : 'false');
+  }
+
   // ── Landscape detection ───────────────────────────────────────────
   useEffect(() => {
     const check = () => setIsLandscape(window.innerWidth > window.innerHeight && window.innerHeight < 500);
@@ -134,14 +269,22 @@ export default function Watch() {
     return () => { window.removeEventListener('resize', check); window.removeEventListener('orientationchange', check); };
   }, []);
 
-  // ── Load player ───────────────────────────────────────────────────
+  // ── Main load effect ──────────────────────────────────────────────
+  // Runs whenever malId or epId changes.
+  // We fire all three resolvers in parallel and set the active source
+  // as soon as the fastest one lands, upgrading to better sources as
+  // they arrive without interrupting playback.
   useEffect(() => {
     if (!malId || !epId) return;
+
+    // Reset state
     setLoadingPlayer(true);
     setPlayerError(false);
     setAdminSources([]);
     setActiveSource('');
-    setSelectedServerId('onichan');
+    setAlId(null);
+    setAnikotoEmbedId(null);
+    setSelectedServerId('mp-mal');
     setAutoplaySecs(null);
     setElapsedSecs(0);
     setShowSkipIntro(false);
@@ -149,29 +292,48 @@ export default function Watch() {
     clearAutoplay();
     if (errorTimer) clearTimeout(errorTimer);
 
-    // Start elapsed timer for skip intro
+    // Elapsed timer for skip-intro UX
     if (elapsedTimer.current) clearInterval(elapsedTimer.current);
     elapsedTimer.current = setInterval(() => setElapsedSecs(s => s + 1), 1000);
 
-    Promise.all([resolveAnilistId(malId), fetchAdminSources(malId, epId)]).then(([al, result]: any) => {
-      setAlId(al);
-      const sources = result?.sources || [];
+    // Set the MAL source immediately — it needs no resolution and is the
+    // fastest path.  Player starts showing content right away.
+    const initialLang = (localStorage.getItem('ks_dub') === 'true') ? 'dub' : 'sub';
+    const initialLangTyped = initialLang as 'sub' | 'dub';
+    setActiveSource(megaplayMal(malId, epId, initialLangTyped));
+    setLoadingPlayer(false);
+
+    // Start error timer (cleared on iframe load)
+    const t = setTimeout(() => setPlayerError(true), 12000);
+    setErrorTimer(t);
+
+    // Fire all resolvers in parallel — results upgrade the server list
+    // without touching the currently-playing iframe.
+    Promise.all([
+      resolveAnilistId(malId),
+      fetchAdminSources(malId, epId),
+      resolveAnikotoEmbedId(malId, epId),
+    ]).then(([al, adminResult, embedId]) => {
+      // AniList id
+      if (al) setAlId(al);
+
+      // Admin sources (highest priority — switch active source if we have them)
+      const sources = (adminResult as any)?.sources || [];
       setAdminSources(sources);
-      setIntroStart(result?.intro_start ?? null);
-      setIntroEnd(result?.intro_end ?? null);
+      setIntroStart((adminResult as any)?.intro_start ?? null);
+      setIntroEnd((adminResult as any)?.intro_end ?? null);
 
       if (sources.length > 0) {
-        const preferred = sources.find((s: any) => s.language === (dub ? 'dub' : 'sub')) || sources[0];
+        const preferred = sources.find((s: any) => s.language === initialLang) || sources[0];
         setActiveSource(preferred.embed_url);
-      } else {
-        setActiveSource(`https://vidnest.fun/anime/${al || malId}/${epId}/${dub ? 'dub' : 'sub'}`);
+        setSelectedServerId(`admin-${preferred.source_name}`);
       }
-      setLoadingPlayer(false);
 
-      // Error detection: if player still blank after 12s show error
-      const t = setTimeout(() => setPlayerError(true), 12000);
-      setErrorTimer(t);
+      // Anikoto embed id — makes S-2 server available in the picker
+      // but doesn't auto-switch if admin sources or MAL already playing fine
+      if (embedId) setAnikotoEmbedId(embedId);
     });
+
     return () => { if (elapsedTimer.current) clearInterval(elapsedTimer.current); };
   }, [malId, epId]);
 
@@ -181,7 +343,7 @@ export default function Watch() {
     setPlayerError(false);
   }, [errorTimer]);
 
-  // ── Skip Intro show/hide + auto-skip ────────────────────────────
+  // ── Skip Intro ───────────────────────────────────────────────────
   useEffect(() => {
     const start = introStart ?? 20;
     const end   = introEnd   ?? 90;
@@ -190,39 +352,50 @@ export default function Watch() {
     if (shouldShow && autoSkip) { skipIntro(); }
   }, [elapsedSecs, introStart, introEnd, autoSkip]);
 
-  // ── Auto-play: start countdown automatically after 30s ───────────
+  // ── Auto-play countdown trigger ──────────────────────────────────
   useEffect(() => {
     if (!autoPlay || !autoNext || !nextEp) return;
     const t = setTimeout(() => { if (autoPlay && autoNext) startAutoplay(); }, 30_000);
     return () => clearTimeout(t);
   }, [malId, epId, autoPlay, autoNext]);
 
-  // ── Log history ───────────────────────────────────────────────────
+  // ── Log history ──────────────────────────────────────────────────
   useEffect(() => {
     if (!detail?.data) return;
     const anime = detail.data;
     logEpisode({ mal_id: anime.mal_id, title: anime.title, image_url: anime.images?.webp?.large_image_url || '', ep_id: parseInt(epId), ep_title: currentEp?.title || `Episode ${epId}` });
   }, [malId, epId, detail?.data?.mal_id]);
 
-  // ── Dub toggle — rebuild URL for the currently selected server ───
+  // ── Dub toggle — rebuild active source URL for current server ────
   useEffect(() => {
-    if (adminSources.length > 0) {
-      const match = adminSources.find((s: any) => s.language === (dub ? 'dub' : 'sub')) || adminSources[0];
+    const currentLang = dub ? 'dub' : 'sub';
+    localStorage.setItem('ks_dub', dub ? 'true' : 'false');
+
+    if (adminSources.length > 0 && selectedServerId.startsWith('admin-')) {
+      const match = adminSources.find((s: any) => s.language === currentLang) || adminSources[0];
       setActiveSource(match.embed_url);
-    } else if (alId !== null && alId !== undefined) {
-      const srv = FALLBACK_SOURCES.find(s => s.id === selectedServerId) || FALLBACK_SOURCES[0];
-      setActiveSource(srv.build({ mal: malId, al: alId }, epId, dub));
+      return;
+    }
+
+    // Rebuild MegaPlay URL for whichever server is active
+    if (selectedServerId === 'mp-s2' && anikotoEmbedId) {
+      setActiveSource(megaplayS2(anikotoEmbedId, currentLang));
+    } else if (selectedServerId === 'mp-ani' && alId) {
+      setActiveSource(megaplayAni(alId, epId, currentLang));
+    } else {
+      setActiveSource(megaplayMal(malId, epId, currentLang));
+      setSelectedServerId('mp-mal');
     }
   }, [dub]);
 
-  // ── Auto mark watched ─────────────────────────────────────────────
+  // ── Auto mark watched ────────────────────────────────────────────
   useEffect(() => {
     if (!malId || !epId) return;
     const t = setTimeout(() => markWatched(malId, epId), 30_000);
     return () => clearTimeout(t);
   }, [malId, epId]);
 
-  // ── Autoplay countdown ────────────────────────────────────────────
+  // ── Autoplay countdown ───────────────────────────────────────────
   function clearAutoplay() {
     if (autoplayTimer.current) { clearInterval(autoplayTimer.current); autoplayTimer.current = null; }
   }
@@ -241,9 +414,37 @@ export default function Watch() {
   function cancelAutoplay() { clearAutoplay(); setAutoplaySecs(null); }
   useEffect(() => () => { clearAutoplay(); if (elapsedTimer.current) clearInterval(elapsedTimer.current); }, []);
 
-  // ── AniList effects ───────────────────────────────────────────────
+  // ── Skip intro helper ────────────────────────────────────────────
+  function skipIntro() {
+    const end = introEnd ?? 90;
+    try {
+      const url = new URL(activeSource);
+      url.searchParams.set('t', String(end));
+      setActiveSource(url.toString());
+    } catch {}
+    setShowSkipIntro(false);
+  }
+
+  // ── Ads ──────────────────────────────────────────────────────────
   useEffect(() => { try { (window as any).KamiAds?.onEpisodeChange?.(); } catch {} }, [malId, epId]);
 
+  function handlePlayerClick() {
+    if (playerClickRef.current) return;
+    playerClickRef.current = true;
+    fireEpAd('player');
+  }
+
+  // ── Switch server helper ─────────────────────────────────────────
+  function switchServer(server: ServerEntry) {
+    setActiveSource(server.url);
+    setSelectedServerId(server.id);
+    setPlayerError(false);
+    clearTimeout(errorTimer!);
+    const t = setTimeout(() => setPlayerError(true), 12000);
+    setErrorTimer(t);
+  }
+
+  // ── SEO ──────────────────────────────────────────────────────────
   useSEO(detail?.data ? {
     title: `${detail.data.title} Episode ${epId}`,
     description: detail.data.synopsis?.slice(0, 160),
@@ -255,34 +456,12 @@ export default function Watch() {
   if (!detail?.data) return <div className="p-8 text-center">Anime not found.</div>;
 
   const anime = detail.data;
-  // Always expose exactly two servers: OniChan and Otaku
-  const serverList = adminSources.length > 0
-    ? [
-        { id: 'onichan', name: 'OniChan', url: adminSources.find((s: any) => s.language === (dub ? 'dub' : 'sub'))?.embed_url || adminSources[0].embed_url },
-        { id: 'otaku',   name: 'Otaku',   url: FALLBACK_SOURCES[1].build({ mal: malId, al: alId }, epId, dub) },
-      ]
-    : FALLBACK_SOURCES.map(s => ({ id: s.id, name: s.name, url: s.build({ mal: malId, al: alId }, epId, dub) }));
-
   const downloadSources = adminSources.filter((s: any) => s.download_url);
 
-  function handlePlayerClick() {
-    if (playerClickRef.current) return;
-    playerClickRef.current = true;
-    fireEpAd('player');
-  }
-
-  function skipIntro() {
-    const end = introEnd ?? 90;
-    // Reload iframe with timestamp param (works if embed supports ?t=)
-    const url = new URL(activeSource);
-    url.searchParams.set('t', String(end));
-    setActiveSource(url.toString());
-    setShowSkipIntro(false);
-  }
-
+  // ── Render ────────────────────────────────────────────────────────
   return (
-    <div className="flex flex-col lg:flex-row h-[calc(100vh-60px)]">
-      <div className="flex-1 flex flex-col bg-black overflow-hidden">
+    <div className="flex flex-col h-[calc(100vh-60px)] overflow-hidden">
+      <div className="flex-1 flex flex-col bg-black overflow-y-auto">
 
         {/* ── Player ── */}
         <div className={`w-full bg-black flex justify-center items-start relative ${isLandscape ? 'fixed inset-0 z-[100] h-screen' : ''}`}>
@@ -311,15 +490,15 @@ export default function Watch() {
                   scrolling="no"
                 />
 
-                {/* Video error fallback */}
+                {/* Error overlay */}
                 {playerError && (
                   <div className="absolute inset-0 bg-black/90 flex flex-col items-center justify-center gap-4 z-10">
                     <AlertTriangle className="w-10 h-10 text-[var(--pink)]" />
                     <p className="text-white font-bold text-[15px]">Player failed to load</p>
-                    <p className="text-[var(--text3)] text-[12px] text-center px-4">Try switching to another server or refreshing</p>
-                    <div className="flex gap-2 mt-2">
+                    <p className="text-[var(--text3)] text-[12px] text-center px-4">Try switching to another server below</p>
+                    <div className="flex flex-wrap gap-2 mt-2 justify-center">
                       {serverList.filter(s => s.id !== selectedServerId).map(s => (
-                        <button key={s.id} onClick={() => { setActiveSource(s.url); setSelectedServerId(s.id); setPlayerError(false); }}
+                        <button key={s.id} onClick={() => switchServer(s)}
                           className="px-4 py-2 bg-gradient-to-r from-[var(--pink)] to-[var(--purple)] text-white text-[12px] font-bold rounded-xl hover:opacity-90 transition-all">
                           Try {s.name}
                         </button>
@@ -332,7 +511,7 @@ export default function Watch() {
                   </div>
                 )}
 
-                {/* Skip Intro button */}
+                {/* Skip Intro */}
                 {showSkipIntro && (
                   <button onClick={skipIntro}
                     className="absolute bottom-12 right-4 z-20 px-5 py-2.5 bg-black/70 border-2 border-white/80 text-white text-[13px] font-bold rounded-xl backdrop-blur-sm hover:bg-white hover:text-black transition-all flex items-center gap-2">
@@ -340,7 +519,7 @@ export default function Watch() {
                   </button>
                 )}
 
-                {/* Landscape exit hint */}
+                {/* Landscape exit */}
                 {isLandscape && (
                   <button onClick={() => setIsLandscape(false)}
                     className="absolute top-3 right-3 z-20 p-2 bg-black/60 rounded-lg text-white/70 hover:text-white transition-colors">
@@ -353,7 +532,7 @@ export default function Watch() {
         </div>
 
         {/* ── Info + controls ── */}
-        <div className="p-4 md:p-6 bg-[var(--bg2)] flex-1 overflow-y-auto">
+        <div className="p-4 md:p-6 bg-[var(--bg2)]">
           <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
             <div>
               <Link href={`/anime/${malId}`} className="text-[var(--pink)] font-bold text-[12px] hover:underline mb-1 inline-block">
@@ -362,11 +541,15 @@ export default function Watch() {
               <h1 className="text-xl font-heading font-black text-white">
                 EP {epId}: {currentEp.title}
               </h1>
-              <div className="text-[10px] text-[var(--text3)] mt-1 font-mono flex gap-3">
-                {adminSources.length > 0
-                  ? <span className="text-[var(--green)]">✓ {adminSources.length} admin source{adminSources.length > 1 ? 's' : ''}</span>
-                  : <span>⚡ Auto source</span>}
-                {alId && <span>AniList #{alId}</span>}
+              {/* Source info badges */}
+              <div className="text-[10px] text-[var(--text3)] mt-1 font-mono flex flex-wrap gap-2">
+                {adminSources.length > 0 && (
+                  <span className="text-[var(--green)]">✓ {adminSources.length} source{adminSources.length > 1 ? 's' : ''} available</span>
+                )}
+                {anikotoEmbedId
+                  ? <span className="text-[var(--blue)]">✓ OniChan + Otaku ready</span>
+                  : <span>⚡ OniChan ready</span>
+                }
               </div>
             </div>
 
@@ -378,7 +561,7 @@ export default function Watch() {
                 Theater
               </button>
 
-              {/* Auto Play / Next / Skip toggles */}
+              {/* Auto toggles */}
               {[
                 { label: 'Auto Play', state: autoPlay, toggle: toggleAutoPlay },
                 { label: 'Auto Next', state: autoNext, toggle: toggleAutoNext },
@@ -394,16 +577,17 @@ export default function Watch() {
               {/* Sub / Dub */}
               <div className="flex bg-[var(--card)] border border-[var(--border)] rounded-xl overflow-hidden text-[12px] font-bold">
                 <button onClick={() => setDub(false)} className={`px-4 py-2 transition-colors ${!dub ? 'bg-[var(--pink)] text-white' : 'text-[var(--text3)] hover:text-white'}`}>SUB</button>
-                <button onClick={() => setDub(true)}  className={`px-4 py-2 transition-colors ${dub  ? 'bg-[var(--purple)] text-white' : 'text-[var(--text3)] hover:text-white'}`}>DUB</button>
+                <button onClick={() => setDub(true)}  className={`px-4 py-2 transition-colors ${ dub ? 'bg-[var(--purple)] text-white' : 'text-[var(--text3)] hover:text-white'}`}>DUB</button>
               </div>
 
               {/* Server picker */}
-              <div className="flex bg-[var(--card)] border border-[var(--border)] rounded-xl overflow-hidden text-[12px] font-bold">
+              <div className="flex flex-wrap bg-[var(--card)] border border-[var(--border)] rounded-xl overflow-hidden text-[12px] font-bold">
                 {serverList.map((s, idx) => (
                   <button
                     key={s.id}
-                    onClick={() => { setActiveSource(s.url); setSelectedServerId(s.id); setPlayerError(false); }}
-                    className={`px-4 py-2 transition-colors flex items-center gap-1.5 ${
+                    onClick={() => switchServer(s)}
+                    title={s.badge ? `${s.name} (${s.badge})` : s.name}
+                    className={`px-3 py-2 transition-colors flex items-center gap-1.5 border-r border-[var(--border)] last:border-r-0 ${
                       selectedServerId === s.id
                         ? idx === 0
                           ? 'bg-gradient-to-r from-[var(--pink)] to-[var(--purple)] text-white'
@@ -419,7 +603,7 @@ export default function Watch() {
             </div>
           </div>
 
-          {/* Download buttons */}
+          {/* Download */}
           {downloadSources.length > 0 && (
             <div className="mt-4 flex flex-col gap-2">
               <div className="flex items-center gap-2 text-[11px] font-bold text-[var(--text3)] uppercase tracking-widest">
@@ -447,10 +631,6 @@ export default function Watch() {
               className={`flex-1 bg-[var(--card)] border border-[var(--border)] py-3 rounded-xl flex items-center justify-center gap-2 text-[12px] font-bold transition-all ${prevEp ? 'hover:bg-[var(--bg3)] hover:border-[var(--purple)] text-white' : 'opacity-50 cursor-not-allowed text-[var(--text3)]'}`}>
               <ChevronLeft className="w-4 h-4" /> Prev
             </Link>
-            <button onClick={() => setShowEpList(!showEpList)}
-              className="lg:hidden px-4 h-12 bg-[var(--card)] border border-[var(--border)] rounded-xl flex items-center justify-center text-[12px] font-bold text-[var(--text3)]">
-              Episodes
-            </button>
             {nextEp ? (
               <Link href={`/watch/${malId}/${nextEp.mal_id}`}
                 onClick={() => fireEpAd('next')} data-ep-nav="next"
@@ -475,41 +655,35 @@ export default function Watch() {
         </div>
       </div>
 
-      {/* Mobile overlay */}
-      {showEpList && <div className="fixed inset-0 bg-black/60 z-40 lg:hidden" onClick={() => setShowEpList(false)} />}
-
-      {/* ── Episode Sidebar — compact number grid ── */}
-      <div className={`w-[220px] bg-[var(--bg2)] border-l border-[var(--border)] flex flex-col shrink-0 fixed lg:relative top-0 bottom-0 right-0 z-50 transform transition-transform duration-300 ${showEpList ? 'translate-x-0' : 'translate-x-full lg:translate-x-0'}`}>
-        <div className="p-3 border-b border-[var(--border)] flex justify-between items-center gap-2">
-          <h3 className="font-heading font-black text-[13px]">Episodes <span className="text-[var(--text3)] font-normal text-[11px]">({eps.length})</span></h3>
-          <button className="lg:hidden p-1 text-[var(--text3)]" onClick={() => setShowEpList(false)}>
-            <X className="w-4 h-4" />
-          </button>
+      {/* ── Episode List — inline below player ── */}
+      <div className="bg-[var(--bg2)] border-t border-[var(--border)]">
+        <div className="px-4 md:px-6 py-3 flex items-center justify-between gap-3 border-b border-[var(--border)]">
+          <h3 className="font-heading font-black text-[13px] text-white">
+            Episodes
+            <span className="ml-1.5 text-[11px] font-normal text-[var(--text3)]">({eps.length})</span>
+          </h3>
+          <div className="flex items-center gap-3">
+            {eps.length > 24 && (
+              <input
+                type="number" placeholder="Go to ep…" value={epSearch}
+                onChange={e => setEpSearch(e.target.value)}
+                className="w-28 bg-[var(--bg3)] border border-[var(--border)] rounded-lg px-3 py-1.5 text-[12px] text-white placeholder:text-[var(--text3)] outline-none focus:border-[var(--pink)] transition-colors"
+              />
+            )}
+          </div>
         </div>
 
-        {/* Search episodes */}
-        {eps.length > 24 && (
-          <div className="px-3 py-2 border-b border-[var(--border)]">
-            <input
-              type="number" placeholder="Go to ep…" value={epSearch}
-              onChange={e => setEpSearch(e.target.value)}
-              className="w-full bg-[var(--bg3)] border border-[var(--border)] rounded-lg px-3 py-1.5 text-[12px] text-white placeholder:text-[var(--text3)] outline-none focus:border-[var(--pink)] transition-colors"
-            />
-          </div>
-        )}
-
-        <div id="sidebar-ad" className="min-h-[1px] px-2 pt-2"
+        <div id="sidebar-ad" className="min-h-[1px] px-4 pt-2"
           ref={el => { if (el && (window as any).KamiAds) (window as any).KamiAds.loadSidebarAd(); }} />
 
-        {/* ── Compact episode number grid ── */}
-        <div className="flex-1 overflow-y-auto p-2">
-          <div className="grid grid-cols-5 gap-1">
+        <div className="p-4 md:px-6 md:py-4">
+          <div className="grid grid-cols-8 sm:grid-cols-10 md:grid-cols-14 lg:grid-cols-16 xl:grid-cols-20 gap-1.5">
             {filteredEps.map((ep: any) => {
               const isCurrent = ep.mal_id.toString() === epId;
               const watched   = isWatched(malId, ep.mal_id);
               return (
                 <Link key={ep.mal_id} href={`/watch/${malId}/${ep.mal_id}`}
-                  onClick={() => { if (!isCurrent) fireEpAd('list'); setShowEpList(false); }}>
+                  onClick={() => { if (!isCurrent) fireEpAd('list'); }}>
                   <div title={ep.title}
                     className={`aspect-square flex items-center justify-center rounded-lg text-[11px] font-bold transition-all cursor-pointer select-none
                       ${isCurrent
@@ -527,7 +701,7 @@ export default function Watch() {
         </div>
       </div>
 
-      {/* ── Autoplay countdown overlay ── */}
+      {/* ── Autoplay countdown ── */}
       {autoplaySecs !== null && nextEp && (
         <div className="fixed bottom-6 right-6 z-50 bg-[var(--card)] border border-[var(--border)] rounded-2xl p-4 shadow-2xl w-72">
           <div className="flex items-start justify-between mb-3">

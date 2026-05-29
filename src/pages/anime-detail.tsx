@@ -8,7 +8,7 @@ import { useEpisodeProgress } from '@/hooks/useEpisodeProgress';
 import { useSEO } from '@/hooks/useSEO';
 import { getNextAiring, getAnimeRelations } from '@/lib/anilist';
 import {
-  Play, Plus, Check, Star, Timer, CheckCircle2, Circle, Share2,
+  Play, Plus, Check, Star, Timer, CheckCircle2, Share2,
   ChevronLeft, ChevronRight, Maximize2, Minimize2, RefreshCw,
   Settings, SkipForward, AlertTriangle, X, Download
 } from 'lucide-react';
@@ -165,9 +165,9 @@ export default function AnimeDetail() {
     if (!activeEp) return [];
     const lang = dub ? 'dub' : 'sub';
     const servers: ServerEntry[] = [
-      { id: 'mp-mal', name: 'MegaPlay', url: mpMal(id, activeEp, lang) },
+      { id: 'mp-mal', name: 'OniChan', url: mpMal(id, activeEp, lang) },
     ];
-    if (alId) servers.push({ id: 'mp-ani', name: 'MegaPlay Alt', url: mpAni(alId, activeEp, lang) });
+    if (alId) servers.push({ id: 'mp-ani', name: 'Otaku', url: mpAni(alId, activeEp, lang) });
     return servers;
   }, [activeEp, dub, id, alId]);
 
@@ -318,10 +318,10 @@ export default function AnimeDetail() {
           </div>
         )}
 
-        {/* ── Two-column layout ─────────────────────────────────────── */}
+        {/* ── Layout: player+episodes left, details right ───────────── */}
         <div className="flex flex-col lg:flex-row gap-6">
 
-          {/* LEFT — Player + Info ────────────────────────────────────── */}
+          {/* LEFT — Player + Episodes + Info ────────────────────────── */}
           <div className="flex-1 min-w-0 space-y-5">
 
             {/* ── Inline Player ──────────────────────────────────────── */}
@@ -386,13 +386,10 @@ export default function AnimeDetail() {
 
                   {/* Player controls bar */}
                   <div className="px-3 py-2.5 bg-[var(--bg2)] border-t border-[var(--border)] flex flex-wrap items-center gap-2">
-                    {/* Sub/Dub */}
                     <div className="flex bg-[var(--bg3)] border border-[var(--border)] rounded-lg overflow-hidden text-[11px] font-black">
                       <button onClick={() => setDub(false)} className={`px-3 py-1.5 transition-colors ${!dub ? 'bg-[var(--pink)] text-white' : 'text-[var(--text3)] hover:text-white'}`}>SUB</button>
                       <button onClick={() => setDub(true)}  className={`px-3 py-1.5 transition-colors ${ dub ? 'bg-[var(--purple)] text-white' : 'text-[var(--text3)] hover:text-white'}`}>DUB</button>
                     </div>
-
-                    {/* Server picker */}
                     <div className="flex bg-[var(--bg3)] border border-[var(--border)] rounded-lg overflow-hidden text-[11px] font-bold">
                       {serverList.map((s, idx) => (
                         <button key={s.id} onClick={() => switchServer(s)}
@@ -405,15 +402,11 @@ export default function AnimeDetail() {
                         </button>
                       ))}
                     </div>
-
-                    {/* Theater toggle */}
                     <button onClick={() => setTheaterMode(v => !v)}
                       className={`px-3 py-1.5 rounded-lg text-[11px] font-bold border flex items-center gap-1 transition-all ${theaterMode ? 'bg-[var(--blue)]/15 border-[var(--blue)]/40 text-[var(--blue)]' : 'bg-[var(--bg3)] border-[var(--border)] text-[var(--text3)] hover:text-white'}`}>
                       {theaterMode ? <Minimize2 className="w-2.5 h-2.5" /> : <Maximize2 className="w-2.5 h-2.5" />}
                       Theater
                     </button>
-
-                    {/* Open full page link */}
                     <Link href={`/watch/${id}/${activeEp}`} className="ml-auto">
                       <button className="px-3 py-1.5 rounded-lg text-[11px] font-bold bg-[var(--card)] border border-[var(--border)] text-[var(--text2)] hover:text-white transition-colors flex items-center gap-1">
                         <Maximize2 className="w-2.5 h-2.5" /> Full Page
@@ -422,7 +415,6 @@ export default function AnimeDetail() {
                   </div>
                 </div>
               ) : (
-                /* Placeholder when no episode playing */
                 <div
                   className="relative rounded-2xl overflow-hidden border border-[var(--border)] cursor-pointer group"
                   style={{ paddingTop: '42%' }}
@@ -444,6 +436,73 @@ export default function AnimeDetail() {
                     <span className="text-[var(--text3)] text-[11px]">Click to play inline</span>
                   </div>
                 </div>
+              )}
+            </div>
+
+            {/* ── Episode List — directly under player ───────────────── */}
+            <div ref={epListRef} className="bg-[var(--card)] border border-[var(--border)] rounded-2xl overflow-hidden">
+              <div className="px-4 py-3 border-b border-[var(--border)] flex items-center justify-between">
+                <h3 className="font-heading font-black text-[13px] text-white">
+                  Episodes
+                  {totalEps > 0 && <span className="ml-1.5 text-[11px] font-normal text-[var(--text3)]">({totalEps})</span>}
+                </h3>
+                <div className="flex items-center gap-3">
+                  {watchedCount > 0 && (
+                    <span className="text-[10px] font-black text-[#06d6a0] flex items-center gap-1">
+                      <CheckCircle2 className="w-3 h-3" /> {watchedCount}/{totalEps}
+                    </span>
+                  )}
+                  {episodesLoading && <span className="text-[10px] text-[var(--pink)] font-bold animate-pulse">Loading…</span>}
+                </div>
+              </div>
+
+              {episodesLoading ? (
+                <div className="p-3 space-y-1.5">
+                  {[1,2,3,4,5].map(i => <div key={i} className="h-10 bg-[var(--bg3)] rounded-xl animate-pulse" />)}
+                </div>
+              ) : eps.length > 0 ? (
+                <>
+                  <div className="p-3">
+                    <div className="grid grid-cols-8 sm:grid-cols-10 md:grid-cols-12 lg:grid-cols-10 xl:grid-cols-12 gap-1.5">
+                      {visibleEps.map((ep: any) => {
+                        const isPlaying = activeEp === String(ep.mal_id);
+                        const isLast    = resumeEp === ep.mal_id;
+                        const watched   = isWatched(anime.mal_id, ep.mal_id);
+                        return (
+                          <button
+                            key={ep.mal_id}
+                            onClick={() => loadEpisode(String(ep.mal_id))}
+                            title={ep.title || `Episode ${ep.mal_id}`}
+                            className={`aspect-square flex items-center justify-center rounded-lg text-[11px] font-bold transition-all cursor-pointer select-none relative group
+                              ${isPlaying
+                                ? 'bg-[var(--pink)] text-white shadow-lg shadow-[var(--pink)]/30'
+                                : isLast && !watched
+                                  ? 'bg-[var(--purple)]/20 text-[var(--purple)] border border-[var(--purple)]/40 hover:bg-[var(--pink)]/20 hover:text-[var(--pink)]'
+                                  : watched
+                                    ? 'bg-[#06d6a0]/20 text-[#06d6a0] border border-[#06d6a0]/30 hover:bg-[var(--pink)]/20 hover:text-[var(--pink)]'
+                                    : 'bg-[var(--bg3)] text-[var(--text3)] hover:bg-[var(--pink)]/20 hover:text-[var(--pink)] border border-transparent hover:border-[var(--pink)]/30'
+                              }`}
+                          >
+                            {isPlaying ? <Play className="w-3 h-3 fill-current" /> : ep.mal_id}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {totalPages > 1 && (
+                    <div className="flex items-center justify-center gap-1.5 px-3 pb-3 flex-wrap">
+                      {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
+                        <button key={p} onClick={() => setEpPage(p)}
+                          className={`w-8 h-8 rounded-lg text-[11px] font-bold transition-all ${p === epPage ? 'bg-gradient-to-r from-[var(--pink)] to-[var(--purple)] text-white' : 'bg-[var(--bg3)] text-[var(--text2)] hover:text-white'}`}>
+                          {p}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="p-6 text-center text-[12px] text-[var(--text3)]">No episodes available yet.</div>
               )}
             </div>
 
@@ -530,8 +589,8 @@ export default function AnimeDetail() {
             )}
           </div>
 
-          {/* RIGHT — Details + Episodes ──────────────────────────────── */}
-          <div className="w-full lg:w-[300px] xl:w-[320px] shrink-0 space-y-4">
+          {/* RIGHT — Details sidebar ─────────────────────────────────── */}
+          <div className="w-full lg:w-[280px] xl:w-[300px] shrink-0 space-y-4">
 
             {/* Details card */}
             <div className="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-4">
@@ -554,7 +613,6 @@ export default function AnimeDetail() {
                 ))}
               </div>
 
-              {/* Progress bar */}
               {watchedCount > 0 && (
                 <div className="mt-4 pt-3 border-t border-[var(--border)]">
                   <div className="flex justify-between text-[10px] mb-1.5">
@@ -562,16 +620,13 @@ export default function AnimeDetail() {
                     <span className="text-[#06d6a0] font-black">{watchedPct}%</span>
                   </div>
                   <div className="h-1.5 bg-[var(--bg3)] rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-gradient-to-r from-[#06d6a0] to-[var(--blue)] rounded-full transition-all duration-500"
-                      style={{ width: `${watchedPct}%` }}
-                    />
+                    <div className="h-full bg-gradient-to-r from-[#06d6a0] to-[var(--blue)] rounded-full transition-all duration-500"
+                      style={{ width: `${watchedPct}%` }} />
                   </div>
                   <p className="text-[10px] text-[var(--text3)] mt-1">{watchedCount} / {totalEps} episodes watched</p>
                 </div>
               )}
 
-              {/* Genres */}
               {anime.genres?.length > 0 && (
                 <div className="mt-3 pt-3 border-t border-[var(--border)]">
                   <h4 className="font-bold text-[10px] text-[var(--text3)] uppercase tracking-widest mb-2">Genres</h4>
@@ -585,7 +640,6 @@ export default function AnimeDetail() {
                 </div>
               )}
 
-              {/* Share */}
               <div className="mt-3 pt-3 border-t border-[var(--border)]">
                 <h4 className="font-bold text-[10px] text-[var(--text3)] uppercase tracking-widest mb-2 flex items-center gap-1.5">
                   <Share2 className="w-3 h-3" /> Share
@@ -606,101 +660,8 @@ export default function AnimeDetail() {
               </div>
             </div>
 
-            {/* Ad slot */}
             <div id="detail-ad" className="min-h-[1px]"
               ref={el => { if (el && (window as any).KamiAds) (window as any).KamiAds.loadInPagePush('detail-ad'); }} />
-
-            {/* ── Episode list ───────────────────────────────────────── */}
-            <div ref={epListRef} className="bg-[var(--card)] border border-[var(--border)] rounded-2xl overflow-hidden">
-              <div className="px-4 py-3 border-b border-[var(--border)] flex items-center justify-between">
-                <h3 className="font-heading font-black text-[13px] text-white">
-                  Episodes
-                  {totalEps > 0 && <span className="ml-1.5 text-[11px] font-normal text-[var(--text3)]">({totalEps})</span>}
-                </h3>
-                <div className="flex items-center gap-2">
-                  {watchedCount > 0 && (
-                    <span className="text-[10px] font-black text-[#06d6a0] flex items-center gap-1">
-                      <CheckCircle2 className="w-3 h-3" /> {watchedCount}/{totalEps}
-                    </span>
-                  )}
-                  {episodesLoading && <span className="text-[10px] text-[var(--pink)] font-bold animate-pulse">Loading…</span>}
-                </div>
-              </div>
-
-              {episodesLoading ? (
-                <div className="p-3 space-y-1.5">
-                  {[1,2,3,4,5].map(i => <div key={i} className="h-10 bg-[var(--bg3)] rounded-xl animate-pulse" />)}
-                </div>
-              ) : eps.length > 0 ? (
-                <>
-                  <div className="max-h-[460px] overflow-y-auto">
-                    {visibleEps.map((ep: any) => {
-                      const isPlaying = activeEp === String(ep.mal_id);
-                      const isLast    = resumeEp === ep.mal_id;
-                      const watched   = isWatched(anime.mal_id, ep.mal_id);
-                      return (
-                        <div
-                          key={ep.mal_id}
-                          className={`flex items-center gap-2.5 px-3 py-2.5 border-b border-[var(--border)] last:border-b-0 transition-all group ${
-                            isPlaying
-                              ? 'bg-[var(--pink)]/10'
-                              : isLast
-                                ? 'bg-[var(--purple)]/5'
-                                : 'hover:bg-[var(--bg3)]'
-                          }`}
-                        >
-                          {/* Ep number / play indicator */}
-                          <button
-                            onClick={() => loadEpisode(String(ep.mal_id))}
-                            className={`w-8 h-8 rounded-lg flex items-center justify-center font-mono font-black text-[10px] shrink-0 transition-all ${
-                              isPlaying
-                                ? 'bg-[var(--pink)] text-white'
-                                : watched
-                                  ? 'bg-[#06d6a0]/20 text-[#06d6a0] group-hover:bg-[var(--pink)]/20 group-hover:text-[var(--pink)]'
-                                  : 'bg-[var(--bg3)] text-[var(--text3)] group-hover:bg-[var(--pink)]/20 group-hover:text-[var(--pink)]'
-                            }`}
-                          >
-                            {isPlaying ? <Play className="w-3 h-3 fill-current" /> : ep.mal_id}
-                          </button>
-
-                          {/* Title */}
-                          <button onClick={() => loadEpisode(String(ep.mal_id))} className="flex-1 text-left min-w-0">
-                            <div className={`text-[11px] font-bold truncate ${isPlaying ? 'text-[var(--pink)]' : watched ? 'text-[#06d6a0]' : 'text-white'}`}>
-                              {ep.title || `Episode ${ep.mal_id}`}
-                            </div>
-                            {isPlaying && <div className="text-[9px] text-[var(--pink)]/70 font-bold">Now Playing</div>}
-                            {isLast && !isPlaying && <div className="text-[9px] text-[var(--text3)]">Last watched</div>}
-                          </button>
-
-                          {/* Watched toggle */}
-                          <button
-                            onClick={e => { e.stopPropagation(); toggleWatched(anime.mal_id, ep.mal_id); }}
-                            title={watched ? 'Mark unwatched' : 'Mark watched'}
-                            className={`shrink-0 p-1 rounded transition-all ${watched ? 'text-[#06d6a0] hover:text-[var(--text3)]' : 'text-[var(--text3)] hover:text-[#06d6a0] opacity-0 group-hover:opacity-100'}`}
-                          >
-                            {watched ? <CheckCircle2 className="w-3.5 h-3.5" /> : <Circle className="w-3.5 h-3.5" />}
-                          </button>
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {/* Pagination */}
-                  {totalPages > 1 && (
-                    <div className="flex items-center justify-center gap-1.5 p-3 border-t border-[var(--border)] flex-wrap">
-                      {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
-                        <button key={p} onClick={() => setEpPage(p)}
-                          className={`w-8 h-8 rounded-lg text-[11px] font-bold transition-all ${p === epPage ? 'bg-gradient-to-r from-[var(--pink)] to-[var(--purple)] text-white' : 'bg-[var(--bg3)] text-[var(--text2)] hover:text-white'}`}>
-                          {p}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </>
-              ) : (
-                <div className="p-6 text-center text-[12px] text-[var(--text3)]">No episodes available yet.</div>
-              )}
-            </div>
 
           </div>
         </div>
