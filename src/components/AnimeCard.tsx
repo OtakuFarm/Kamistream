@@ -23,7 +23,7 @@ export function AnimeCard({ anime }: AnimeCardProps) {
 
   return (
     <div
-      className="group relative bg-[var(--card)] rounded-lg overflow-hidden cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-black/40"
+      className="kami-card group relative bg-[var(--card)] rounded-lg overflow-hidden cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-black/40"
       onClick={() => setLocation(`/anime/${anime.mal_id}`)}
     >
       {/* Poster */}
