@@ -153,6 +153,7 @@ export default function AnimeDetail() {
   }, []);
 
   const switchServer = (srv: ServerEntry) => {
+    try { (window as any).KamiAds?.onEpisodeClick('server'); } catch {}
     setActiveSource(srv.url);
     setSelectedSrv(srv.id);
     setPlayerError(false);

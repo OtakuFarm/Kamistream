@@ -436,6 +436,7 @@ export default function Watch() {
 
   // ── Switch server helper ─────────────────────────────────────────
   function switchServer(server: ServerEntry) {
+    fireEpAd('server');
     setActiveSource(server.url);
     setSelectedServerId(server.id);
     setPlayerError(false);
