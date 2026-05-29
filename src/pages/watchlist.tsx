@@ -62,7 +62,7 @@ export default function Watchlist() {
           {displayed.map((anime) => {
             const status = getWatchStatus(anime.mal_id);
             return (
-              <div key={anime.mal_id} className="group relative bg-[var(--card)] rounded-lg overflow-hidden">
+              <div key={anime.mal_id} className="kami-card group relative bg-[var(--card)] rounded-lg overflow-hidden">
                 {/* Cover */}
                 <Link href={`/anime/${anime.mal_id}`}>
                   <div className="relative aspect-[2/3] overflow-hidden cursor-pointer">

@@ -524,7 +524,7 @@ export default function Home() {
               ))
             : (topAnimeData?.data || []).map((anime: any, i: number) => (
                 <Link key={anime.mal_id} href={`/anime/${anime.mal_id}`}>
-                  <div className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-[var(--bg3)] transition-colors group cursor-pointer">
+                  <div className="kami-card flex items-center gap-3 p-2.5 rounded-xl hover:bg-[var(--bg3)] transition-colors group cursor-pointer">
                     <div className={`w-7 shrink-0 text-center font-black text-[14px] leading-none ${i === 0 ? 'text-[var(--gold)]' : i === 1 ? 'text-[#C0C0C0]' : i === 2 ? 'text-[#cd7f32]' : 'text-[var(--text3)]'}`}>
                       {i + 1}
                     </div>
