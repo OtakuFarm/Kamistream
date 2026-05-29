@@ -63,7 +63,10 @@
   var SESSION_POP_KEY     = 'kami_sess_pop';
 
   /* ── Card selectors ─────────────────────────────────────────────── */
+  // kami-card is the class on every AnimeCard component
+  // Legacy selectors kept for any older markup
   var CARD_SELECTORS = [
+    '.kami-card',
     '.tr-card','.cw-card','.bfv-card',
     '.rel-card','.ru-card','.pw-item','.wl-card'
   ].join(',');
