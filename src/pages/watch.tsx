@@ -101,9 +101,104 @@ async function resolveAnikotoEmbedId(malId: string, epNum: string): Promise<stri
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// MegaPlay embed URL builders
-// Priority: s-2 (via Anikoto embed id) > MAL endpoint > AniList endpoint
+// Gogoanime resolver via Consumet API
+// Resolves anime title → gogoanime ID → episode stream URLs + Kwik download links
+// Multiple Consumet instances for redundancy
 // ─────────────────────────────────────────────────────────────────────────────
+const CONSUMET_HOSTS = [
+  'https://api.consumet.org',
+  'https://consumet-api.onrender.com',
+  'https://api-consumet.vercel.app',
+];
+
+interface DownloadLink { quality: string; url: string; isM3u8: boolean; }
+interface GogoResult   { embedUrl: string; downloads: DownloadLink[]; }
+
+const _gogoCache: Record<string, Record<string, GogoResult | null>> = {};
+// key: malId → { epNum: result }
+
+async function resolveGogoEmbed(
+  malId: string, epNum: string, title: string, lang: 'sub' | 'dub'
+): Promise<GogoResult | null> {
+  const cacheKey = `${lang}_${epNum}`;
+  if (_gogoCache[malId]?.[cacheKey] !== undefined) return _gogoCache[malId][cacheKey] ?? null;
+
+  const ssKey = `gogo_${malId}_${lang}_${epNum}`;
+  const saved = sessionStorage.getItem(ssKey);
+  if (saved) {
+    try {
+      const parsed = JSON.parse(saved);
+      if (!_gogoCache[malId]) _gogoCache[malId] = {};
+      _gogoCache[malId][cacheKey] = parsed;
+      return parsed;
+    } catch {}
+  }
+
+  // Try each Consumet host until one works
+  for (const host of CONSUMET_HOSTS) {
+    try {
+      // Step 1: search for the anime
+      const searchQuery = encodeURIComponent(title.replace(/[^\w\s]/g, '').trim());
+      const isDub = lang === 'dub';
+      const searchUrl = `${host}/anime/gogoanime/${searchQuery}${isDub ? '%20(dub)' : ''}`;
+      const sr = await fetch(searchUrl, { signal: AbortSignal.timeout(6000) });
+      if (!sr.ok) continue;
+      const searchData = await sr.json();
+      const results: any[] = searchData?.results || [];
+      if (!results.length) continue;
+
+      // Pick best match: prefer exact title match, then first result
+      const epInt = parseInt(epNum);
+      let match = results.find((r: any) =>
+        r.title?.toLowerCase() === title.toLowerCase() ||
+        r.title?.toLowerCase().includes(title.toLowerCase().slice(0, 20))
+      ) || results[0];
+
+      if (!match?.id) continue;
+
+      // Step 2: get episode list for this anime
+      const infoUrl = `${host}/anime/gogoanime/info/${encodeURIComponent(match.id)}`;
+      const ir = await fetch(infoUrl, { signal: AbortSignal.timeout(6000) });
+      if (!ir.ok) continue;
+      const info = await ir.json();
+      const episodes: any[] = info?.episodes || [];
+      const ep = episodes.find((e: any) => e.number === epInt) || episodes[epInt - 1];
+      if (!ep?.id) continue;
+
+      // Step 3: get streaming links (includes Kwik download URLs)
+      const streamUrl = `${host}/anime/gogoanime/watch/${encodeURIComponent(ep.id)}`;
+      const stmr = await fetch(streamUrl, { signal: AbortSignal.timeout(8000) });
+      if (!stmr.ok) continue;
+      const streamData = await stmr.json();
+
+      const embedUrl: string = streamData?.headers?.Referer || '';
+      const sources: any[] = streamData?.sources || [];
+      const downloads: DownloadLink[] = sources
+        .filter((s: any) => s?.url)
+        .map((s: any) => ({
+          quality: s.quality || 'default',
+          url:     s.url,
+          isM3u8:  s.isM3u8 ?? s.url?.includes('.m3u8') ?? false,
+        }))
+        .filter((s: DownloadLink) => !s.isM3u8); // only direct download links
+
+      // Also grab download page links if available
+      const dlPage: any[] = streamData?.download ? [{ quality: 'Download Page', url: streamData.download, isM3u8: false }] : [];
+      const allDownloads = [...downloads, ...dlPage];
+
+      const result: GogoResult = { embedUrl, downloads: allDownloads };
+      if (!_gogoCache[malId]) _gogoCache[malId] = {};
+      _gogoCache[malId][cacheKey] = result;
+      sessionStorage.setItem(ssKey, JSON.stringify(result));
+      return result;
+    } catch { continue; }
+  }
+
+  // Cache null to avoid retrying on every episode change
+  if (!_gogoCache[malId]) _gogoCache[malId] = {};
+  _gogoCache[malId][cacheKey] = null;
+  return null;
+}
 const MP_BASE = 'https://megaplay.buzz';
 
 function megaplayMal(malId: string, ep: string, lang: 'sub' | 'dub') {
@@ -159,6 +254,8 @@ export default function Watch() {
   // IDs
   const [alId,         setAlId]         = useState<string | null>(null);
   const [anikotoEmbedId, setAnikotoEmbedId] = useState<string | null>(null);
+  const [gogoResult,   setGogoResult]   = useState<GogoResult | null>(null);
+  const [showDownloads, setShowDownloads] = useState(false);
 
   // Playback prefs
   const [dub,          setDub]          = useState(false);
@@ -236,8 +333,13 @@ export default function Watch() {
       servers.push({ id: 'mp-ani', name: 'Otaku', url: megaplayAni(alId, epId, lang) });
     }
 
+    // Gogoanime via Consumet (appears when resolved)
+    if (gogoResult?.embedUrl) {
+      servers.push({ id: 'gogo', name: 'Sakura', url: gogoResult.embedUrl });
+    }
+
     return servers;
-  }, [adminSources, anikotoEmbedId, alId, malId, epId, lang]);
+  }, [adminSources, anikotoEmbedId, alId, malId, epId, lang, gogoResult]);
 
   const serverList = buildServerList();
 
@@ -282,6 +384,8 @@ export default function Watch() {
     setPlayerError(false);
     setAdminSources([]);
     setActiveSource('');
+    setGogoResult(null);
+    setShowDownloads(false);
     setAlId(null);
     setAnikotoEmbedId(null);
     setSelectedServerId('mp-mal');
@@ -313,7 +417,8 @@ export default function Watch() {
       resolveAnilistId(malId),
       fetchAdminSources(malId, epId),
       resolveAnikotoEmbedId(malId, epId),
-    ]).then(([al, adminResult, embedId]) => {
+      detail?.data?.title ? resolveGogoEmbed(malId, epId, detail.data.title, initialLangTyped) : Promise.resolve(null),
+    ]).then(([al, adminResult, embedId, gogo]) => {
       // AniList id
       if (al) setAlId(al);
 
@@ -329,9 +434,11 @@ export default function Watch() {
         setSelectedServerId(`admin-${preferred.source_name}`);
       }
 
-      // Anikoto embed id — makes S-2 server available in the picker
-      // but doesn't auto-switch if admin sources or MAL already playing fine
+      // Anikoto embed id
       if (embedId) setAnikotoEmbedId(embedId);
+
+      // Gogoanime/Consumet — adds Sakura server + download links
+      if (gogo) setGogoResult(gogo);
     });
 
     return () => { if (elapsedTimer.current) clearInterval(elapsedTimer.current); };
@@ -468,7 +575,6 @@ export default function Watch() {
   if (!detail?.data) return <div className="p-8 text-center">Anime not found.</div>;
 
   const anime = detail.data;
-  const downloadSources = adminSources.filter((s: any) => s.download_url);
 
   // ── Render ────────────────────────────────────────────────────────
   return (
@@ -615,23 +721,71 @@ export default function Watch() {
             </div>
           </div>
 
-          {/* Download */}
-          {downloadSources.length > 0 && (
-            <div className="mt-4 flex flex-col gap-2">
-              <div className="flex items-center gap-2 text-[11px] font-bold text-[var(--text3)] uppercase tracking-widest">
-                <Download className="w-3.5 h-3.5" /> Download Episode
+          {/* ── Download Panel ── */}
+          {(() => {
+            const adminDl = adminSources.filter((s: any) => s.download_url);
+            const gogoDl  = gogoResult?.downloads || [];
+            const hasAny  = adminDl.length > 0 || gogoDl.length > 0;
+            if (!hasAny) return null;
+            return (
+              <div className="mt-4">
+                <button
+                  onClick={() => setShowDownloads(v => !v)}
+                  className="flex items-center gap-2 px-4 py-2.5 bg-[var(--card)] border border-[var(--border)] hover:border-[var(--pink)]/50 rounded-xl text-[12px] font-bold text-white transition-all group"
+                >
+                  <Download className="w-3.5 h-3.5 text-[var(--pink)] group-hover:scale-110 transition-transform" />
+                  Download Episode
+                  <span className="ml-auto text-[10px] text-[var(--text3)]">{showDownloads ? '▲' : '▼'}</span>
+                </button>
+                {showDownloads && (
+                  <div className="mt-2 bg-[var(--card)] border border-[var(--border)] rounded-xl overflow-hidden">
+                    <div className="px-4 py-2.5 border-b border-[var(--border)] flex items-center gap-2">
+                      <Download className="w-3 h-3 text-[var(--pink)]" />
+                      <span className="text-[11px] font-black text-white uppercase tracking-wider">Download Links</span>
+                      <span className="text-[9px] text-[var(--text3)] ml-auto">EP {epId}</span>
+                    </div>
+                    <div className="p-3 space-y-2">
+                      {/* Admin download sources */}
+                      {adminDl.map((s: any) => (
+                        <a key={s.source_name} href={s.download_url} target="_blank" rel="noopener noreferrer" download
+                          className="flex items-center gap-3 px-3 py-2.5 bg-[var(--bg3)] hover:bg-[var(--pink)]/10 border border-transparent hover:border-[var(--pink)]/30 rounded-xl transition-all group">
+                          <div className="w-8 h-8 bg-[var(--pink)]/15 rounded-lg flex items-center justify-center shrink-0 group-hover:bg-[var(--pink)]/25 transition-colors">
+                            <Download className="w-3.5 h-3.5 text-[var(--pink)]" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-[12px] font-bold text-white">{s.quality || 'HD'}</div>
+                            <div className="text-[10px] text-[var(--text3)]">{s.source_name} · {s.language?.toUpperCase()}</div>
+                          </div>
+                          <span className="text-[10px] font-bold text-[var(--pink)] shrink-0">↓ Download</span>
+                        </a>
+                      ))}
+                      {/* Gogoanime/Kwik download sources */}
+                      {gogoDl.map((dl: DownloadLink, i: number) => (
+                        <a key={i} href={dl.url} target="_blank" rel="noopener noreferrer"
+                          className="flex items-center gap-3 px-3 py-2.5 bg-[var(--bg3)] hover:bg-[var(--blue)]/10 border border-transparent hover:border-[var(--blue)]/30 rounded-xl transition-all group">
+                          <div className="w-8 h-8 bg-[var(--blue)]/15 rounded-lg flex items-center justify-center shrink-0 group-hover:bg-[var(--blue)]/25 transition-colors">
+                            <Download className="w-3.5 h-3.5 text-[var(--blue)]" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-[12px] font-bold text-white capitalize">
+                              {dl.quality === 'Download Page' ? 'Download Page' : `${dl.quality}`}
+                            </div>
+                            <div className="text-[10px] text-[var(--text3)]">Sakura · {lang.toUpperCase()}</div>
+                          </div>
+                          <span className="text-[10px] font-bold text-[var(--blue)] shrink-0">
+                            {dl.quality === 'Download Page' ? '↗ Open' : '↓ Download'}
+                          </span>
+                        </a>
+                      ))}
+                      <p className="text-[9px] text-[var(--text3)] px-1 pt-1">
+                        Links open in new tab. Use a download manager for best results.
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
-              <div className="flex flex-wrap gap-2">
-                {downloadSources.map((s: any) => (
-                  <a key={s.source_name} href={s.download_url} target="_blank" rel="noopener noreferrer" download
-                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-[var(--pink)] to-[var(--purple)] text-white text-[12px] font-bold hover:opacity-90 active:scale-95 transition-all shadow-lg">
-                    <Download className="w-3.5 h-3.5" />
-                    {s.quality || 'HD'} · {s.language === 'dub' ? 'DUB' : 'SUB'}
-                  </a>
-                ))}
-              </div>
-            </div>
-          )}
+            );
+          })()}
 
           <div id="player-ad" className="mt-4 min-h-[1px]" />
           <EpisodeSocial malId={malId} epId={epId} />
