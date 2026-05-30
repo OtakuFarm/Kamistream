@@ -96,8 +96,20 @@ export default function AnimeDetail() {
 
   // ── SEO ──────────────────────────────────────────────────────────
   useSEO(anime ? {
-    title: anime.title, description: anime.synopsis?.slice(0, 160),
-    image: anime.images?.webp?.large_image_url, type: 'video.other',
+    title:       anime.title,
+    description: anime.synopsis?.slice(0, 160),
+    image:       anime.images?.webp?.large_image_url,
+    type:        'video.other',
+    jsonLd: {
+      animeName: anime.title,
+      score:     anime.score,
+      episodes:  anime.episodes,
+      status:    anime.status,
+      genres:    anime.genres?.map((g: any) => g.name),
+      studios:   anime.studios?.map((s: any) => s.name),
+      aired:     anime.aired?.from?.split('T')[0],
+      malId:     anime.mal_id,
+    },
   } : {});
 
   useEffect(() => { setEpPage(1); setActiveEp(null); }, [id]);

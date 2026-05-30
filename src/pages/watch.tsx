@@ -447,10 +447,21 @@ export default function Watch() {
 
   // ── SEO ──────────────────────────────────────────────────────────
   useSEO(detail?.data ? {
-    title: `${detail.data.title} Episode ${epId}`,
+    title:       `${detail.data.title} Episode ${epId}`,
     description: detail.data.synopsis?.slice(0, 160),
-    image: detail.data.images?.webp?.large_image_url,
-    type: 'video.other',
+    image:       detail.data.images?.webp?.large_image_url,
+    type:        'video.other',
+    jsonLd: {
+      animeName:   detail.data.title,
+      score:       detail.data.score,
+      episodes:    detail.data.episodes,
+      status:      detail.data.status,
+      genres:      detail.data.genres?.map((g: any) => g.name),
+      studios:     detail.data.studios?.map((s: any) => s.name),
+      malId:       detail.data.mal_id,
+      episodeNum:  parseInt(epId),
+      episodeName: currentEp?.title,
+    },
   } : {});
 
   if (detailLoading) return <WatchSkeleton />;
