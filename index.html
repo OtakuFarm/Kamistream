@@ -2,20 +2,70 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1" />
-    <title>KamiStream</title>
-    <meta name="description" content="KamiStream — built on Replit. Update this description to reflect the app." />
-    <meta name="robots" content="index, follow" />
-    <meta property="og:title" content="KamiStream" />
-    <meta property="og:description" content="KamiStream — built on Replit. Update this description to reflect the app." />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5" />
+
+    <!-- Primary SEO -->
+    <title>KamiStream — Watch Anime Free in HD</title>
+    <meta name="description" content="Stream thousands of anime episodes free on KamiStream. Sub & dub, trending, seasonal and classic anime all in one place. No account needed." />
+    <meta name="keywords" content="watch anime free, anime streaming, sub dub anime, KamiStream, anime online HD" />
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+    <meta name="theme-color" content="#ff006e" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="KamiStream" />
+
+    <!-- Canonical -->
+    <link rel="canonical" href="https://kamistream.fun" />
+
+    <!-- Open Graph -->
     <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="KamiStream" />
+    <meta property="og:title" content="KamiStream — Watch Anime Free in HD" />
+    <meta property="og:description" content="Stream thousands of anime episodes free. Sub & dub, trending, seasonal and classic anime. No account needed." />
+    <meta property="og:image" content="https://kamistream.fun/opengraph.jpg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:url" content="https://kamistream.fun" />
+    <meta property="og:locale" content="en_US" />
+
+    <!-- Twitter -->
     <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:title" content="KamiStream" />
-    <meta name="twitter:description" content="KamiStream — built on Replit. Update this description to reflect the app." />
+    <meta name="twitter:title" content="KamiStream — Watch Anime Free in HD" />
+    <meta name="twitter:description" content="Stream thousands of anime episodes free. Sub & dub, trending, seasonal and classic anime." />
+    <meta name="twitter:image" content="https://kamistream.fun/opengraph.jpg" />
+
+    <!-- PWA -->
+    <link rel="manifest" href="/manifest.json" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+
+    <!-- Sitemap hint -->
+    <link rel="sitemap" type="application/xml" href="/sitemap.xml" />
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+    <!-- JSON-LD: Site identity -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      "name": "KamiStream",
+      "url": "https://kamistream.fun",
+      "description": "Free anime streaming — sub & dub, HD quality",
+      "potentialAction": {
+        "@type": "SearchAction",
+        "target": {
+          "@type": "EntryPoint",
+          "urlTemplate": "https://kamistream.fun/search?q={search_term_string}"
+        },
+        "query-input": "required name=search_term_string"
+      }
+    }
+    </script>
   </head>
   <body>
     <div id="root"></div>
