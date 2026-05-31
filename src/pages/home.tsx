@@ -111,8 +111,6 @@ export default function Home() {
     },
     staleTime: 30 * 60 * 1000,
   });
-    staleTime: 15 * 60 * 1000,
-  });
 
   const heroAnimes = useMemo(() => trending?.data?.slice(0, 10) || [], [trending?.data]);
   const activeHero = heroAnimes[heroIndex];
