@@ -5,7 +5,7 @@ import { ContinueWatching } from '@/components/ContinueWatching';
 import { GridSkeleton } from '@/components/LoadingSkeleton';
 import { useWatchlist } from '@/hooks/useWatchlist';
 import { useWatchHistory } from '@/hooks/useWatchHistory';
-import { ChevronRight, ChevronLeft, Star, Flame, Sparkles, BookMarked, Clock, Radio, Shuffle, Calendar, Trophy, Play } from 'lucide-react';
+import { ChevronRight, ChevronLeft, Star, Flame, Sparkles, BookMarked, Clock, Radio, Shuffle, Calendar, Trophy, Play, Rocket } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { getAiringSchedule } from '@/lib/anilist';
 import { Link, useLocation } from 'wouter';
@@ -98,6 +98,18 @@ export default function Home() {
       const res = await fetch('https://api.jikan.moe/v4/anime?status=complete&order_by=end_date&sort=desc&limit=5&sfw=true');
       const j = await res.json(); return j.data || [];
     },
+    staleTime: 15 * 60 * 1000,
+  });
+
+  // Upcoming anime
+  const { data: upcoming } = useQuery({
+    queryKey: ['home', 'upcoming'],
+    queryFn: async () => {
+      const res = await fetch('https://api.jikan.moe/v4/anime?status=upcoming&order_by=members&sort=desc&limit=12&sfw=true');
+      const j = await res.json(); return j.data || [];
+    },
+    staleTime: 30 * 60 * 1000,
+  });
     staleTime: 15 * 60 * 1000,
   });
 
@@ -499,6 +511,54 @@ export default function Home() {
           </div>
         )}
       </section>
+
+      {/* ── Upcoming Anime ── */}
+      {upcoming && upcoming.length > 0 && (
+        <section>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-[15px] font-heading font-black text-white flex items-center gap-2">
+              <Rocket className="w-3.5 h-3.5 text-[var(--pink)]" /> Coming Soon
+            </h2>
+            <Link href="/browse?status=upcoming" className="text-[11px] font-bold text-[var(--text3)] hover:text-[var(--pink)] transition-colors">View All →</Link>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+            {upcoming.map((anime: any) => (
+              <Link key={anime.mal_id} href={`/anime/${anime.mal_id}`}>
+                <div className="group cursor-pointer">
+                  <div className="relative aspect-[2/3] rounded-xl overflow-hidden bg-[var(--card)] mb-2">
+                    <img
+                      src={anime.images?.webp?.large_image_url}
+                      alt={anime.title}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
+
+                    {/* Coming Soon badge */}
+                    <div className="absolute top-2 left-2 bg-[var(--pink)] text-white text-[8px] font-black px-1.5 py-0.5 rounded-md uppercase tracking-wide">
+                      Coming Soon
+                    </div>
+
+                    {/* Air date */}
+                    {anime.aired?.from && (
+                      <div className="absolute bottom-2 left-2 right-2">
+                        <p className="text-[9px] font-bold text-white/80 bg-black/60 backdrop-blur-sm px-1.5 py-0.5 rounded-md inline-block">
+                          {new Date(anime.aired.from).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                  <p className="text-[11px] font-bold text-white line-clamp-2 leading-snug">{anime.title}</p>
+                  {anime.genres?.length > 0 && (
+                    <p className="text-[9px] text-[var(--text3)] mt-0.5 truncate">
+                      {anime.genres.slice(0, 2).map((g: any) => g.name).join(' · ')}
+                    </p>
+                  )}
+                </div>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* ── Top Anime (Day / Week / Month) ── */}
       <section>
