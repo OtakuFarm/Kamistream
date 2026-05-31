@@ -66,7 +66,7 @@ export default function Watchlist() {
             { icon: Star,         label: 'Avg Score',       value: avgScore,          color: 'var(--gold)' },
           ].map(({ icon: Icon, label, value, color }) => (
             <div key={label} className="bg-[var(--card)] border border-[var(--border)] rounded-xl p-3 flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: `color-mix(in srgb, ${color} 15%, transparent)` }}>
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 bg-white/10">
                 <Icon className="w-4 h-4" style={{ color }} />
               </div>
               <div>
@@ -122,7 +122,7 @@ export default function Watchlist() {
         <div className="text-center py-20">
           <p className="text-5xl mb-4">📋</p>
           <p className="text-[16px] font-black text-white mb-2">
-            {tab === 'all' ? 'Your watchlist is empty' : `No anime in "${TABS.find(t => t.id === tab)?.label}"`}
+            {tab === 'all' ? 'Your watchlist is empty' : 'No anime in ' + (TABS.find(t => t.id === tab)?.label || 'this list')}
           </p>
           <p className="text-[13px] text-[var(--text3)] mb-6">
             Browse anime and hit + to add them here
