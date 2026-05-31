@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useTrendingAnime, useTopRatedAnime, useSeasonalAnime } from '@/lib/jikan';
 import { AnimeCard } from '@/components/AnimeCard';
-import { AnimeListCard } from '@/components/AnimeListCard';
+import { ContinueWatching } from '@/components/ContinueWatching';
 import { GridSkeleton } from '@/components/LoadingSkeleton';
 import { useWatchlist } from '@/hooks/useWatchlist';
 import { useWatchHistory } from '@/hooks/useWatchHistory';
@@ -206,6 +206,9 @@ export default function Home() {
       ) : (
         <div className="w-full h-[320px] md:h-[420px] rounded-2xl bg-[var(--card)] animate-pulse" />
       )}
+
+      {/* ── Continue Watching ── */}
+      <ContinueWatching />
 
       {/* ── Recently Updated ── */}
       {recentlyUpdated && recentlyUpdated.length > 0 && (

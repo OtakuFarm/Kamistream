@@ -8,6 +8,8 @@ import { WatchSkeleton } from '@/components/LoadingSkeleton';
 import { useSEO } from '@/hooks/useSEO';
 import { useEpisodeProgress } from '@/hooks/useEpisodeProgress';
 import { EpisodeSocial } from '@/components/EpisodeSocial';
+import { EpisodeRating } from '@/components/EpisodeRating';
+import { useViewerCount } from '@/hooks/useViewerCount';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // AniList ID resolver  (unchanged — cached in memory + sessionStorage)
@@ -292,6 +294,7 @@ export default function Watch() {
   const { data: episodes }                            = useAnimeEpisodes(malId);
   const { logEpisode }                                = useWatchHistory();
   const { markWatched, isWatched }                    = useEpisodeProgress();
+  const viewerCount                                   = useViewerCount(malId, epId);
 
   const eps            = episodes?.data || [];
   const filteredEps    = epSearch ? eps.filter((e: any) => e.mal_id.toString().includes(epSearch)) : eps;
@@ -660,7 +663,7 @@ export default function Watch() {
                 EP {epId}: {currentEp.title}
               </h1>
               {/* Source info badges */}
-              <div className="text-[10px] text-[var(--text3)] mt-1 font-mono flex flex-wrap gap-2">
+              <div className="text-[10px] text-[var(--text3)] mt-1 font-mono flex flex-wrap gap-2 items-center">
                 {adminSources.length > 0 && (
                   <span className="text-[var(--green)]">✓ {adminSources.length} source{adminSources.length > 1 ? 's' : ''} available</span>
                 )}
@@ -668,6 +671,12 @@ export default function Watch() {
                   ? <span className="text-[var(--blue)]">✓ OniChan + Otaku ready</span>
                   : <span>⚡ OniChan ready</span>
                 }
+                {viewerCount > 0 && (
+                  <span className="flex items-center gap-1 text-[var(--pink)] font-bold">
+                    <span className="w-1.5 h-1.5 rounded-full bg-[var(--pink)] animate-pulse inline-block" />
+                    {viewerCount.toLocaleString()} watching
+                  </span>
+                )}
               </div>
             </div>
 
@@ -789,6 +798,7 @@ export default function Watch() {
 
           <div id="player-ad" className="mt-4 min-h-[1px]" />
           <EpisodeSocial malId={malId} epId={epId} />
+          <EpisodeRating malId={malId} epId={epId} epTitle={currentEp?.title} />
 
           {/* Prev / Next */}
           <div className="flex items-center gap-2 mt-6 border-b border-[var(--border)] pb-6">
