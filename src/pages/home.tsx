@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useTrendingAnime, useTopRatedAnime, useSeasonalAnime } from '@/lib/jikan';
 import { AnimeCard } from '@/components/AnimeCard';
+import { AnimeListCard } from '@/components/AnimeListCard';
 import { ContinueWatching } from '@/components/ContinueWatching';
 import { GridSkeleton } from '@/components/LoadingSkeleton';
 import { useWatchlist } from '@/hooks/useWatchlist';
