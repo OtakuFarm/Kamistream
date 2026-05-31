@@ -36,6 +36,9 @@ const Mood         = lazy(() => import("@/pages/mood"));
 const HiddenGems   = lazy(() => import("@/pages/hidden-gems"));
 const Quiz         = lazy(() => import("@/pages/quiz"));
 const Category     = lazy(() => import("@/pages/category"));
+const DMCA         = lazy(() => import("@/pages/dmca"));
+const Terms        = lazy(() => import("@/pages/terms"));
+const Contact      = lazy(() => import("@/pages/contact"));
 
 // ── Query client ──────────────────────────────────────────────────────
 const queryClient = new QueryClient({
@@ -84,6 +87,9 @@ function MoodRoute()         { return <Layout><Mood /></Layout>; }
 function HiddenGemsRoute()   { return <Layout><HiddenGems /></Layout>; }
 function QuizRoute()         { return <Layout><Quiz /></Layout>; }
 function CategoryRoute()     { return <Layout><Category /></Layout>; }
+function DMCARoute()         { return <Layout><DMCA /></Layout>; }
+function TermsRoute()        { return <Layout><Terms /></Layout>; }
+function ContactRoute()      { return <Layout><Contact /></Layout>; }
 function NotFoundRoute()     { return <Layout><NotFound /></Layout>; }
 function WatchRoute()        { return <MinimalLayout><Watch /></MinimalLayout>; }
 function LoginRoute()        { return <MinimalLayout><Login /></MinimalLayout>; }
@@ -116,6 +122,9 @@ function Router() {
         <Route path="/hidden-gems"        component={HiddenGemsRoute} />
         <Route path="/quiz"               component={QuizRoute} />
         <Route path="/category/:slug"     component={CategoryRoute} />
+        <Route path="/dmca"               component={DMCARoute} />
+        <Route path="/terms"              component={TermsRoute} />
+        <Route path="/contact"            component={ContactRoute} />
         <Route path="/admin"              component={Admin} />
         <Route                            component={NotFoundRoute} />
       </Switch>
