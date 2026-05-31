@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useLocation } from 'wouter';
-import { Home, Compass, Bookmark, Trophy, BarChart3, Users, User, Settings, Calendar, List, Gem, Smile, HelpCircle, Star, Flame } from 'lucide-react';
+import { Home, Compass, Bookmark, Trophy, BarChart3, Users, User, Settings, Calendar, List, Gem, Smile, HelpCircle, Star, Flame, Tag, ChevronDown, ChevronUp } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { isAdminEmail } from '@/lib/admin';
 import { useGamification, calculateLevel } from '@/hooks/useGamification';
@@ -12,6 +12,24 @@ export function Sidebar({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
   const { getStats } = useGamification();
   const stats = getStats();
   const level = calculateLevel(stats.totalXP);
+  const [genreOpen, setGenreOpen] = React.useState(false);
+
+  const GENRES = [
+    { id: 1,  name: 'Action' },
+    { id: 2,  name: 'Adventure' },
+    { id: 4,  name: 'Comedy' },
+    { id: 8,  name: 'Drama' },
+    { id: 10, name: 'Fantasy' },
+    { id: 14, name: 'Horror' },
+    { id: 7,  name: 'Mystery' },
+    { id: 22, name: 'Romance' },
+    { id: 24, name: 'Sci-Fi' },
+    { id: 36, name: 'Slice of Life' },
+    { id: 30, name: 'Sports' },
+    { id: 37, name: 'Supernatural' },
+    { id: 41, name: 'Thriller' },
+    { id: 62, name: 'Isekai' },
+  ];
 
   const NavItem = ({ href, icon: Icon, label, badge, isLive }: any) => {
     const isActive = location === href || (href !== '/' && location.startsWith(`${href}/`));
@@ -55,6 +73,37 @@ export function Sidebar({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
           <NavItem href="/schedule"    icon={Calendar}    label="Schedule" />
           <NavItem href="/mood"        icon={Smile}       label="Mood Picker" />
           <NavItem href="/hidden-gems" icon={Gem}         label="Hidden Gems" />
+
+          {/* Genre expandable */}
+          <div className="h-[1px] bg-[var(--border)] mx-4 my-1" />
+          <button
+            onClick={() => setGenreOpen(v => !v)}
+            className="flex items-center gap-3 px-4 py-[10px] w-full text-left border-l-[3px] border-transparent text-[var(--text3)] hover:text-white hover:bg-white/5 transition-all font-sans text-[13px] font-bold"
+          >
+            <Tag className="w-[18px] h-[18px]" />
+            <span className="flex-1">Genres</span>
+            {genreOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+          </button>
+          {genreOpen && (
+            <div className="px-4 pb-2">
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                {GENRES.map(g => {
+                  const isActive = location === `/genre/${g.id}`;
+                  return (
+                    <Link key={g.id} href={`/genre/${g.id}`} onClick={() => window.innerWidth < 768 && onClose()}>
+                      <span className={`inline-block px-2.5 py-1 rounded-lg text-[11px] font-bold cursor-pointer transition-all ${
+                        isActive
+                          ? 'bg-[var(--pink)] text-white'
+                          : 'bg-[var(--bg3)] text-[var(--text3)] hover:text-white hover:bg-[var(--card)]'
+                      }`}>
+                        {g.name}
+                      </span>
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           <div className="h-[1px] bg-[var(--border)] mx-4 my-3" />
 
