@@ -4,27 +4,51 @@ import { Sidebar } from './Sidebar';
 import { Link } from 'wouter';
 
 function Footer() {
+  const year = new Date().getFullYear();
+  const navLinks = [
+    { label: 'Home',     href: '/' },
+    { label: 'Browse',   href: '/browse' },
+    { label: 'A-Z List', href: '/az-list' },
+    { label: 'Schedule', href: '/schedule' },
+    { label: 'DMCA',     href: '/dmca' },
+    { label: 'Terms',    href: '/terms' },
+    { label: 'Contact',  href: '/contact' },
+  ];
+
   return (
-    <footer className="border-t border-[var(--border)] bg-[var(--bg2)] px-6 py-5 shrink-0">
-      <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
-        <div className="text-[11px] text-[var(--text3)] text-center sm:text-left space-y-0.5">
-          <p className="font-bold text-[var(--text2)]">© {new Date().getFullYear()} KamiStream. All Rights Reserved.</p>
-          <p>This site does not store any files on its server. All contents are provided by non-affiliated third parties.</p>
+    <footer className="border-t border-[var(--border)] bg-[var(--bg2)] shrink-0">
+      <div className="max-w-7xl mx-auto px-6 py-6 flex flex-col gap-4">
+
+        {/* Logo + nav */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <Link href="/">
+            <span className="text-[20px] font-heading font-black cursor-pointer select-none">
+              Kami<span className="text-[var(--pink)]">Stream</span>
+            </span>
+          </Link>
+          <nav className="flex flex-wrap items-center gap-x-5 gap-y-1">
+            {navLinks.map(({ label, href }) => (
+              <Link key={label} href={href}>
+                <span className="text-[12px] font-bold text-[var(--text3)] hover:text-white transition-colors cursor-pointer">
+                  {label}
+                </span>
+              </Link>
+            ))}
+          </nav>
         </div>
-        <nav className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-[11px] font-bold text-[var(--text3)]">
-          {[
-            { label: 'Home',    href: '/' },
-            { label: 'Browse',  href: '/browse' },
-            { label: 'A-Z',     href: '/az-list' },
-            { label: 'DMCA',    href: '/dmca' },
-            { label: 'Terms',   href: '/terms' },
-            { label: 'Contact', href: '/contact' },
-          ].map(({ label, href }) => (
-            <Link key={label} href={href}>
-              <span className="hover:text-[var(--pink)] transition-colors cursor-pointer">{label}</span>
-            </Link>
-          ))}
-        </nav>
+
+        <div className="border-t border-[var(--border)]" />
+
+        {/* Copyright */}
+        <div className="flex flex-col gap-1">
+          <p className="text-[12px] font-bold text-[var(--text2)]">
+            © {year} KamiStream. All Rights Reserved.
+          </p>
+          <p className="text-[11px] text-[var(--text3)] leading-relaxed">
+            This site does not store any files on its server. All contents are provided by non-affiliated third parties.
+          </p>
+        </div>
+
       </div>
     </footer>
   );
@@ -39,9 +63,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       <div className="flex flex-1 overflow-hidden relative">
         <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
         <main className="flex-1 overflow-y-auto relative flex flex-col">
-          <div className="flex-1">
-            {children}
-          </div>
+          <div className="flex-1">{children}</div>
           <Footer />
         </main>
       </div>
@@ -54,9 +76,7 @@ export function MinimalLayout({ children }: { children: React.ReactNode }) {
     <div className="flex flex-col h-screen overflow-hidden bg-[var(--bg)] text-white font-sans">
       <Topbar onMenuClick={() => {}} />
       <main className="flex-1 overflow-y-auto relative flex flex-col">
-        <div className="flex-1">
-          {children}
-        </div>
+        <div className="flex-1">{children}</div>
         <Footer />
       </main>
     </div>
