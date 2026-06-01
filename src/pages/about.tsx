@@ -159,13 +159,13 @@ export default function About() {
 
           {/* CTAs */}
           <div className="flex gap-3 justify-center flex-wrap mb-16">
-            <Link href="/">
+            <Link href="/home">
               <button className="flex items-center gap-2 bg-gradient-to-r from-[var(--pink)] to-[var(--purple)] text-white font-black text-[15px] px-8 py-3.5 rounded-full hover:brightness-110 transition-all shadow-lg shadow-[var(--pink)]/30 hover:-translate-y-0.5">
                 <Play className="w-4 h-4 fill-current" /> Start Watching
               </button>
             </Link>
             <Link href="/browse">
-              <button className="flex items-center gap-2 bg-white/5 backdrop-blur-sm border border-white/12 text-white font-bold text-[15px] px-8 py-3.5 rounded-full hover:bg-white/10 transition-all hover:-translate-y-0.5">
+              <button className="flex items-center gap-2 bg-white/5 backdrop-blur-sm border border-white/10 text-white font-bold text-[15px] px-8 py-3.5 rounded-full hover:bg-white/10 transition-all hover:-translate-y-0.5">
                 Browse Library <ArrowRight className="w-4 h-4" />
               </button>
             </Link>
@@ -333,7 +333,7 @@ export default function About() {
               <Link key={i} href={`/search?q=${encodeURIComponent(t.name)}`}>
                 <span className={`inline-block rounded-full border cursor-pointer transition-all hover:scale-105 hover:border-[var(--pink)] hover:text-white hover:bg-[var(--pink)]/10 ${
                   t.featured
-                    ? 'border-[var(--pink)]/40 text-[var(--pink)] bg-[var(--pink)]/08 font-black'
+                    ? 'border-[var(--pink)]/40 text-[var(--pink)] bg-[var(--pink)]/10 font-black'
                     : 'border-[var(--border)] text-[var(--text2)] bg-[var(--card)] font-semibold'
                 } ${t.size === 'big' ? 'text-[15px] px-5 py-2.5' : 'text-[13px] px-4 py-2'}`}>
                   {t.name}
@@ -385,7 +385,7 @@ export default function About() {
           </p>
 
           <div className="mt-10">
-            <Link href="/">
+            <Link href="/home">
               <button className="bg-gradient-to-r from-[var(--pink)] to-[var(--purple)] text-white font-black text-[15px] px-10 py-4 rounded-full hover:brightness-110 transition-all shadow-xl shadow-[var(--pink)]/20 hover:-translate-y-1">
                 Start Watching Free →
               </button>
