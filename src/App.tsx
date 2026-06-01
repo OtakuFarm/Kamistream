@@ -40,6 +40,7 @@ const DMCA         = lazy(() => import("@/pages/dmca"));
 const Terms        = lazy(() => import("@/pages/terms"));
 const Contact      = lazy(() => import("@/pages/contact"));
 const About        = lazy(() => import("@/pages/about"));
+const AboutPage    = () => <Layout><About /></Layout>;
 
 // ── Query client ──────────────────────────────────────────────────────
 const queryClient = new QueryClient({
@@ -70,6 +71,7 @@ function PageFallback() {
 
 // ── Stable named route components ─────────────────────────────────────
 function HomeRoute()         { return <Layout><Home /></Layout>; }
+function AboutRoute()        { return <AboutPage />; }
 function BrowseRoute()       { return <Layout><Browse /></Layout>; }
 function AnimeRoute()        { return <Layout><AnimeDetail /></Layout>; }
 function WatchlistRoute()    { return <Layout><Watchlist /></Layout>; }
@@ -102,7 +104,8 @@ function Router() {
   return (
     <Suspense fallback={<PageFallback />}>
       <Switch>
-        <Route path="/"                   component={HomeRoute} />
+        <Route path="/"                   component={AboutRoute} />
+        <Route path="/home"               component={HomeRoute} />
         <Route path="/browse"             component={BrowseRoute} />
         <Route path="/anime/:id"          component={AnimeRoute} />
         <Route path="/watch/:id/:ep"      component={WatchRoute} />
