@@ -6,7 +6,7 @@ import { Link } from 'wouter';
 function Footer() {
   const year = new Date().getFullYear();
   const navLinks = [
-    { label: 'Home',     href: '/' },
+    { label: 'Home',     href: '/home' },
     { label: 'Browse',   href: '/browse' },
     { label: 'A-Z List', href: '/az-list' },
     { label: 'Schedule', href: '/schedule' },
@@ -22,7 +22,7 @@ function Footer() {
 
         {/* Logo + nav */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <Link href="/">
+          <Link href="/home">
             <span className="text-[20px] font-heading font-black cursor-pointer select-none">
               Kami<span className="text-[var(--pink)]">Stream</span>
             </span>

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useLocation } from 'wouter';
-import { Home, Compass, Bookmark, Trophy, BarChart3, Users, User, Settings, Calendar, List, Gem, Smile, HelpCircle, Star, Flame, Tag, ChevronDown, ChevronUp } from 'lucide-react';
+import { Home, Compass, Bookmark, Trophy, BarChart3, Users, User, Settings, Calendar, List, Gem, Smile, HelpCircle, Star, Flame, Tag, ChevronDown, ChevronUp, Info } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { isAdminEmail } from '@/lib/admin';
 import { useGamification, calculateLevel } from '@/hooks/useGamification';
@@ -67,7 +67,7 @@ export function Sidebar({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
         <div className="flex-1 overflow-y-auto py-4">
 
           <SectionLabel>Discover</SectionLabel>
-          <NavItem href="/"            icon={Home}        label="Home" />
+          <NavItem href="/home"         icon={Home}        label="Home" />
           <NavItem href="/browse"      icon={Compass}     label="Browse" />
           <NavItem href="/az-list"     icon={List}        label="A-Z List" />
           <NavItem href="/schedule"    icon={Calendar}    label="Schedule" />
@@ -124,6 +124,7 @@ export function Sidebar({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
           <SectionLabel>Community</SectionLabel>
           <NavItem href="/leaderboard"  icon={Flame}      label="Leaderboard" />
           <NavItem href="/community"    icon={Users}      label="Community" />
+          <NavItem href="/about"        icon={Info}       label="About KamiStream" />
 
           {isAdmin && (
             <>
