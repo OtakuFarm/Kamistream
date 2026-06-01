@@ -10,6 +10,7 @@ function Footer() {
     { label: 'Browse',   href: '/browse' },
     { label: 'A-Z List', href: '/az-list' },
     { label: 'Schedule', href: '/schedule' },
+    { label: 'About',    href: '/about' },
     { label: 'DMCA',     href: '/dmca' },
     { label: 'Terms',    href: '/terms' },
     { label: 'Contact',  href: '/contact' },
