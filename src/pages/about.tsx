@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'wouter';
 import { useSEO } from '@/hooks/useSEO';
-import { Play, ArrowRight, Check, X, Minus } from 'lucide-react';
+import { Play, ArrowRight, Check, X } from 'lucide-react';
 
 // ── Animated counter ─────────────────────────────────────────────
 function useCountUp(target: number, duration = 1200) {
@@ -117,6 +117,17 @@ export default function About() {
   return (
     <div className="overflow-x-hidden">
 
+      {/* ── Keyframe injections ── */}
+      <style>{`
+        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+        @keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+        @keyframes fadeUp { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: translateY(0); } }
+        .kami-marquee { animation: marquee 35s linear infinite; }
+        .kami-spin-20 { animation: spin 20s linear infinite; }
+        .kami-spin-15 { animation: spin 15s linear infinite reverse; }
+        .kami-spin-25 { animation: spin 25s linear infinite; }
+      `}</style>
+
       {/* ══ HERO ══════════════════════════════════════════════════ */}
       <section className="relative min-h-screen flex flex-col items-center justify-center text-center px-6 py-20 overflow-hidden">
         {/* Orbs */}
@@ -198,7 +209,7 @@ export default function About() {
 
       {/* ══ MARQUEE ═══════════════════════════════════════════════ */}
       <div className="border-y border-[var(--border)] bg-[var(--bg2)] py-5 overflow-hidden">
-        <div className="flex gap-8 animate-[marquee_35s_linear_infinite] w-max">
+        <div className="flex gap-8 kami-marquee w-max">
           {[...MARQUEE_TITLES, ...MARQUEE_TITLES].map((t, i) => (
             <div key={i} className="flex items-center gap-3 font-heading font-black text-[22px] text-[var(--text3)] whitespace-nowrap hover:text-[var(--pink)] transition-colors cursor-default">
               {t} <span className="text-[var(--pink)] opacity-40">✦</span>
@@ -238,13 +249,13 @@ export default function About() {
 
             {/* Visual */}
             <div className="relative aspect-square max-w-sm mx-auto lg:mx-0">
-              {[0,1,2].map(i => (
-                <div key={i} className="absolute rounded-full border"
-                  style={{
-                    inset: `${i * 10}%`,
-                    borderColor: ['rgba(255,45,120,0.2)', 'rgba(155,93,229,0.15)', 'rgba(67,97,238,0.1)'][i],
-                    animation: `spin ${[20, 15, 25][i]}s linear infinite ${i === 1 ? 'reverse' : ''}`,
-                  }} />
+              {[
+                { cls: 'kami-spin-20', color: 'rgba(255,45,120,0.2)',   inset: '0%'  },
+                { cls: 'kami-spin-15', color: 'rgba(155,93,229,0.15)',  inset: '10%' },
+                { cls: 'kami-spin-25', color: 'rgba(67,97,238,0.1)',    inset: '20%' },
+              ].map((ring, i) => (
+                <div key={i} className={`absolute rounded-full border ${ring.cls}`}
+                  style={{ inset: ring.inset, borderColor: ring.color }} />
               ))}
               <div className="absolute inset-[30%] rounded-full flex items-center justify-center font-heading font-black text-[28px] text-white"
                 style={{ background: 'linear-gradient(135deg, var(--pink), var(--purple))', boxShadow: '0 0 80px rgba(255,45,120,0.4)' }}>
@@ -383,11 +394,6 @@ export default function About() {
         </div>
       </section>
 
-      {/* ── Spin keyframe injected via style tag ── */}
-      <style>{`
-        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-        @keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
-      `}</style>
     </div>
   );
 }
