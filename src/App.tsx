@@ -93,7 +93,6 @@ function CategoryRoute()     { return <Layout><Category /></Layout>; }
 function DMCARoute()         { return <Layout><DMCA /></Layout>; }
 function TermsRoute()        { return <Layout><Terms /></Layout>; }
 function ContactRoute()      { return <Layout><Contact /></Layout>; }
-function AboutRoute()        { return <Layout><About /></Layout>; }
 function NotFoundRoute()     { return <Layout><NotFound /></Layout>; }
 function WatchRoute()        { return <MinimalLayout><Watch /></MinimalLayout>; }
 function LoginRoute()        { return <MinimalLayout><Login /></MinimalLayout>; }
