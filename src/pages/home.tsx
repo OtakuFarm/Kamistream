@@ -3,6 +3,7 @@ import { useTrendingAnime, useTopRatedAnime, useSeasonalAnime } from '@/lib/jika
 import { AnimeCard } from '@/components/AnimeCard';
 import { AnimeListCard } from '@/components/AnimeListCard';
 import { ContinueWatching } from '@/components/ContinueWatching';
+import { BecauseYouWatched } from '@/components/BecauseYouWatched';
 import { GridSkeleton } from '@/components/LoadingSkeleton';
 import { useWatchlist } from '@/hooks/useWatchlist';
 import { useWatchHistory } from '@/hooks/useWatchHistory';
@@ -220,6 +221,9 @@ export default function Home() {
 
       {/* ── Continue Watching ── */}
       <ContinueWatching />
+
+      {/* ── Because You Watched ── */}
+      <BecauseYouWatched />
 
       {/* ── Recently Updated ── */}
       {recentlyUpdated && recentlyUpdated.length > 0 && (
