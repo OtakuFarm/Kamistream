@@ -41,6 +41,11 @@ const Terms        = lazy(() => import("@/pages/terms"));
 const Contact      = lazy(() => import("@/pages/contact"));
 const About        = lazy(() => import("@/pages/about"));
 const AboutPage    = () => <Layout><About /></Layout>;
+// ── Manga ──
+const MangaHome    = lazy(() => import("@/pages/manga/index"));
+const MangaDetail  = lazy(() => import("@/pages/manga/detail"));
+const MangaReader  = lazy(() => import("@/pages/manga/reader"));
+const MangaGenres  = lazy(() => import("@/pages/manga/genres"));
 
 // ── Query client ──────────────────────────────────────────────────────
 const queryClient = new QueryClient({
@@ -93,6 +98,11 @@ function CategoryRoute()     { return <Layout><Category /></Layout>; }
 function DMCARoute()         { return <Layout><DMCA /></Layout>; }
 function TermsRoute()        { return <Layout><Terms /></Layout>; }
 function ContactRoute()      { return <Layout><Contact /></Layout>; }
+// Manga — reader has no layout (full screen)
+function MangaHomeRoute()    { return <Layout><MangaHome /></Layout>; }
+function MangaDetailRoute()  { return <Layout><MangaDetail /></Layout>; }
+function MangaGenresRoute()  { return <Layout><MangaGenres /></Layout>; }
+function MangaReaderRoute()  { return <MangaReader />; }
 function NotFoundRoute()     { return <Layout><NotFound /></Layout>; }
 function WatchRoute()        { return <MinimalLayout><Watch /></MinimalLayout>; }
 function LoginRoute()        { return <MinimalLayout><Login /></MinimalLayout>; }
@@ -130,6 +140,11 @@ function Router() {
         <Route path="/terms"              component={TermsRoute} />
         <Route path="/contact"            component={ContactRoute} />
         <Route path="/about"              component={AboutRoute} />
+        {/* Manga — reader MUST come before detail so :chapterId isn't swallowed */}
+        <Route path="/manga/genres"                      component={MangaGenresRoute} />
+        <Route path="/manga/:id/chapter/:chapterId"      component={MangaReaderRoute} />
+        <Route path="/manga/:id"                         component={MangaDetailRoute} />
+        <Route path="/manga"                             component={MangaHomeRoute} />
         <Route path="/admin"              component={Admin} />
         <Route                            component={NotFoundRoute} />
       </Switch>
