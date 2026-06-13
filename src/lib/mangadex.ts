@@ -1,9 +1,12 @@
 // ── MangaDex API wrapper ─────────────────────────────────────────
-// Free API, no key needed. Rate limit: 5 req/sec.
+// All requests go through /api/mangadex (Vercel proxy) to avoid
+// CORS issues with direct browser calls to api.mangadex.org.
+//
+// Free API, no key needed. Rate limit: 5 req/sec upstream.
 // Docs: https://api.mangadex.org/docs
 
-const BASE = 'https://api.mangadex.org';
-const COVER_BASE = 'https://uploads.mangadex.org/covers';
+const PROXY       = '/api/mangadex';
+const COVER_BASE  = 'https://uploads.mangadex.org/covers';
 
 // ── Types ─────────────────────────────────────────────────────────
 export interface MangaCover {
@@ -40,6 +43,24 @@ export interface Chapter {
 export interface ChapterPage {
   url: string;
   index: number;
+}
+
+// ── Internal fetch helper ─────────────────────────────────────────
+// Builds a proxied URL: /api/mangadex?path=/manga&limit=20&...
+async function mdFetch(path: string, params: Record<string, string | string[]> = {}): Promise<any> {
+  const qs = new URLSearchParams({ path });
+
+  for (const [key, value] of Object.entries(params)) {
+    if (Array.isArray(value)) {
+      value.forEach(v => qs.append(key, v));
+    } else {
+      qs.append(key, value);
+    }
+  }
+
+  const r = await fetch(`${PROXY}?${qs.toString()}`);
+  if (!r.ok) return null;
+  return r.json();
 }
 
 // ── Helpers ───────────────────────────────────────────────────────
@@ -89,84 +110,73 @@ function parseManga(data: any): MangaItem {
 
 // Search manga
 export async function searchManga(query: string, limit = 20, offset = 0): Promise<MangaItem[]> {
-  const params = new URLSearchParams({
-    title: query, limit: String(limit), offset: String(offset),
-    'includes[]': 'cover_art', 'includes[1]': 'author',
-    'contentRating[]': 'safe', 'contentRating[1]': 'suggestive',
+  const json = await mdFetch('/manga', {
+    title:             query,
+    limit:             String(limit),
+    offset:            String(offset),
+    'includes[]':      ['cover_art', 'author'],
+    'contentRating[]': ['safe', 'suggestive'],
     'order[relevance]': 'desc',
   });
-  const r = await fetch(`${BASE}/manga?${params}`);
-  if (!r.ok) return [];
-  const json = await r.json();
-  return (json.data || []).map(parseManga);
+  return (json?.data || []).map(parseManga);
 }
 
 // Get trending/popular manga
 export async function getPopularManga(limit = 20): Promise<MangaItem[]> {
-  const params = new URLSearchParams({
-    limit: String(limit),
-    'includes[]': 'cover_art', 'includes[1]': 'author',
-    'contentRating[]': 'safe', 'contentRating[1]': 'suggestive',
-    'order[followedCount]': 'desc', 'hasAvailableChapters': 'true',
+  const json = await mdFetch('/manga', {
+    limit:                  String(limit),
+    'includes[]':           ['cover_art', 'author'],
+    'contentRating[]':      ['safe', 'suggestive'],
+    'order[followedCount]': 'desc',
+    hasAvailableChapters:   'true',
   });
-  const r = await fetch(`${BASE}/manga?${params}`);
-  if (!r.ok) return [];
-  const json = await r.json();
-  return (json.data || []).map(parseManga);
+  return (json?.data || []).map(parseManga);
 }
 
 // Get latest updated manga
 export async function getLatestManga(limit = 20): Promise<MangaItem[]> {
-  const params = new URLSearchParams({
-    limit: String(limit),
-    'includes[]': 'cover_art', 'includes[1]': 'author',
-    'contentRating[]': 'safe', 'contentRating[1]': 'suggestive',
-    'order[latestUploadedChapter]': 'desc', 'hasAvailableChapters': 'true',
+  const json = await mdFetch('/manga', {
+    limit:                            String(limit),
+    'includes[]':                     ['cover_art', 'author'],
+    'contentRating[]':                ['safe', 'suggestive'],
+    'order[latestUploadedChapter]':   'desc',
+    hasAvailableChapters:             'true',
   });
-  const r = await fetch(`${BASE}/manga?${params}`);
-  if (!r.ok) return [];
-  const json = await r.json();
-  return (json.data || []).map(parseManga);
+  return (json?.data || []).map(parseManga);
 }
 
 // Get manga by genre/tag ID
 export async function getMangaByTag(tagId: string, limit = 24): Promise<MangaItem[]> {
-  const params = new URLSearchParams({
-    limit: String(limit),
-    'includes[]': 'cover_art',
-    'contentRating[]': 'safe', 'contentRating[1]': 'suggestive',
-    'includedTags[]': tagId,
+  const json = await mdFetch('/manga', {
+    limit:                  String(limit),
+    'includes[]':           'cover_art',
+    'contentRating[]':      ['safe', 'suggestive'],
+    'includedTags[]':       tagId,
     'order[followedCount]': 'desc',
   });
-  const r = await fetch(`${BASE}/manga?${params}`);
-  if (!r.ok) return [];
-  const json = await r.json();
-  return (json.data || []).map(parseManga);
+  return (json?.data || []).map(parseManga);
 }
 
 // Get single manga detail
 export async function getMangaDetail(id: string): Promise<MangaItem | null> {
-  const params = new URLSearchParams({
-    'includes[]': 'cover_art', 'includes[1]': 'author', 'includes[2]': 'artist',
+  const json = await mdFetch(`/manga/${id}`, {
+    'includes[]': ['cover_art', 'author', 'artist'],
   });
-  const r = await fetch(`${BASE}/manga/${id}?${params}`);
-  if (!r.ok) return null;
-  const json = await r.json();
+  if (!json?.data) return null;
   return parseManga(json.data);
 }
 
 // Get chapter list for a manga (English only, sorted newest first)
 export async function getMangaChapters(mangaId: string, limit = 100, offset = 0): Promise<Chapter[]> {
-  const params = new URLSearchParams({
-    manga: mangaId, limit: String(limit), offset: String(offset),
+  const json = await mdFetch('/chapter', {
+    manga:                  mangaId,
+    limit:                  String(limit),
+    offset:                 String(offset),
     'translatedLanguage[]': 'en',
-    'order[chapter]': 'desc',
-    'includes[]': 'scanlation_group',
+    'order[chapter]':       'desc',
+    'includes[]':           'scanlation_group',
   });
-  const r = await fetch(`${BASE}/chapter?${params}`);
-  if (!r.ok) return [];
-  const json = await r.json();
-  return (json.data || []).map((c: any) => ({
+  return (json?.data || []).map((c: any) => ({
     id:              c.id,
     chapter:         c.attributes?.chapter || null,
     title:           c.attributes?.title   || null,
@@ -179,29 +189,30 @@ export async function getMangaChapters(mangaId: string, limit = 100, offset = 0)
 }
 
 // Get chapter pages (actual image URLs)
+// The at-home server endpoint is the main one that needs proxying.
 export async function getChapterPages(chapterId: string): Promise<ChapterPage[]> {
-  const r = await fetch(`${BASE}/at-home/server/${chapterId}`);
-  if (!r.ok) return [];
-  const json = await r.json();
-  const base    = json.baseUrl;
-  const hash    = json.chapter?.hash;
-  const data    = json.chapter?.data || [];        // high quality
+  const json = await mdFetch(`/at-home/server/${chapterId}`);
+  if (!json) return [];
+
+  const base      = json.baseUrl;
+  const hash      = json.chapter?.hash;
+  const data      = json.chapter?.data      || []; // high quality
   const dataSaver = json.chapter?.dataSaver || []; // compressed
-  // Prefer data-saver for mobile perf, fall back to full quality
-  const pages   = dataSaver.length > 0 ? dataSaver : data;
-  const path    = dataSaver.length > 0 ? 'data-saver' : 'data';
+
+  // Prefer data-saver for mobile performance
+  const pages = dataSaver.length > 0 ? dataSaver : data;
+  const path  = dataSaver.length > 0 ? 'data-saver' : 'data';
+
   return pages.map((file: string, index: number) => ({
     url:   `${base}/${path}/${hash}/${file}`,
     index,
   }));
 }
 
-// Get all available tags
+// Get all available genre tags
 export async function getMangaTags(): Promise<{ id: string; name: string }[]> {
-  const r = await fetch(`${BASE}/manga/tag`);
-  if (!r.ok) return [];
-  const json = await r.json();
-  return (json.data || [])
+  const json = await mdFetch('/manga/tag');
+  return (json?.data || [])
     .filter((t: any) => t.attributes?.group === 'genre')
     .map((t: any) => ({ id: t.id, name: t.attributes?.name?.en || '' }))
     .filter((t: any) => t.name)
