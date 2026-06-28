@@ -10,13 +10,61 @@ import type {
 
 const BASE_URL = 'https://api.jikan.moe/v4';
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Rate-limit queue
+// Jikan allows ~3 req/sec. This queue serialises every fetch through a
+// token-bucket so multiple hooks mounting simultaneously don't blast 7+
+// requests at once and trigger 429s.
+// ─────────────────────────────────────────────────────────────────────────────
+const MIN_GAP_MS = 350; // ~2.8 req/sec — safely under the 3 req/sec limit
+let lastRequestTime = 0;
+let pendingQueue: Array<() => void> = [];
+let queueRunning = false;
+
+function runQueue() {
+  if (queueRunning || pendingQueue.length === 0) return;
+  queueRunning = true;
+  const next = pendingQueue.shift()!;
+  const now = Date.now();
+  const wait = Math.max(0, lastRequestTime + MIN_GAP_MS - now);
+  setTimeout(() => {
+    lastRequestTime = Date.now();
+    next();
+    queueRunning = false;
+    runQueue();
+  }, wait);
+}
+
+function enqueue<T>(fn: () => Promise<T>): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    pendingQueue.push(() => fn().then(resolve).catch(reject));
+    runQueue();
+  });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Core fetch helper — retries once on 429 with back-off
+// ─────────────────────────────────────────────────────────────────────────────
 const fetchJikan = async <T>(endpoint: string): Promise<T> => {
-  const res = await fetch(`${BASE_URL}${endpoint}`);
-  if (!res.ok) throw new Error(`Jikan error: ${res.status}`);
-  return res.json() as Promise<T>;
+  return enqueue(async () => {
+    const res = await fetch(`${BASE_URL}${endpoint}`);
+
+    if (res.status === 429) {
+      // Back off and try once more through the queue
+      await new Promise(r => setTimeout(r, 1500));
+      const retry = await fetch(`${BASE_URL}${endpoint}`);
+      if (!retry.ok) throw new Error(`Jikan error (retry): ${retry.status}`);
+      return retry.json() as Promise<T>;
+    }
+
+    if (!res.ok) throw new Error(`Jikan error: ${res.status}`);
+    return res.json() as Promise<T>;
+  });
 };
 
-// Fetches ALL episode pages with retry on rate-limit (429)
+// ─────────────────────────────────────────────────────────────────────────────
+// Fetch ALL episode pages with retry on rate-limit (429)
+// ─────────────────────────────────────────────────────────────────────────────
 const fetchAllEpisodes = async (malId: number | string): Promise<{ data: JikanEpisode[] }> => {
   let page = 1;
   let allEpisodes: JikanEpisode[] = [];
@@ -24,9 +72,10 @@ const fetchAllEpisodes = async (malId: number | string): Promise<{ data: JikanEp
   let retries = 0;
 
   while (hasNextPage) {
-    const res = await fetch(`${BASE_URL}/anime/${malId}/episodes?page=${page}`);
+    const res = await enqueue(() =>
+      fetch(`${BASE_URL}/anime/${malId}/episodes?page=${page}`)
+    );
 
-    // Rate limited — wait and retry
     if (res.status === 429) {
       if (retries >= 3) break;
       retries++;
@@ -40,14 +89,12 @@ const fetchAllEpisodes = async (malId: number | string): Promise<{ data: JikanEp
     const data = await res.json() as JikanPaginatedResponse<JikanEpisode>;
     const eps = data?.data || [];
 
-    // Some anime return empty episodes even with has_next_page = true
     if (eps.length === 0) break;
 
     allEpisodes = [...allEpisodes, ...eps];
     hasNextPage = data?.pagination?.has_next_page === true;
     page++;
 
-    // Delay between pages to respect rate limit
     if (hasNextPage) await new Promise(r => setTimeout(r, 400));
   }
 
@@ -71,6 +118,10 @@ const fetchAllEpisodes = async (malId: number | string): Promise<{ data: JikanEp
 
   return { data: allEpisodes };
 };
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Hooks
+// ─────────────────────────────────────────────────────────────────────────────
 
 export const useTrendingAnime = () =>
   useQuery<JikanPaginatedResponse<JikanAnime>>({
