@@ -6,11 +6,58 @@ import { SlidersHorizontal, X, Search, Loader2 } from 'lucide-react';
 import { useSEO } from '@/hooks/useSEO';
 import { useSearch } from 'wouter';
 
+// ── AniList fallback for browse ───────────────────────────────────────
+import {
+  useALTopBrowseInfinite,
+  useALBrowseInfinite,
+  JIKAN_GENRE_TO_ANILIST,
+  JIKAN_TYPE_TO_ANILIST,
+  JIKAN_STATUS_TO_ANILIST,
+} from '@/lib/anilist';
+// Jikan allows ~3 req/sec. This queue spaces calls 350ms apart so the
+// auto-fetch burst on the Top 1000 tab never triggers 429s.
+const JIKAN_BASE = 'https://api.jikan.moe/v4';
+const MIN_GAP_MS = 350;
+let lastReqTime = 0;
+let browseQueue: Array<() => void> = [];
+let browseQueueRunning = false;
+
+function runBrowseQueue() {
+  if (browseQueueRunning || browseQueue.length === 0) return;
+  browseQueueRunning = true;
+  const next = browseQueue.shift()!;
+  const wait = Math.max(0, lastReqTime + MIN_GAP_MS - Date.now());
+  setTimeout(() => {
+    lastReqTime = Date.now();
+    next();
+    browseQueueRunning = false;
+    runBrowseQueue();
+  }, wait);
+}
+
+function jikanFetch(url: string): Promise<any> {
+  return new Promise((resolve, reject) => {
+    browseQueue.push(async () => {
+      try {
+        const res = await fetch(url);
+        if (res.status === 429) {
+          // One automatic retry after back-off
+          await new Promise(r => setTimeout(r, 1500));
+          const retry = await fetch(url);
+          if (!retry.ok) return reject(new Error(`Jikan 429 retry failed: ${retry.status}`));
+          return resolve(retry.json());
+        }
+        if (!res.ok) return reject(new Error(`Jikan error: ${res.status}`));
+        resolve(res.json());
+      } catch (e) { reject(e); }
+    });
+    runBrowseQueue();
+  });
+}
+
 // ── Jikan top anime (infinite) ────────────────────────────────────────
 async function fetchTopPage(page: number) {
-  const res = await fetch(`https://api.jikan.moe/v4/top/anime?limit=25&page=${page}&sfw=true`);
-  if (!res.ok) throw new Error('Jikan error');
-  return res.json();
+  return jikanFetch(`${JIKAN_BASE}/top/anime?limit=25&page=${page}&sfw=true`);
 }
 
 async function fetchJikanFiltered(f: Filters, page = 1) {
@@ -25,9 +72,7 @@ async function fetchJikanFiltered(f: Filters, page = 1) {
   params.set('limit', '25');
   params.set('page',  String(page));
   params.set('sfw',   'true');
-  const res = await fetch(`https://api.jikan.moe/v4/anime?${params}`);
-  if (!res.ok) throw new Error('Jikan error');
-  return res.json();
+  return jikanFetch(`${JIKAN_BASE}/anime?${params}`);
 }
 
 // ── Types & constants ─────────────────────────────────────────────────
@@ -75,11 +120,11 @@ export default function Browse() {
     setTab('search');
   }, [urlQ]);
 
-  // Top anime infinite
+  // Top anime infinite — Jikan first, AniList fallback on error
   const {
     data: topPages, fetchNextPage: fetchNextTop,
     hasNextPage: hasMoreTop, isFetchingNextPage: loadingMoreTop,
-    isLoading: topLoading,
+    isLoading: topLoading, isError: topError,
   } = useInfiniteQuery({
     queryKey: ['browse', 'top'],
     queryFn: ({ pageParam = 1 }) => fetchTopPage(pageParam as number),
@@ -92,24 +137,21 @@ export default function Browse() {
     initialPageParam: 1,
     staleTime: 10 * 60 * 1000,
     enabled: tab === 'top',
+    retry: 1,
   });
 
-  // Auto-fetch first 4 pages (100 anime) when Top 1000 tab opens
-  useEffect(() => {
-    if (tab !== 'top' || topLoading || loadingMoreTop) return;
-    const loaded = topPages?.pages.length ?? 0;
-    if (loaded > 0 && loaded < 4 && hasMoreTop) {
-      // Small delay to avoid rate limiting
-      const t = setTimeout(() => fetchNextTop(), 400);
-      return () => clearTimeout(t);
-    }
-  }, [tab, topPages?.pages.length, topLoading, loadingMoreTop, hasMoreTop]);
+  // AniList fallback for Top tab (activates automatically when Jikan errors)
+  const {
+    data: alTopPages, fetchNextPage: fetchNextALTop,
+    hasNextPage: hasMoreALTop, isFetchingNextPage: loadingMoreALTop,
+    isLoading: alTopLoading,
+  } = useALTopBrowseInfinite(tab === 'top' && topError);
 
-  // Search infinite
+  // Search infinite — Jikan first, AniList fallback on error
   const {
     data: searchPages, fetchNextPage: fetchNextSearch,
     hasNextPage: hasMoreSearch, isFetchingNextPage: loadingMoreSearch,
-    isLoading: searchLoading, isFetching: searchFetching,
+    isLoading: searchLoading, isFetching: searchFetching, isError: searchError,
   } = useInfiniteQuery({
     queryKey: ['browse', 'search', filters],
     queryFn: ({ pageParam = 1 }) => fetchJikanFiltered(filters, pageParam as number),
@@ -121,10 +163,46 @@ export default function Browse() {
     initialPageParam: 1,
     enabled: tab === 'search',
     staleTime: 3 * 60 * 1000,
+    retry: 1,
   });
 
-  const topAnime    = topPages?.pages.flatMap((p: any) => p.data ?? []) ?? [];
-  const searchAnime = searchPages?.pages.flatMap((p: any) => p.data ?? []) ?? [];
+  // AniList fallback for Search tab
+  const alSearchFilters = {
+    q:        filters.q,
+    genre:    JIKAN_GENRE_TO_ANILIST[filters.genre]  || '',
+    format:   JIKAN_TYPE_TO_ANILIST[filters.type]    || '',
+    status:   JIKAN_STATUS_TO_ANILIST[filters.status] || '',
+    year:     filters.year,
+    minScore: filters.minScore,
+    orderBy:  filters.orderBy,
+  };
+  const {
+    data: alSearchPages, fetchNextPage: fetchNextALSearch,
+    hasNextPage: hasMoreALSearch, isFetchingNextPage: loadingMoreALSearch,
+    isLoading: alSearchLoading,
+  } = useALBrowseInfinite(alSearchFilters, tab === 'search' && searchError);
+
+  // Auto-fetch a second page on Top tab open (only when Jikan is working)
+  useEffect(() => {
+    if (tab !== 'top' || topLoading || loadingMoreTop || topError) return;
+    const loaded = topPages?.pages.length ?? 0;
+    if (loaded === 1 && hasMoreTop) {
+      const t = setTimeout(() => fetchNextTop(), 600);
+      return () => clearTimeout(t);
+    }
+  }, [tab, topPages?.pages.length, topLoading, loadingMoreTop, hasMoreTop, topError]);
+
+  // Merge Jikan + AniList data — AniList takes over when Jikan errors
+  const usingALTop    = topError;
+  const usingALSearch = searchError;
+
+  const topAnime    = usingALTop
+    ? (alTopPages?.pages.flatMap((p: any) => p.data ?? []) ?? [])
+    : (topPages?.pages.flatMap((p: any) => p.data ?? []) ?? []);
+
+  const searchAnime = usingALSearch
+    ? (alSearchPages?.pages.flatMap((p: any) => p.data ?? []) ?? [])
+    : (searchPages?.pages.flatMap((p: any) => p.data ?? []) ?? []);
 
   const setFilter = (key: keyof Filters, val: string) => setFilters(f => ({ ...f, [key]: val }));
   const resetFilters = () => setFilters(f => ({ ...DEFAULT_FILTERS, q: f.q }));
@@ -141,13 +219,29 @@ export default function Browse() {
   const activeFilterCount = [filters.genre, filters.type, filters.status, filters.minScore, filters.year]
     .filter(Boolean).length + (filters.orderBy !== 'popularity' ? 1 : 0);
 
-  const animeList   = tab === 'top' ? topAnime : searchAnime;
-  const isLoading   = tab === 'top' ? topLoading : (searchLoading || searchFetching);
-  const hasMore     = tab === 'top' ? hasMoreTop : hasMoreSearch;
-  const loadingMore = tab === 'top' ? loadingMoreTop : loadingMoreSearch;
-  const loadMore    = tab === 'top' ? fetchNextTop : fetchNextSearch;
+  const isLoading   = tab === 'top'
+    ? (usingALTop ? alTopLoading : topLoading)
+    : (usingALSearch ? alSearchLoading : (searchLoading || searchFetching));
 
-  const heading = tab === 'search' && filters.q ? `Results for "${filters.q}"` : 'Browse Anime';
+  const hasMore     = tab === 'top'
+    ? (usingALTop ? hasMoreALTop    : hasMoreTop)
+    : (usingALSearch ? hasMoreALSearch : hasMoreSearch);
+
+  const loadingMore = tab === 'top'
+    ? (usingALTop ? loadingMoreALTop    : loadingMoreTop)
+    : (usingALSearch ? loadingMoreALSearch : loadingMoreSearch);
+
+  const loadMore    = tab === 'top'
+    ? (usingALTop ? fetchNextALTop    : fetchNextTop)
+    : (usingALSearch ? fetchNextALSearch : fetchNextSearch);
+
+  // Show AniList badge when falling back so users know the source
+  const usingAniList = (tab === 'top' && usingALTop) || (tab === 'search' && usingALSearch);
+
+  const animeList = tab === 'top' ? topAnime : searchAnime;
+  const heading = tab === 'search' && filters.q
+    ? `Results for "${filters.q}"`
+    : usingAniList ? 'Browse Anime · via AniList' : 'Browse Anime';
 
   return (
     <div className="p-4 md:p-6 pb-20">
@@ -248,15 +342,8 @@ export default function Browse() {
             <div className="flex justify-center mt-10">
               <button
                 onClick={async () => {
-                  // Load 4 pages at once (100 anime) for top tab, 1 page for search
-                  if (tab === 'top') {
-                    for (let i = 0; i < 4; i++) {
-                      await fetchNextTop();
-                      await new Promise(r => setTimeout(r, 400));
-                    }
-                  } else {
-                    loadMore();
-                  }
+                  // Queue handles spacing — just call loadMore once per click
+                  loadMore();
                 }}
                 disabled={loadingMore}
                 className="flex items-center gap-2 bg-gradient-to-r from-[var(--pink)] to-[var(--purple)] text-white px-8 py-3 rounded-xl text-[13px] font-bold hover:brightness-110 transition-all disabled:opacity-60">
