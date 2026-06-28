@@ -4,7 +4,8 @@ import { AnimeCard } from '@/components/AnimeCard';
 import { GridSkeleton } from '@/components/LoadingSkeleton';
 import { useSEO } from '@/hooks/useSEO';
 import { Link } from 'wouter';
-import { Smile } from 'lucide-react';
+import { jikanFetch } from '@/lib/jikanFetch';
+
 
 const MOODS = [
   { id: 'hype',      label: '🔥 Hype',        desc: 'Heart-pounding action',        genres: [1, 2],       color: 'from-red-500 to-orange-500'    },
@@ -28,12 +29,7 @@ export default function Mood() {
   const { data, isLoading } = useQuery({
     queryKey: ['mood', selected],
     enabled: !!mood,
-    queryFn: async () => {
-      const genreParam = mood!.genres.join(',');
-      const res = await fetch(`https://api.jikan.moe/v4/anime?genres=${genreParam}&order_by=score&sort=desc&limit=20&sfw=true&min_score=7`);
-      if (!res.ok) throw new Error('Failed');
-      return res.json();
-    },
+    queryFn: () => jikanFetch(`/anime?genres=${mood!.genres.join(',')}&order_by=score&sort=desc&limit=20&sfw=true&min_score=7`),
     staleTime: 10 * 60 * 1000,
   });
 

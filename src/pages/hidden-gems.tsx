@@ -4,13 +4,14 @@ import { AnimeCard } from '@/components/AnimeCard';
 import { GridSkeleton } from '@/components/LoadingSkeleton';
 import { useSEO } from '@/hooks/useSEO';
 import { Gem, RefreshCw } from 'lucide-react';
+import { jikanFetch } from '@/lib/jikanFetch';
 
 const FILTERS = [
-  { id: 'underrated', label: '💎 Underrated',   desc: 'High score, low members',    url: 'https://api.jikan.moe/v4/anime?min_score=8&order_by=members&sort=asc&limit=25&sfw=true&type=tv' },
-  { id: 'old-gems',   label: '📼 Old Gems',      desc: 'Classics from the past',     url: 'https://api.jikan.moe/v4/anime?min_score=8&end_date=2005&order_by=score&sort=desc&limit=25&sfw=true&type=tv' },
-  { id: 'short',      label: '⚡ Quick Watch',   desc: 'Under 13 episodes',          url: 'https://api.jikan.moe/v4/anime?min_score=8&max_episodes=12&order_by=score&sort=desc&limit=25&sfw=true&type=tv' },
-  { id: 'movies',     label: '🎬 Hidden Movies', desc: 'Overlooked anime films',     url: 'https://api.jikan.moe/v4/anime?min_score=8&order_by=members&sort=asc&limit=25&sfw=true&type=movie' },
-  { id: 'ova',        label: '📀 OVA Treasures', desc: 'Rare original video anime',  url: 'https://api.jikan.moe/v4/anime?min_score=8&order_by=score&sort=desc&limit=25&sfw=true&type=ova' },
+  { id: 'underrated', label: '💎 Underrated',   desc: 'High score, low members',    endpoint: '/anime?min_score=8&order_by=members&sort=asc&limit=25&sfw=true&type=tv' },
+  { id: 'old-gems',   label: '📼 Old Gems',      desc: 'Classics from the past',     endpoint: '/anime?min_score=8&end_date=2005&order_by=score&sort=desc&limit=25&sfw=true&type=tv' },
+  { id: 'short',      label: '⚡ Quick Watch',   desc: 'Under 13 episodes',          endpoint: '/anime?min_score=8&max_episodes=12&order_by=score&sort=desc&limit=25&sfw=true&type=tv' },
+  { id: 'movies',     label: '🎬 Hidden Movies', desc: 'Overlooked anime films',     endpoint: '/anime?min_score=8&order_by=members&sort=asc&limit=25&sfw=true&type=movie' },
+  { id: 'ova',        label: '📀 OVA Treasures', desc: 'Rare original video anime',  endpoint: '/anime?min_score=8&order_by=score&sort=desc&limit=25&sfw=true&type=ova' },
 ];
 
 export default function HiddenGems() {
@@ -20,11 +21,7 @@ export default function HiddenGems() {
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ['hidden-gems', filter],
-    queryFn: async () => {
-      const res = await fetch(active.url);
-      if (!res.ok) throw new Error('Failed');
-      return res.json();
-    },
+    queryFn: () => jikanFetch(active.endpoint),
     staleTime: 15 * 60 * 1000,
   });
 

@@ -22,14 +22,14 @@ const SORT_OPTIONS = [
   { v: 'start_date', l: 'Newest First' },
 ];
 
+import { jikanFetch } from '@/lib/jikanFetch';
+
 async function fetchGenrePage(genreId: string, sort: string, page: number) {
   const params = new URLSearchParams({
     genres: genreId, order_by: sort,
     limit: '24', page: String(page), sfw: 'true',
   });
-  const res = await fetch(`https://api.jikan.moe/v4/anime?${params}`);
-  if (!res.ok) throw new Error('Failed to fetch');
-  return res.json();
+  return jikanFetch(`/anime?${params}`);
 }
 
 export default function Genre() {

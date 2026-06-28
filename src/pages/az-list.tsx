@@ -16,18 +16,16 @@ const SORT_OPTIONS = [
 
 const TYPE_OPTIONS = ['All', 'TV', 'Movie', 'OVA', 'ONA', 'Special'];
 
+import { jikanFetch } from '@/lib/jikanFetch';
+
 async function fetchByLetter(letter: string, sort: string, type: string, page: number) {
-  let url = `https://api.jikan.moe/v4/anime?page=${page}&limit=24&sfw=true&order_by=title&sort=asc`;
-  if (letter !== '#') {
-    url += `&letter=${encodeURIComponent(letter)}`;
-  }
-  if (type !== 'All') url += `&type=${type.toLowerCase()}`;
-  if (sort === 'score') url = url.replace('order_by=title&sort=asc', 'order_by=score&sort=desc');
-  else if (sort === 'members') url = url.replace('order_by=title&sort=asc', 'order_by=members&sort=desc');
-  else if (sort === 'title_desc') url = url.replace('sort=asc', 'sort=desc');
-  const res = await fetch(url);
-  if (!res.ok) throw new Error('Failed to fetch');
-  return res.json();
+  let endpoint = `/anime?page=${page}&limit=24&sfw=true&order_by=title&sort=asc`;
+  if (letter !== '#') endpoint += `&letter=${encodeURIComponent(letter)}`;
+  if (type !== 'All') endpoint += `&type=${type.toLowerCase()}`;
+  if (sort === 'score')        endpoint = endpoint.replace('order_by=title&sort=asc', 'order_by=score&sort=desc');
+  else if (sort === 'members') endpoint = endpoint.replace('order_by=title&sort=asc', 'order_by=members&sort=desc');
+  else if (sort === 'title_desc') endpoint = endpoint.replace('sort=asc', 'sort=desc');
+  return jikanFetch(endpoint);
 }
 
 export default function AZList() {
@@ -51,9 +49,7 @@ export default function AZList() {
     queryKey: ['az-search', searchQuery],
     queryFn: async () => {
       if (!searchQuery) return null;
-      const res = await fetch(`https://api.jikan.moe/v4/anime?q=${encodeURIComponent(searchQuery)}&limit=24&sfw=true`);
-      if (!res.ok) throw new Error('Failed');
-      return res.json();
+      return jikanFetch(`/anime?q=${encodeURIComponent(searchQuery)}&limit=24&sfw=true`);
     },
     enabled: searchQuery.length > 2,
     staleTime: 2 * 60 * 1000,

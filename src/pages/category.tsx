@@ -7,6 +7,12 @@ import {
 } from "lucide-react";
 import { AnimeCard } from "@/components/AnimeCard";
 import { useSEO } from "@/hooks/useSEO";
+import { jikanFetch } from "@/lib/jikanFetch";
+
+async function catFetch(endpoint: string, page: number) {
+  const j = await jikanFetch(`${endpoint}&page=${page}&sfw=true`);
+  return { data: j.data || [], hasNext: j.pagination?.has_next_page ?? false };
+}
 
 // ── Config ─────────────────────────────────────────────────────────────
 const CATEGORIES: Record<string, {
@@ -21,77 +27,49 @@ const CATEGORIES: Record<string, {
     icon: <Flame className="w-5 h-5" />,
     description: "Currently airing anime sorted by popularity",
     color: "var(--pink)",
-    fetchPage: async (page) => {
-      const res = await fetch(`https://api.jikan.moe/v4/anime?status=airing&order_by=members&sort=desc&limit=24&page=${page}&sfw=true`);
-      const j = await res.json();
-      return { data: j.data || [], hasNext: j.pagination?.has_next_page ?? false };
-    },
+    fetchPage: (page) => catFetch('/anime?status=airing&order_by=members&sort=desc&limit=24', page),
   },
   "new-added": {
     label: "New Added",
     icon: <Zap className="w-5 h-5" />,
     description: "Recently started anime — fresh new seasons and debuts",
     color: "var(--green)",
-    fetchPage: async (page) => {
-      const res = await fetch(`https://api.jikan.moe/v4/anime?status=airing&order_by=start_date&sort=desc&limit=24&page=${page}&sfw=true`);
-      const j = await res.json();
-      return { data: j.data || [], hasNext: j.pagination?.has_next_page ?? false };
-    },
+    fetchPage: (page) => catFetch('/anime?status=airing&order_by=start_date&sort=desc&limit=24', page),
   },
   "just-completed": {
     label: "Just Completed",
     icon: <CheckCircle2 className="w-5 h-5" />,
     description: "Anime that recently finished airing",
     color: "var(--blue)",
-    fetchPage: async (page) => {
-      const res = await fetch(`https://api.jikan.moe/v4/anime?status=complete&order_by=end_date&sort=desc&limit=24&page=${page}&sfw=true`);
-      const j = await res.json();
-      return { data: j.data || [], hasNext: j.pagination?.has_next_page ?? false };
-    },
+    fetchPage: (page) => catFetch('/anime?status=complete&order_by=end_date&sort=desc&limit=24', page),
   },
   "trending": {
     label: "Trending Now",
     icon: <TrendingUp className="w-5 h-5" />,
     description: "Most popular anime right now",
     color: "var(--orange, #f97316)",
-    fetchPage: async (page) => {
-      const res = await fetch(`https://api.jikan.moe/v4/top/anime?filter=bypopularity&limit=24&page=${page}&sfw=true`);
-      const j = await res.json();
-      return { data: j.data || [], hasNext: j.pagination?.has_next_page ?? false };
-    },
+    fetchPage: (page) => catFetch('/top/anime?filter=bypopularity&limit=24', page),
   },
   "top-rated": {
     label: "Top Rated",
     icon: <Star className="w-5 h-5" />,
     description: "Highest rated anime of all time",
     color: "var(--gold)",
-    fetchPage: async (page) => {
-      const res = await fetch(`https://api.jikan.moe/v4/top/anime?limit=24&page=${page}&sfw=true`);
-      const j = await res.json();
-      return { data: j.data || [], hasNext: j.pagination?.has_next_page ?? false };
-    },
+    fetchPage: (page) => catFetch('/top/anime?limit=24', page),
   },
   "this-season": {
     label: "This Season",
     icon: <Sparkles className="w-5 h-5" />,
     description: "Anime airing in the current season",
     color: "var(--purple)",
-    fetchPage: async (page) => {
-      const res = await fetch(`https://api.jikan.moe/v4/seasons/now?limit=24&page=${page}&sfw=true`);
-      const j = await res.json();
-      return { data: j.data || [], hasNext: j.pagination?.has_next_page ?? false };
-    },
+    fetchPage: (page) => catFetch('/seasons/now?limit=24', page),
   },
   "top-anime": {
     label: "Top Anime",
     icon: <Trophy className="w-5 h-5" />,
     description: "All-time top anime ranked by score and popularity",
     color: "var(--gold)",
-    fetchPage: async (page) => {
-      const res = await fetch(`https://api.jikan.moe/v4/top/anime?type=tv&limit=24&page=${page}&sfw=true`);
-      const j = await res.json();
-      return { data: j.data || [], hasNext: j.pagination?.has_next_page ?? false };
-    },
+    fetchPage: (page) => catFetch('/top/anime?type=tv&limit=24', page),
   },
 };
 
