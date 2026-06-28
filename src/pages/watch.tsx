@@ -107,17 +107,66 @@ async function resolveAnikotoEmbedId(malId: string, epNum: string): Promise<stri
 // Resolves anime title → gogoanime ID → episode stream URLs + Kwik download links
 // Multiple Consumet instances for redundancy
 // ─────────────────────────────────────────────────────────────────────────────
-const CONSUMET_HOSTS = [
-  'https://api.consumet.org',
+// ─────────────────────────────────────────────────────────────────────────────
+// Consumet host pool — health-checked at runtime so dead hosts are skipped
+// Add your own self-hosted instance first for best reliability.
+//
+// Self-host in 60 seconds:
+//   docker run -p 3000:3000 ghcr.io/consumet/api.consumet.org
+// Then set VITE_CONSUMET_HOST=https://your-domain.com in your env vars.
+// ─────────────────────────────────────────────────────────────────────────────
+const CONSUMET_HOSTS: string[] = [
+  // Self-hosted instance takes priority when configured
+  ...(import.meta.env.VITE_CONSUMET_HOST ? [import.meta.env.VITE_CONSUMET_HOST as string] : []),
+  // Community/public instances — ordered by typical reliability
   'https://consumet-api.onrender.com',
   'https://api-consumet.vercel.app',
+  'https://consumet.animekai.net',
+  'https://consumet.pages.dev',
+  // Official instance last — tends to be rate-limited / under heavy load
+  'https://api.consumet.org',
 ];
+
+// In-session cache of which hosts are alive so we don't re-ping on every call
+const _hostHealthCache: Record<string, { ok: boolean; ts: number }> = {};
+const HOST_TTL_MS = 5 * 60 * 1000; // re-check after 5 min
+
+async function isHostAlive(host: string): Promise<boolean> {
+  const cached = _hostHealthCache[host];
+  if (cached && Date.now() - cached.ts < HOST_TTL_MS) return cached.ok;
+  try {
+    const res = await fetch(`${host}/anime/gogoanime/one-piece`, {
+      signal: AbortSignal.timeout(4000),
+    });
+    const ok = res.ok;
+    _hostHealthCache[host] = { ok, ts: Date.now() };
+    return ok;
+  } catch {
+    _hostHealthCache[host] = { ok: false, ts: Date.now() };
+    return false;
+  }
+}
+
+// Get the first live host, checking them concurrently
+async function pickConsometHost(): Promise<string | null> {
+  // Run health checks in parallel, return the first that passes
+  const results = await Promise.allSettled(
+    CONSUMET_HOSTS.map(async (host) => {
+      const alive = await isHostAlive(host);
+      if (!alive) throw new Error('dead');
+      return host;
+    })
+  );
+  for (const r of results) {
+    if (r.status === 'fulfilled') return r.value;
+  }
+  return null;
+}
 
 interface DownloadLink { quality: string; url: string; isM3u8: boolean; }
 interface GogoResult   { embedUrl: string; downloads: DownloadLink[]; }
 
 const _gogoCache: Record<string, Record<string, GogoResult | null>> = {};
-// key: malId → { epNum: result }
 
 async function resolveGogoEmbed(
   malId: string, epNum: string, title: string, lang: 'sub' | 'dub'
@@ -136,30 +185,40 @@ async function resolveGogoEmbed(
     } catch {}
   }
 
-  // Try each Consumet host until one works
-  for (const host of CONSUMET_HOSTS) {
+  // Pick a live host first — avoids hanging on dead instances
+  const host = await pickConsometHost();
+  if (!host) {
+    console.warn('[KamiStream] All Consumet hosts unreachable. Sakura server unavailable.');
+    if (!_gogoCache[malId]) _gogoCache[malId] = {};
+    _gogoCache[malId][cacheKey] = null;
+    return null;
+  }
+
+  // Try up to 2 different hosts in case the health check was stale
+  const hostsToTry = [host, ...CONSUMET_HOSTS.filter(h => h !== host)].slice(0, 2);
+
+  for (const h of hostsToTry) {
     try {
       // Step 1: search for the anime
       const searchQuery = encodeURIComponent(title.replace(/[^\w\s]/g, '').trim());
       const isDub = lang === 'dub';
-      const searchUrl = `${host}/anime/gogoanime/${searchQuery}${isDub ? '%20(dub)' : ''}`;
+      const searchUrl = `${h}/anime/gogoanime/${searchQuery}${isDub ? '%20(dub)' : ''}`;
       const sr = await fetch(searchUrl, { signal: AbortSignal.timeout(6000) });
       if (!sr.ok) continue;
       const searchData = await sr.json();
       const results: any[] = searchData?.results || [];
       if (!results.length) continue;
 
-      // Pick best match: prefer exact title match, then first result
       const epInt = parseInt(epNum);
-      let match = results.find((r: any) =>
+      const match = results.find((r: any) =>
         r.title?.toLowerCase() === title.toLowerCase() ||
         r.title?.toLowerCase().includes(title.toLowerCase().slice(0, 20))
       ) || results[0];
 
       if (!match?.id) continue;
 
-      // Step 2: get episode list for this anime
-      const infoUrl = `${host}/anime/gogoanime/info/${encodeURIComponent(match.id)}`;
+      // Step 2: get episode list
+      const infoUrl = `${h}/anime/gogoanime/info/${encodeURIComponent(match.id)}`;
       const ir = await fetch(infoUrl, { signal: AbortSignal.timeout(6000) });
       if (!ir.ok) continue;
       const info = await ir.json();
@@ -167,8 +226,8 @@ async function resolveGogoEmbed(
       const ep = episodes.find((e: any) => e.number === epInt) || episodes[epInt - 1];
       if (!ep?.id) continue;
 
-      // Step 3: get streaming links (includes Kwik download URLs)
-      const streamUrl = `${host}/anime/gogoanime/watch/${encodeURIComponent(ep.id)}`;
+      // Step 3: get streaming links
+      const streamUrl = `${h}/anime/gogoanime/watch/${encodeURIComponent(ep.id)}`;
       const stmr = await fetch(streamUrl, { signal: AbortSignal.timeout(8000) });
       if (!stmr.ok) continue;
       const streamData = await stmr.json();
@@ -182,10 +241,11 @@ async function resolveGogoEmbed(
           url:     s.url,
           isM3u8:  s.isM3u8 ?? s.url?.includes('.m3u8') ?? false,
         }))
-        .filter((s: DownloadLink) => !s.isM3u8); // only direct download links
+        .filter((s: DownloadLink) => !s.isM3u8);
 
-      // Also grab download page links if available
-      const dlPage: any[] = streamData?.download ? [{ quality: 'Download Page', url: streamData.download, isM3u8: false }] : [];
+      const dlPage: any[] = streamData?.download
+        ? [{ quality: 'Download Page', url: streamData.download, isM3u8: false }]
+        : [];
       const allDownloads = [...downloads, ...dlPage];
 
       const result: GogoResult = { embedUrl, downloads: allDownloads };
@@ -196,7 +256,6 @@ async function resolveGogoEmbed(
     } catch { continue; }
   }
 
-  // Cache null to avoid retrying on every episode change
   if (!_gogoCache[malId]) _gogoCache[malId] = {};
   _gogoCache[malId][cacheKey] = null;
   return null;
@@ -613,11 +672,15 @@ export default function Watch() {
 
                 {/* Error overlay */}
                 {playerError && (
-                  <div className="absolute inset-0 bg-black/90 flex flex-col items-center justify-center gap-4 z-10">
+                  <div className="absolute inset-0 bg-black/92 flex flex-col items-center justify-center gap-3 z-10 px-4">
                     <AlertTriangle className="w-10 h-10 text-[var(--pink)]" />
                     <p className="text-white font-bold text-[15px]">Player failed to load</p>
-                    <p className="text-[var(--text3)] text-[12px] text-center px-4">Try switching to another server below</p>
-                    <div className="flex flex-wrap gap-2 mt-2 justify-center">
+                    <p className="text-[var(--text3)] text-[12px] text-center">
+                      {serverList.length <= 1
+                        ? 'No backup servers available yet — wait a moment for them to resolve, then retry.'
+                        : 'Switch to another server below or retry the current one.'}
+                    </p>
+                    <div className="flex flex-wrap gap-2 mt-1 justify-center">
                       {serverList.filter(s => s.id !== selectedServerId).map(s => (
                         <button key={s.id} onClick={() => switchServer(s)}
                           className="px-4 py-2 bg-gradient-to-r from-[var(--pink)] to-[var(--purple)] text-white text-[12px] font-bold rounded-xl hover:opacity-90 transition-all">
@@ -628,6 +691,15 @@ export default function Watch() {
                         className="px-4 py-2 bg-[var(--card)] border border-[var(--border)] text-white text-[12px] font-bold rounded-xl flex items-center gap-2 hover:bg-[var(--bg3)] transition-all">
                         <RefreshCw className="w-3.5 h-3.5" /> Retry
                       </button>
+                    </div>
+                    {/* Source status hints */}
+                    <div className="mt-2 text-[10px] text-[var(--text3)] font-mono text-center space-y-0.5">
+                      <div>{anikotoEmbedId ? '✓ OniChan S-2 resolved' : '⏳ OniChan S-2 resolving…'}</div>
+                      <div>{alId ? '✓ AniList ID resolved' : '⏳ AniList ID resolving…'}</div>
+                      <div>{gogoResult ? '✓ Sakura (Consumet) resolved' : '⏳ Sakura resolving… (may be unavailable)'}</div>
+                      {adminSources.length > 0 && (
+                        <div className="text-[var(--green)]">✓ {adminSources.length} admin source{adminSources.length > 1 ? 's' : ''} available</div>
+                      )}
                     </div>
                   </div>
                 )}

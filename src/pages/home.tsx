@@ -42,7 +42,7 @@ export default function Home() {
       if (!res.ok) throw new Error('Failed');
       return res.json();
     },
-    staleTime: 15 * 60 * 1000,
+    staleTime: 30 * 60 * 1000, // low-priority — cache for 30min
   });
 
   // Recently Updated — anime with most recently added embed sources
@@ -84,32 +84,42 @@ export default function Home() {
   }
 
   // New Release (currently airing, sorted by members/popularity)
+  // Staggered 600ms so it doesn't race with trending/topRated/seasonal on mount
+  const [newReleaseEnabled, setNewReleaseEnabled] = React.useState(false);
+  useEffect(() => { const t = setTimeout(() => setNewReleaseEnabled(true), 600); return () => clearTimeout(t); }, []);
   const { data: newRelease } = useQuery({
     queryKey: ['home', 'new-release'],
     queryFn: async () => {
       const res = await fetch('https://api.jikan.moe/v4/anime?status=airing&order_by=members&sort=desc&limit=5&sfw=true');
       const j = await res.json(); return j.data || [];
     },
+    enabled: newReleaseEnabled,
     staleTime: 15 * 60 * 1000,
   });
 
-  // Just Completed (recently finished airing)
+  // Just Completed — staggered 1200ms
+  const [justCompletedEnabled, setJustCompletedEnabled] = React.useState(false);
+  useEffect(() => { const t = setTimeout(() => setJustCompletedEnabled(true), 1200); return () => clearTimeout(t); }, []);
   const { data: justCompleted } = useQuery({
     queryKey: ['home', 'just-completed'],
     queryFn: async () => {
       const res = await fetch('https://api.jikan.moe/v4/anime?status=complete&order_by=end_date&sort=desc&limit=5&sfw=true');
       const j = await res.json(); return j.data || [];
     },
+    enabled: justCompletedEnabled,
     staleTime: 15 * 60 * 1000,
   });
 
-  // Upcoming anime
+  // Upcoming anime — staggered 1800ms
+  const [upcomingEnabled, setUpcomingEnabled] = React.useState(false);
+  useEffect(() => { const t = setTimeout(() => setUpcomingEnabled(true), 1800); return () => clearTimeout(t); }, []);
   const { data: upcoming } = useQuery({
     queryKey: ['home', 'upcoming'],
     queryFn: async () => {
       const res = await fetch('https://api.jikan.moe/v4/anime?status=upcoming&order_by=members&sort=desc&limit=12&sfw=true');
       const j = await res.json(); return j.data || [];
     },
+    enabled: upcomingEnabled,
     staleTime: 30 * 60 * 1000,
   });
 
