@@ -1,19 +1,19 @@
-import React from 'react';
-import { Link } from 'wouter';
-import { Play, X, Clock } from 'lucide-react';
-import { useWatchHistory, WatchHistoryEntry } from '@/hooks/useWatchHistory';
+import React from "react";
+import { Link } from "wouter";
+import { Play, X, Clock } from "lucide-react";
+import { useWatchHistory, WatchHistoryEntry } from "@/hooks/useWatchHistory";
 
 function timeAgo(ms: number): string {
   const s = Math.floor((Date.now() - ms) / 1000);
-  if (s < 60)  return 'Just now';
-  if (s < 3600) return `${Math.floor(s / 60)}m ago`;
+  if (s < 60)    return "Just now";
+  if (s < 3600)  return `${Math.floor(s / 60)}m ago`;
   if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
   return `${Math.floor(s / 86400)}d ago`;
 }
 
 export function ContinueWatching() {
   const { getRecentAnime, clearHistory } = useWatchHistory();
-  const recent: WatchHistoryEntry[] = getRecentAnime().slice(0, 10);
+  const recent: WatchHistoryEntry[] = getRecentAnime().slice(0, 12);
 
   if (!recent.length) return null;
 
@@ -35,14 +35,21 @@ export function ContinueWatching() {
       <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-thin">
         {recent.map((item) => (
           <Link key={item.mal_id} href={`/watch/${item.mal_id}/${item.ep_id}`}>
-            <div className="group shrink-0 w-36 cursor-pointer">
-              {/* Thumbnail */}
+            <div className="group shrink-0 w-32 cursor-pointer">
               <div className="relative aspect-[2/3] rounded-xl overflow-hidden bg-[var(--card)] mb-2">
-                <img
-                  src={item.image_url}
-                  alt={item.title}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                />
+                {item.image_url ? (
+                  <img
+                    src={item.image_url}
+                    alt={item.title}
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    onError={(e) => { (e.currentTarget as HTMLElement).style.display = "none"; }}
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center text-[var(--text3)] text-[9px] p-2 text-center">
+                    {item.title}
+                  </div>
+                )}
+
                 {/* Overlay */}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
 
@@ -54,20 +61,16 @@ export function ContinueWatching() {
                 </div>
 
                 {/* EP badge */}
-                <div className="absolute top-2 left-2 bg-black/70 backdrop-blur-sm text-white text-[9px] font-black px-1.5 py-0.5 rounded-md">
+                <div className="absolute top-1.5 left-1.5 bg-black/75 backdrop-blur-sm text-white text-[9px] font-black px-1.5 py-0.5 rounded-md">
                   EP {item.ep_id}
                 </div>
 
-                {/* Progress bar — fake 60% to give visual feedback */}
+                {/* Progress bar — shows at 60% as generic "in progress" indicator */}
                 <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-white/20">
-                  <div
-                    className="h-full bg-[var(--pink)] rounded-full"
-                    style={{ width: '60%' }}
-                  />
+                  <div className="h-full bg-[var(--pink)] rounded-full" style={{ width: "60%" }} />
                 </div>
               </div>
 
-              {/* Info */}
               <p className="text-[11px] font-bold text-white line-clamp-2 leading-snug mb-0.5">
                 {item.title}
               </p>
