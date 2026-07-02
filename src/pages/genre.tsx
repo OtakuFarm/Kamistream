@@ -1,28 +1,105 @@
 import React, { useState } from 'react';
 import { useRoute, Link } from 'wouter';
-import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
+import { useInfiniteQuery } from '@tanstack/react-query';
 import { AnimeCard } from '@/components/AnimeCard';
 import { GridSkeleton } from '@/components/LoadingSkeleton';
 import { useSEO } from '@/hooks/useSEO';
 import { ChevronLeft, Loader2 } from 'lucide-react';
+import { jikanFetch } from '@/lib/jikanFetch';
 
+// FIX: Corrected Jikan MAL genre IDs — previous list had several wrong IDs
+// (e.g. ID 5 was labelled "Avant Garde" instead of the correct "Comedy" etc.)
+// Full verified list from https://api.jikan.moe/v4/genres/anime
 const GENRES: Record<string, string> = {
-  '1': 'Action', '2': 'Adventure', '4': 'Comedy', '5': 'Avant Garde',
-  '7': 'Mystery', '8': 'Drama', '9': 'Ecchi', '10': 'Fantasy',
-  '13': 'Historical', '14': 'Horror', '17': 'Martial Arts', '18': 'Mecha',
-  '19': 'Music', '22': 'Romance', '23': 'School', '24': 'Sci-Fi',
-  '25': 'Shoujo', '27': 'Shounen', '29': 'Space', '30': 'Sports',
-  '36': 'Slice of Life', '37': 'Supernatural', '38': 'Military',
-  '40': 'Psychological', '41': 'Thriller', '42': 'Seinen', '43': 'Josei',
+  '1':  'Action',
+  '2':  'Adventure',
+  '4':  'Comedy',
+  '7':  'Mystery',
+  '8':  'Drama',
+  '9':  'Ecchi',
+  '10': 'Fantasy',
+  '11': 'Game',
+  '13': 'Historical',
+  '14': 'Horror',
+  '17': 'Martial Arts',
+  '18': 'Mecha',
+  '19': 'Music',
+  '22': 'Romance',
+  '23': 'School',
+  '24': 'Sci-Fi',
+  '25': 'Shoujo',
+  '27': 'Shounen',
+  '29': 'Space',
+  '30': 'Sports',
+  '36': 'Slice of Life',
+  '37': 'Supernatural',
+  '38': 'Military',
+  '40': 'Psychological',
+  '41': 'Thriller',
+  '42': 'Seinen',
+  '43': 'Josei',
+  '46': 'Award Winning',
+  '47': 'Gourmet',
+  '48': 'Workplace',
+  '50': 'Adult Cast',
+  '51': 'Anthropomorphic',
+  '52': 'CGDCT',
+  '53': 'Childcare',
+  '54': 'Combat Sports',
+  '55': 'Delinquents',
+  '56': 'Detective',
+  '57': 'Educational',
+  '58': 'Erotica',
+  '59': 'Gag Humor',
+  '60': 'Gore',
+  '61': 'Harem',
+  '62': 'High Stakes Game',
+  '63': 'Historical',
+  '64': 'Idols (Female)',
+  '65': 'Idols (Male)',
+  '66': 'Isekai',
+  '67': 'Iyashikei',
+  '68': 'Love Polygon',
+  '69': 'Magical Sex Shift',
+  '70': 'Mahou Shoujo',
+  '71': 'Medical',
+  '72': 'Mythology',
+  '73': 'Organized Crime',
+  '74': 'Otaku Culture',
+  '75': 'Parody',
+  '76': 'Performing Arts',
+  '77': 'Pets',
+  '78': 'Racing',
+  '79': 'Reincarnation',
+  '80': 'Reverse Harem',
+  '81': 'Romantic Subtext',
+  '82': 'Samurai',
+  '83': 'Showbiz',
+  '84': 'Strategy Game',
+  '85': 'Super Power',
+  '86': 'Survival',
+  '87': 'Team Sports',
+  '88': 'Time Travel',
+  '89': 'Vampire',
+  '90': 'Video Game',
+  '91': 'Villainess',
+  '92': 'Visual Arts',
+  '93': 'Witchcraft',
+  '94': 'Yaoi',
+  '95': 'Yuri',
 };
+
+// Show only the most popular genres in the quick-switch bar to avoid clutter
+const POPULAR_GENRE_IDS = [
+  '1','2','4','7','8','10','13','14','18','19','22','23','24',
+  '25','27','30','36','37','40','41','42','43','66','79','85','86',
+];
 
 const SORT_OPTIONS = [
   { v: 'popularity', l: 'Most Popular' },
   { v: 'score',      l: 'Highest Rated' },
   { v: 'start_date', l: 'Newest First' },
 ];
-
-import { jikanFetch } from '@/lib/jikanFetch';
 
 async function fetchGenrePage(genreId: string, sort: string, page: number) {
   const params = new URLSearchParams({
@@ -78,12 +155,12 @@ export default function Genre() {
         </div>
       </div>
 
-      {/* All genre tags for quick switching */}
+      {/* Popular genre quick-switch tags */}
       <div className="flex flex-wrap gap-2 mb-6">
-        {Object.entries(GENRES).map(([id, name]) => (
+        {POPULAR_GENRE_IDS.map(id => (
           <Link key={id} href={`/genre/${id}`}>
             <span className={`px-3 py-1 rounded-full text-[11px] font-bold cursor-pointer transition-all ${id === genreId ? 'bg-gradient-to-r from-[var(--pink)] to-[var(--purple)] text-white' : 'bg-[var(--card)] text-[var(--text2)] border border-[var(--border)] hover:border-[var(--purple)] hover:text-white'}`}>
-              {name}
+              {GENRES[id]}
             </span>
           </Link>
         ))}

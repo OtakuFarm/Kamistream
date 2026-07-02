@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { Link } from "wouter";
 import {
-  Flame, Zap, CheckCircle2, TrendingUp, Star, Sparkles, Trophy, ChevronLeft, ChevronRight, Home,
+  Flame, Zap, CheckCircle2, TrendingUp, Star, Sparkles, Trophy, ChevronLeft, ChevronRight, Home, Rocket,
 } from "lucide-react";
 import { AnimeCard } from "@/components/AnimeCard";
 import { useSEO } from "@/hooks/useSEO";
@@ -12,6 +12,14 @@ import { jikanFetch } from "@/lib/jikanFetch";
 async function catFetch(endpoint: string, page: number) {
   const j = await jikanFetch(`${endpoint}&page=${page}&sfw=true`);
   return { data: j.data || [], hasNext: j.pagination?.has_next_page ?? false };
+}
+
+// Compute current season and year for "This Season"
+function getCurrentSeason(): { season: string; year: number } {
+  const m = new Date().getMonth();
+  const year = new Date().getFullYear();
+  const season = m < 3 ? 'winter' : m < 6 ? 'spring' : m < 9 ? 'summer' : 'fall';
+  return { season, year };
 }
 
 // ── Config ─────────────────────────────────────────────────────────────
@@ -27,6 +35,7 @@ const CATEGORIES: Record<string, {
     icon: <Flame className="w-5 h-5" />,
     description: "Currently airing anime sorted by popularity",
     color: "var(--pink)",
+    // FIX: was missing limit in a consistent way — explicit limit=24
     fetchPage: (page) => catFetch('/anime?status=airing&order_by=members&sort=desc&limit=24', page),
   },
   "new-added": {
@@ -62,7 +71,12 @@ const CATEGORIES: Record<string, {
     icon: <Sparkles className="w-5 h-5" />,
     description: "Anime airing in the current season",
     color: "var(--purple)",
-    fetchPage: (page) => catFetch('/seasons/now?limit=24', page),
+    // FIX: was using /seasons/now which returns all airing anime sorted by members.
+    // Now uses /seasons/{year}/{season} which returns ONLY this season's anime.
+    fetchPage: (page) => {
+      const { season, year } = getCurrentSeason();
+      return catFetch(`/seasons/${year}/${season}?limit=24`, page);
+    },
   },
   "top-anime": {
     label: "Top Anime",
@@ -70,6 +84,14 @@ const CATEGORIES: Record<string, {
     description: "All-time top anime ranked by score and popularity",
     color: "var(--gold)",
     fetchPage: (page) => catFetch('/top/anime?type=tv&limit=24', page),
+  },
+  // FIX: "upcoming" category was missing entirely — home page links to it
+  "upcoming": {
+    label: "Upcoming Anime",
+    icon: <Rocket className="w-5 h-5" />,
+    description: "Anime that haven't started airing yet",
+    color: "var(--pink)",
+    fetchPage: (page) => catFetch('/anime?status=upcoming&order_by=members&sort=desc&limit=24', page),
   },
 };
 
