@@ -357,3 +357,47 @@ export async function getAiringSchedule(): Promise<AiringScheduleItem[]> {
   );
   return data?.data?.Page?.airingSchedules || [];
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Recently aired — episodes that aired in the past 72 hours, sorted newest first.
+// Returns items shaped as { airingAt, episode, media: { idMal, title, coverImage, ... } }
+// Used by home.tsx to build the "Recently Updated" section from real schedule data.
+// ─────────────────────────────────────────────────────────────────────────────
+export interface RecentlyAiredItem {
+  airingAt: number;
+  episode:  number;
+  media: {
+    id:           number;
+    idMal:        number | null;
+    title:        { romaji: string; english: string | null };
+    coverImage:   { large: string; extraLarge?: string };
+    format:       string;
+    episodes:     number | null;
+    averageScore: number | null;
+    status:       string;
+  };
+}
+
+export async function getRecentlyAired(hoursBack = 72): Promise<RecentlyAiredItem[]> {
+  const now   = Math.floor(Date.now() / 1000);
+  const start = now - hoursBack * 3600;
+
+  const data = await queryAniList(
+    `query($s:Int,$e:Int){
+      Page(perPage:50){
+        airingSchedules(airingAt_greater:$s, airingAt_lesser:$e, sort:TIME_DESC){
+          airingAt episode
+          media{
+            id idMal
+            title{ romaji english }
+            coverImage{ large extraLarge }
+            format episodes averageScore status
+          }
+        }
+      }
+    }`,
+    { s: start, e: now }
+  );
+
+  return data?.data?.Page?.airingSchedules || [];
+}
