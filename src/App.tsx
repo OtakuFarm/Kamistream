@@ -4,14 +4,12 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/lib/auth";
-
 import { Layout, MinimalLayout } from "@/components/Layout";
 import { ProgressBar } from "@/components/ProgressBar";
 import { AdblockBanner } from "@/components/AdblockBanner";
 import { LoadingSkeleton } from "@/components/LoadingSkeleton";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 
-// ── Lazy page imports ─────────────────────────────────────────────────
 const Home         = lazy(() => import("@/pages/home"));
 const Browse       = lazy(() => import("@/pages/browse"));
 const AnimeDetail  = lazy(() => import("@/pages/anime-detail"));
@@ -41,7 +39,6 @@ const DMCA         = lazy(() => import("@/pages/dmca"));
 const Terms        = lazy(() => import("@/pages/terms"));
 const Contact      = lazy(() => import("@/pages/contact"));
 
-// ── Query client ──────────────────────────────────────────────────────
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -52,23 +49,17 @@ const queryClient = new QueryClient({
   },
 });
 
-// ── Scroll to top on route change ─────────────────────────────────────
 function ScrollToTop() {
   const [location] = useLocation();
   useEffect(() => { window.scrollTo({ top: 0, behavior: "instant" as ScrollBehavior }); }, [location]);
   return null;
 }
 
-// ── Shared Suspense fallback ──────────────────────────────────────────
 function PageFallback() {
-  return (
-    <Layout>
-      <LoadingSkeleton />
-    </Layout>
-  );
+  return <Layout><LoadingSkeleton /></Layout>;
 }
 
-// ── Stable named route components ─────────────────────────────────────
+// ── Route wrappers ─────────────────────────────────────────────────────
 function HomeRoute()         { return <Layout><Home /></Layout>; }
 function AboutRoute()        { return <Layout><About /></Layout>; }
 function BrowseRoute()       { return <Layout><Browse /></Layout>; }
@@ -97,12 +88,11 @@ function WatchRoute()        { return <MinimalLayout><Watch /></MinimalLayout>; 
 function LoginRoute()        { return <MinimalLayout><Login /></MinimalLayout>; }
 function SignupRoute()       { return <MinimalLayout><Signup /></MinimalLayout>; }
 
-// ── Router ─────────────────────────────────────────────────────────────
 function Router() {
   return (
     <Suspense fallback={<PageFallback />}>
       <Switch>
-        {/* FIX: / now correctly goes to Home, not About */}
+        {/* FIX: / now routes to Home, not About */}
         <Route path="/"                   component={HomeRoute} />
         <Route path="/home"               component={HomeRoute} />
         <Route path="/browse"             component={BrowseRoute} />
@@ -137,8 +127,7 @@ function Router() {
   );
 }
 
-// ── App root ──────────────────────────────────────────────────────────
-function App() {
+export default function App() {
   return (
     <ErrorBoundary>
       <QueryClientProvider client={queryClient}>
@@ -157,5 +146,3 @@ function App() {
     </ErrorBoundary>
   );
 }
-
-export default App;
