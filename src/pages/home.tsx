@@ -575,7 +575,7 @@ export default function Home() {
             <h2 className="text-[15px] font-heading font-black text-white flex items-center gap-2">
               <Rocket className="w-3.5 h-3.5 text-[var(--pink)]" /> Coming Soon
             </h2>
-            <Link href="/browse?status=upcoming" className="text-[11px] font-bold text-[var(--text3)] hover:text-[var(--pink)] transition-colors">View All →</Link>
+            <Link href="/category/upcoming" className="text-[11px] font-bold text-[var(--text3)] hover:text-[var(--pink)] transition-colors">View All →</Link>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
             {upcoming.map((anime: any) => (
