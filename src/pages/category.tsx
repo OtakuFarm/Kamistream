@@ -1,101 +1,106 @@
-import { useParams } from "wouter";
+import React, { useState } from "react";
+import { useParams, Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
-import { Link } from "wouter";
 import {
-  Flame, Zap, CheckCircle2, TrendingUp, Star, Sparkles, Trophy, ChevronLeft, ChevronRight, Home, Rocket,
+  Flame, Zap, CheckCircle2, TrendingUp, Star,
+  Sparkles, Trophy, ChevronLeft, ChevronRight,
+  Home, Rocket,
 } from "lucide-react";
 import { AnimeCard } from "@/components/AnimeCard";
 import { useSEO } from "@/hooks/useSEO";
 import { jikanFetch } from "@/lib/jikanFetch";
 
-async function catFetch(endpoint: string, page: number) {
-  const j = await jikanFetch(`${endpoint}&page=${page}&sfw=true`);
-  return { data: j.data || [], hasNext: j.pagination?.has_next_page ?? false };
-}
-
-// Compute current season and year for "This Season"
+// ── Helpers ─────────────────────────────────────────────────────────────────
 function getCurrentSeason(): { season: string; year: number } {
-  const m = new Date().getMonth();
+  const m    = new Date().getMonth();
   const year = new Date().getFullYear();
-  const season = m < 3 ? 'winter' : m < 6 ? 'spring' : m < 9 ? 'summer' : 'fall';
+  const season =
+    m < 3 ? "winter" : m < 6 ? "spring" : m < 9 ? "summer" : "fall";
   return { season, year };
 }
 
-// ── Config ─────────────────────────────────────────────────────────────
+async function catFetch(endpoint: string, page: number) {
+  const sep = endpoint.includes("?") ? "&" : "?";
+  const j   = await jikanFetch(`${endpoint}${sep}page=${page}&sfw=true`);
+  return {
+    data:    j.data    || [],
+    hasNext: j.pagination?.has_next_page ?? false,
+  };
+}
+
+// ── Category config ─────────────────────────────────────────────────────────
 const CATEGORIES: Record<string, {
-  label: string;
-  icon: React.ReactNode;
+  label:       string;
+  icon:        React.ReactNode;
   description: string;
-  color: string;
-  fetchPage: (page: number) => Promise<{ data: any[]; hasNext: boolean }>;
+  color:       string;
+  fetchPage:   (page: number) => Promise<{ data: any[]; hasNext: boolean }>;
 }> = {
   "new-release": {
-    label: "New Release",
-    icon: <Flame className="w-5 h-5" />,
+    label:       "New Release",
+    icon:        <Flame className="w-5 h-5" />,
     description: "Currently airing anime sorted by popularity",
-    color: "var(--pink)",
-    // FIX: was missing limit in a consistent way — explicit limit=24
-    fetchPage: (page) => catFetch('/anime?status=airing&order_by=members&sort=desc&limit=24', page),
+    color:       "var(--pink)",
+    fetchPage:   (p) => catFetch("/anime?status=airing&order_by=members&sort=desc&limit=24", p),
   },
   "new-added": {
-    label: "New Added",
-    icon: <Zap className="w-5 h-5" />,
+    label:       "New Added",
+    icon:        <Zap className="w-5 h-5" />,
     description: "Recently started anime — fresh new seasons and debuts",
-    color: "var(--green)",
-    fetchPage: (page) => catFetch('/anime?status=airing&order_by=start_date&sort=desc&limit=24', page),
+    color:       "var(--green)",
+    fetchPage:   (p) => catFetch("/anime?status=airing&order_by=start_date&sort=desc&limit=24", p),
   },
   "just-completed": {
-    label: "Just Completed",
-    icon: <CheckCircle2 className="w-5 h-5" />,
+    label:       "Just Completed",
+    icon:        <CheckCircle2 className="w-5 h-5" />,
     description: "Anime that recently finished airing",
-    color: "var(--blue)",
-    fetchPage: (page) => catFetch('/anime?status=complete&order_by=end_date&sort=desc&limit=24', page),
+    color:       "var(--blue)",
+    fetchPage:   (p) => catFetch("/anime?status=complete&order_by=end_date&sort=desc&limit=24", p),
   },
   "trending": {
-    label: "Trending Now",
-    icon: <TrendingUp className="w-5 h-5" />,
+    label:       "Trending Now",
+    icon:        <TrendingUp className="w-5 h-5" />,
     description: "Most popular anime right now",
-    color: "var(--orange, #f97316)",
-    fetchPage: (page) => catFetch('/top/anime?filter=bypopularity&limit=24', page),
+    color:       "#f97316",
+    fetchPage:   (p) => catFetch("/top/anime?filter=bypopularity&limit=24", p),
   },
   "top-rated": {
-    label: "Top Rated",
-    icon: <Star className="w-5 h-5" />,
+    label:       "Top Rated",
+    icon:        <Star className="w-5 h-5" />,
     description: "Highest rated anime of all time",
-    color: "var(--gold)",
-    fetchPage: (page) => catFetch('/top/anime?limit=24', page),
+    color:       "var(--gold)",
+    fetchPage:   (p) => catFetch("/top/anime?limit=24", p),
   },
+  // FIX: was using /seasons/now (returns all airing sorted by members).
+  // Now uses /seasons/{year}/{season} — only anime from the current season.
   "this-season": {
-    label: "This Season",
-    icon: <Sparkles className="w-5 h-5" />,
+    label:       "This Season",
+    icon:        <Sparkles className="w-5 h-5" />,
     description: "Anime airing in the current season",
-    color: "var(--purple)",
-    // FIX: was using /seasons/now which returns all airing anime sorted by members.
-    // Now uses /seasons/{year}/{season} which returns ONLY this season's anime.
-    fetchPage: (page) => {
+    color:       "var(--purple)",
+    fetchPage:   (p) => {
       const { season, year } = getCurrentSeason();
-      return catFetch(`/seasons/${year}/${season}?limit=24`, page);
+      return catFetch(`/seasons/${year}/${season}?limit=24`, p);
     },
   },
   "top-anime": {
-    label: "Top Anime",
-    icon: <Trophy className="w-5 h-5" />,
-    description: "All-time top anime ranked by score and popularity",
-    color: "var(--gold)",
-    fetchPage: (page) => catFetch('/top/anime?type=tv&limit=24', page),
+    label:       "Top Anime",
+    icon:        <Trophy className="w-5 h-5" />,
+    description: "All-time top anime ranked by score",
+    color:       "var(--gold)",
+    fetchPage:   (p) => catFetch("/top/anime?type=tv&limit=24", p),
   },
-  // FIX: "upcoming" category was missing entirely — home page links to it
+  // FIX: "upcoming" was completely missing — home page links to /category/upcoming
   "upcoming": {
-    label: "Upcoming Anime",
-    icon: <Rocket className="w-5 h-5" />,
+    label:       "Upcoming Anime",
+    icon:        <Rocket className="w-5 h-5" />,
     description: "Anime that haven't started airing yet",
-    color: "var(--pink)",
-    fetchPage: (page) => catFetch('/anime?status=upcoming&order_by=members&sort=desc&limit=24', page),
+    color:       "var(--pink)",
+    fetchPage:   (p) => catFetch("/anime?status=upcoming&order_by=members&sort=desc&limit=24", p),
   },
 };
 
-// ── Skeleton grid ───────────────────────────────────────────────────────
+// ── Skeleton grid ────────────────────────────────────────────────────────────
 function SkeletonGrid() {
   return (
     <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-2.5">
@@ -110,23 +115,23 @@ function SkeletonGrid() {
   );
 }
 
-// ── Page ────────────────────────────────────────────────────────────────
+// ── Page ─────────────────────────────────────────────────────────────────────
 export default function Category() {
-  const { slug } = useParams<{ slug: string }>();
+  const { slug }  = useParams<{ slug: string }>();
   const [page, setPage] = useState(1);
   const cat = CATEGORIES[slug ?? ""];
 
   useSEO({
-    title: cat ? cat.label : "Category",
+    title:       cat ? cat.label : "Category",
     description: cat?.description ?? "Browse anime by category on KamiStream.",
   });
 
   const { data, isLoading, isFetching } = useQuery({
     queryKey: ["category", slug, page],
-    queryFn: () => cat!.fetchPage(page),
-    enabled: !!cat,
+    queryFn:  () => cat!.fetchPage(page),
+    enabled:  !!cat,
     staleTime: 10 * 60 * 1000,
-    placeholderData: (prev) => prev,
+    placeholderData: (prev: any) => prev,
   });
 
   if (!cat) {
@@ -138,10 +143,23 @@ export default function Category() {
     );
   }
 
+  const items: any[] = data?.data || [];
+
+  function goPage(p: number) {
+    setPage(p);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  // Build a small window of page buttons around current page
+  const pageButtons: number[] = [];
+  for (let i = Math.max(1, page - 2); i <= page + 2; i++) {
+    pageButtons.push(i);
+  }
+
   return (
     <div className="p-4 md:p-6 pb-20 space-y-6">
 
-      {/* ── Breadcrumb ── */}
+      {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-[12px] text-[var(--text3)]">
         <Link href="/" className="hover:text-[var(--pink)] flex items-center gap-1 transition-colors">
           <Home className="w-3 h-3" /> Home
@@ -150,11 +168,13 @@ export default function Category() {
         <span className="text-white font-bold">{cat.label}</span>
       </div>
 
-      {/* ── Header ── */}
+      {/* Header */}
       <div className="flex items-start justify-between gap-4">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl flex items-center justify-center"
-            style={{ background: `color-mix(in srgb, ${cat.color} 20%, transparent)`, color: cat.color }}>
+          <div
+            className="w-10 h-10 rounded-xl flex items-center justify-center"
+            style={{ background: `color-mix(in srgb, ${cat.color} 20%, transparent)`, color: cat.color }}
+          >
             {cat.icon}
           </div>
           <div>
@@ -162,68 +182,58 @@ export default function Category() {
             <p className="text-[13px] text-[var(--text3)] mt-0.5">{cat.description}</p>
           </div>
         </div>
-
-        {/* Page indicator */}
-        {data && (
-          <div className="shrink-0 text-[12px] text-[var(--text3)] font-mono bg-[var(--card)] border border-[var(--border)] px-3 py-1.5 rounded-lg">
-            Page {page}
-          </div>
-        )}
+        <div className="shrink-0 text-[12px] text-[var(--text3)] font-mono bg-[var(--card)] border border-[var(--border)] px-3 py-1.5 rounded-lg">
+          Page {page}
+        </div>
       </div>
 
-      {/* ── Divider ── */}
+      {/* Divider */}
       <div className="h-px" style={{ background: `linear-gradient(to right, ${cat.color}, transparent)` }} />
 
-      {/* ── Grid ── */}
+      {/* Grid */}
       <div className={`transition-opacity duration-200 ${isFetching ? "opacity-60" : "opacity-100"}`}>
         {isLoading ? (
           <SkeletonGrid />
-        ) : (data?.data || []).length === 0 ? (
+        ) : items.length === 0 ? (
           <div className="py-20 text-center text-[var(--text3)]">No anime found for this category.</div>
         ) : (
           <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8 gap-2.5">
-            {data!.data.map((anime: any) => (
+            {items.map((anime: any) => (
               <AnimeCard key={anime.mal_id} anime={anime} />
             ))}
           </div>
         )}
       </div>
 
-      {/* ── Pagination ── */}
+      {/* Pagination */}
       {!isLoading && (
-        <div className="flex items-center justify-center gap-3 pt-4">
+        <div className="flex items-center justify-center gap-2 pt-4">
           <button
-            onClick={() => { setPage(p => Math.max(1, p - 1)); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+            onClick={() => goPage(Math.max(1, page - 1))}
             disabled={page === 1 || isFetching}
             className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[var(--card)] border border-[var(--border)] text-[13px] font-bold text-[var(--text3)] hover:text-white hover:border-[var(--pink)] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            <ChevronLeft className="w-4 h-4" /> Previous
+            <ChevronLeft className="w-4 h-4" /> Prev
           </button>
 
-          {/* Page number buttons */}
-          <div className="flex gap-1.5">
-            {Array.from({ length: Math.min(5, page + 2) }, (_, i) => {
-              const p = Math.max(1, page - 2) + i;
-              return (
-                <button
-                  key={p}
-                  onClick={() => { setPage(p); window.scrollTo({ top: 0, behavior: "smooth" }); }}
-                  disabled={isFetching}
-                  className={`w-9 h-9 rounded-xl text-[13px] font-bold border transition-all disabled:cursor-not-allowed ${
-                    p === page
-                      ? "border-transparent text-white"
-                      : "bg-[var(--card)] border-[var(--border)] text-[var(--text3)] hover:text-white hover:border-[var(--pink)]"
-                  }`}
-                  style={p === page ? { background: `linear-gradient(135deg, var(--pink), var(--purple))` } : {}}
-                >
-                  {p}
-                </button>
-              );
-            })}
-          </div>
+          {pageButtons.map(p => (
+            <button
+              key={p}
+              onClick={() => goPage(p)}
+              disabled={isFetching}
+              className={`w-9 h-9 rounded-xl text-[13px] font-bold border transition-all disabled:cursor-not-allowed ${
+                p === page
+                  ? "border-transparent text-white"
+                  : "bg-[var(--card)] border-[var(--border)] text-[var(--text3)] hover:text-white hover:border-[var(--pink)]"
+              }`}
+              style={p === page ? { background: "linear-gradient(135deg, var(--pink), var(--purple))" } : {}}
+            >
+              {p}
+            </button>
+          ))}
 
           <button
-            onClick={() => { setPage(p => p + 1); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+            onClick={() => goPage(page + 1)}
             disabled={!data?.hasNext || isFetching}
             className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[var(--card)] border border-[var(--border)] text-[13px] font-bold text-[var(--text3)] hover:text-white hover:border-[var(--pink)] transition-all disabled:opacity-40 disabled:cursor-not-allowed"
           >
