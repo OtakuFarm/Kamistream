@@ -36,11 +36,10 @@ const Mood         = lazy(() => import("@/pages/mood"));
 const HiddenGems   = lazy(() => import("@/pages/hidden-gems"));
 const Quiz         = lazy(() => import("@/pages/quiz"));
 const Category     = lazy(() => import("@/pages/category"));
+const About        = lazy(() => import("@/pages/about"));
 const DMCA         = lazy(() => import("@/pages/dmca"));
 const Terms        = lazy(() => import("@/pages/terms"));
 const Contact      = lazy(() => import("@/pages/contact"));
-const About        = lazy(() => import("@/pages/about"));
-const AboutPage    = () => <Layout><About /></Layout>;
 
 // ── Query client ──────────────────────────────────────────────────────
 const queryClient = new QueryClient({
@@ -71,7 +70,7 @@ function PageFallback() {
 
 // ── Stable named route components ─────────────────────────────────────
 function HomeRoute()         { return <Layout><Home /></Layout>; }
-function AboutRoute()        { return <AboutPage />; }
+function AboutRoute()        { return <Layout><About /></Layout>; }
 function BrowseRoute()       { return <Layout><Browse /></Layout>; }
 function AnimeRoute()        { return <Layout><AnimeDetail /></Layout>; }
 function WatchlistRoute()    { return <Layout><Watchlist /></Layout>; }
@@ -96,14 +95,15 @@ function ContactRoute()      { return <Layout><Contact /></Layout>; }
 function NotFoundRoute()     { return <Layout><NotFound /></Layout>; }
 function WatchRoute()        { return <MinimalLayout><Watch /></MinimalLayout>; }
 function LoginRoute()        { return <MinimalLayout><Login /></MinimalLayout>; }
-function SignupRoute()        { return <MinimalLayout><Signup /></MinimalLayout>; }
+function SignupRoute()       { return <MinimalLayout><Signup /></MinimalLayout>; }
 
 // ── Router ─────────────────────────────────────────────────────────────
 function Router() {
   return (
     <Suspense fallback={<PageFallback />}>
       <Switch>
-        <Route path="/"                   component={AboutRoute} />
+        {/* FIX: / now correctly goes to Home, not About */}
+        <Route path="/"                   component={HomeRoute} />
         <Route path="/home"               component={HomeRoute} />
         <Route path="/browse"             component={BrowseRoute} />
         <Route path="/anime/:id"          component={AnimeRoute} />
