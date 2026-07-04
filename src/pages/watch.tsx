@@ -43,59 +43,72 @@ async function resolveAnilistId(malId: string): Promise<string | null> {
 //
 // Results are cached in sessionStorage so we only hit Anikoto once per anime.
 // ─────────────────────────────────────────────────────────────────────────────
+// =============================================================================
+// EMBED SOURCE RESOLVERS
+// All run in parallel — results progressively upgrade the server switcher.
+// No self-hosting required. All endpoints are free public APIs.
+// =============================================================================
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 1. Anikoto API  →  MegaPlay /stream/s-2/{embed-id}/{lang}
+//
+// anikotoapi.site is a free public API.
+// Strategy: search by title slug directly (much more reliable than scanning
+// recent-anime pages hoping for a mal_id match — Anikoto doesn't expose
+// mal_id in /recent-anime).
+// ─────────────────────────────────────────────────────────────────────────────
 const ANIKOTO_BASE = 'https://anikotoapi.site';
-const _anikotoEmbedCache: Record<string, Record<string, string>> = {};
-// key: malId → { epNum: episode_embed_id }
+const _anikotoCache: Record<string, Record<string, string>> = {}; // malId → { epNum: embedId }
 
-async function resolveAnikotoEmbedId(malId: string, epNum: string): Promise<string | null> {
-  // Check in-memory cache first
-  if (_anikotoEmbedCache[malId]?.[epNum]) return _anikotoEmbedCache[malId][epNum];
+async function resolveAnikotoEmbedId(malId: string, epNum: string, title: string): Promise<string | null> {
+  if (_anikotoCache[malId]?.[epNum]) return _anikotoCache[malId][epNum];
 
-  // Check sessionStorage cache (persists across SPA navigations)
-  const ssKey = `anikoto_ep_${malId}`;
-  const cached = sessionStorage.getItem(ssKey);
-  if (cached) {
-    try {
+  const ssKey = `anikoto_${malId}`;
+  try {
+    const cached = sessionStorage.getItem(ssKey);
+    if (cached) {
       const map = JSON.parse(cached) as Record<string, string>;
-      _anikotoEmbedCache[malId] = map;
+      _anikotoCache[malId] = map;
       if (map[epNum]) return map[epNum];
-    } catch {}
-  }
+    }
+  } catch {}
 
   try {
-    // Step 1: search Anikoto for the anime by title or browse recent
-    // Anikoto doesn't expose a MAL search endpoint, so we use /recent-anime
-    // with enough pages and match by mal_id if exposed, or fall back to title.
-    // The reliable path: /series/{anikoto-id} — but we need the Anikoto series id.
-    // Their /recent-anime returns { id, mal_id?, ... } — match on mal_id.
-    // We scan up to 5 pages (100 items) which covers ~95% of requests cached.
-    let anikotoSeriesId: string | null = null;
-    for (let page = 1; page <= 5 && !anikotoSeriesId; page++) {
-      const r = await fetch(`${ANIKOTO_BASE}/recent-anime?page=${page}&per_page=20`, { signal: AbortSignal.timeout(5000) });
-      if (!r.ok) break;
-      const json = await r.json();
-      const list: any[] = json?.data || json?.results || json || [];
-      if (!Array.isArray(list) || list.length === 0) break;
-      const match = list.find((a: any) => String(a.mal_id) === malId || String(a.id) === malId);
-      if (match) { anikotoSeriesId = String(match.id); break; }
-    }
-    if (!anikotoSeriesId) return null;
-
-    // Step 2: load series detail to get per-episode embed ids
-    const sr = await fetch(`${ANIKOTO_BASE}/series/${anikotoSeriesId}`, { signal: AbortSignal.timeout(5000) });
+    // Search by title — Anikoto exposes a search endpoint
+    const q   = encodeURIComponent(title.trim().slice(0, 50));
+    const sr  = await fetch(`${ANIKOTO_BASE}/search?q=${q}`, { signal: AbortSignal.timeout(6000) });
     if (!sr.ok) return null;
-    const series = await sr.json();
+    const searchData = await sr.json();
+    const results: any[] = searchData?.results || searchData?.data || searchData || [];
+    if (!results.length) return null;
+
+    // Best match: prefer exact or partial title match
+    const clean = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const cleanTitle = clean(title);
+    const match =
+      results.find((r: any) => clean(r.title || r.name || '') === cleanTitle) ||
+      results.find((r: any) => clean(r.title || r.name || '').includes(cleanTitle.slice(0, 15))) ||
+      results[0];
+
+    const seriesId = match?.id || match?.slug;
+    if (!seriesId) return null;
+
+    // Fetch episode list for this series
+    const er = await fetch(`${ANIKOTO_BASE}/series/${seriesId}`, { signal: AbortSignal.timeout(6000) });
+    if (!er.ok) return null;
+    const series = await er.json();
     const episodes: any[] = series?.episodes || series?.data?.episodes || [];
 
-    // Build ep_number → episode_embed_id map
+    // Build ep_number → embed_id map
     const map: Record<string, string> = {};
     for (const ep of episodes) {
-      const num = String(ep.episode_number ?? ep.number ?? ep.ep ?? ep.num);
+      const num     = String(ep.episode_number ?? ep.number ?? ep.ep ?? '');
       const embedId = String(ep.episode_embed_id ?? ep.embed_id ?? ep.id ?? '');
       if (num && embedId) map[num] = embedId;
     }
-    _anikotoEmbedCache[malId] = map;
-    sessionStorage.setItem(ssKey, JSON.stringify(map));
+
+    _anikotoCache[malId] = map;
+    try { sessionStorage.setItem(ssKey, JSON.stringify(map)); } catch {}
     return map[epNum] || null;
   } catch {
     return null;
@@ -103,53 +116,125 @@ async function resolveAnikotoEmbedId(malId: string, epNum: string): Promise<stri
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Gogoanime resolver via Consumet API
-// Resolves anime title → gogoanime ID → episode stream URLs + Kwik download links
-// Multiple Consumet instances for redundancy
+// 2. Anime-API (Aniwatch scraper)  — api-anime-rouge.vercel.app
+//    Fully public, no auth, CORS enabled, deployed on Vercel.
+//    Returns episode stream sources (mp4/m3u8) + iframe embed URL.
+//    Source: github.com/falcon71181/Anime-API
 // ─────────────────────────────────────────────────────────────────────────────
+const ANIMEAPI_BASE = 'https://api-anime-rouge.vercel.app/aniwatch';
+const _animeApiCache: Record<string, Record<string, string>> = {}; // malId → { epNum: episodeId }
+
+interface AnimeApiResult { embedUrl: string; }
+const _animeApiEmbedCache: Record<string, Record<string, AnimeApiResult | null>> = {};
+
+async function resolveAnimeApiEmbed(
+  malId: string, epNum: string, title: string
+): Promise<AnimeApiResult | null> {
+  if (_animeApiEmbedCache[malId]?.[epNum] !== undefined) {
+    return _animeApiEmbedCache[malId][epNum];
+  }
+
+  try {
+    // Step 1: search by title
+    const q  = encodeURIComponent(title.trim().slice(0, 60));
+    const sr = await fetch(`${ANIMEAPI_BASE}/search?keyword=${q}`, { signal: AbortSignal.timeout(6000) });
+    if (!sr.ok) return null;
+    const searchData = await sr.json();
+    const animes: any[] = searchData?.animes || searchData?.results || [];
+    if (!animes.length) return null;
+
+    // Match by MAL id if available, else title
+    const clean = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const match =
+      animes.find((a: any) => String(a.mal_id) === malId) ||
+      animes.find((a: any) => clean(a.name || '') === clean(title)) ||
+      animes.find((a: any) => clean(a.name || '').includes(clean(title).slice(0, 15))) ||
+      animes[0];
+
+    const animeId: string = match?.id;
+    if (!animeId) return null;
+
+    // Step 2: get episodes for this anime
+    let episodeId: string | null = null;
+    if (_animeApiCache[malId]?.[epNum]) {
+      episodeId = _animeApiCache[malId][epNum];
+    } else {
+      const er = await fetch(`${ANIMEAPI_BASE}/episodes/${animeId}`, { signal: AbortSignal.timeout(6000) });
+      if (!er.ok) return null;
+      const epData = await er.json();
+      const episodes: any[] = epData?.episodes || [];
+
+      const map: Record<string, string> = {};
+      for (const ep of episodes) {
+        const num = String(ep.number ?? ep.episodeId?.split('?ep=')[1] ?? '');
+        const id  = ep.episodeId || ep.id || '';
+        if (num && id) map[num] = id;
+      }
+      if (!_animeApiCache[malId]) _animeApiCache[malId] = {};
+      Object.assign(_animeApiCache[malId], map);
+      episodeId = map[epNum] || null;
+    }
+    if (!episodeId) return null;
+
+    // Step 3: get streaming sources for this episode
+    const streamR = await fetch(
+      `${ANIMEAPI_BASE}/sources?animeEpisodeId=${encodeURIComponent(episodeId)}`,
+      { signal: AbortSignal.timeout(8000) }
+    );
+    if (!streamR.ok) return null;
+    const streamData = await streamR.json();
+
+    // Prefer iframe embed URL from the response
+    const embedUrl: string =
+      streamData?.embedUrl ||
+      streamData?.embed_url ||
+      streamData?.iframe ||
+      // Fall back: construct MegaPlay URL via AniList id if available
+      (match?.al_id ? `https://megaplay.buzz/stream/ani/${match.al_id}/${epNum}/sub` : '') ||
+      '';
+
+    if (!embedUrl) return null;
+
+    const result: AnimeApiResult = { embedUrl };
+    if (!_animeApiEmbedCache[malId]) _animeApiEmbedCache[malId] = {};
+    _animeApiEmbedCache[malId][epNum] = result;
+    return result;
+  } catch (e) {
+    console.warn('[KamiStream] AnimeAPI resolver failed:', e);
+    return null;
+  }
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
-// Consumet host pool — health-checked at runtime so dead hosts are skipped
-// Add your own self-hosted instance first for best reliability.
-//
-// Self-host in 60 seconds:
-//   docker run -p 3000:3000 ghcr.io/consumet/api.consumet.org
-// Then set VITE_CONSUMET_HOST=https://your-domain.com in your env vars.
+// 3. Gogoanime via Consumet  — multiple public instances, health-checked
+//    Returns embed URL + Kwik download links.
 // ─────────────────────────────────────────────────────────────────────────────
 const CONSUMET_HOSTS: string[] = [
-  // Self-hosted instance takes priority when configured
   ...(import.meta.env.VITE_CONSUMET_HOST ? [import.meta.env.VITE_CONSUMET_HOST as string] : []),
-  // Community/public instances — ordered by typical reliability
   'https://consumet-api.onrender.com',
   'https://api-consumet.vercel.app',
   'https://consumet.animekai.net',
   'https://consumet.pages.dev',
-  // Official instance last — tends to be rate-limited / under heavy load
   'https://api.consumet.org',
 ];
 
-// In-session cache of which hosts are alive so we don't re-ping on every call
 const _hostHealthCache: Record<string, { ok: boolean; ts: number }> = {};
-const HOST_TTL_MS = 5 * 60 * 1000; // re-check after 5 min
+const HOST_TTL_MS = 5 * 60 * 1000;
 
 async function isHostAlive(host: string): Promise<boolean> {
   const cached = _hostHealthCache[host];
   if (cached && Date.now() - cached.ts < HOST_TTL_MS) return cached.ok;
   try {
-    const res = await fetch(`${host}/anime/gogoanime/one-piece`, {
-      signal: AbortSignal.timeout(4000),
-    });
-    const ok = res.ok;
-    _hostHealthCache[host] = { ok, ts: Date.now() };
-    return ok;
+    const res = await fetch(`${host}/anime/gogoanime/one-piece`, { signal: AbortSignal.timeout(4000) });
+    _hostHealthCache[host] = { ok: res.ok, ts: Date.now() };
+    return res.ok;
   } catch {
     _hostHealthCache[host] = { ok: false, ts: Date.now() };
     return false;
   }
 }
 
-// Get the first live host, checking them concurrently
 async function pickConsometHost(): Promise<string | null> {
-  // Run health checks in parallel, return the first that passes
   const results = await Promise.allSettled(
     CONSUMET_HOSTS.map(async (host) => {
       const alive = await isHostAlive(host);
@@ -165,236 +250,66 @@ async function pickConsometHost(): Promise<string | null> {
 
 interface DownloadLink { quality: string; url: string; isM3u8: boolean; }
 interface GogoResult   { embedUrl: string; downloads: DownloadLink[]; }
-
 const _gogoCache: Record<string, Record<string, GogoResult | null>> = {};
 
 async function resolveGogoEmbed(
   malId: string, epNum: string, title: string, lang: 'sub' | 'dub'
 ): Promise<GogoResult | null> {
   const cacheKey = `${lang}_${epNum}`;
-  if (_gogoCache[malId]?.[cacheKey] !== undefined) return _gogoCache[malId][cacheKey] ?? null;
+  if (_gogoCache[malId]?.[cacheKey] !== undefined) return _gogoCache[malId][cacheKey];
 
   const ssKey = `gogo_${malId}_${lang}_${epNum}`;
-  const saved = sessionStorage.getItem(ssKey);
-  if (saved) {
-    try {
+  try {
+    const saved = sessionStorage.getItem(ssKey);
+    if (saved) {
       const parsed = JSON.parse(saved);
       if (!_gogoCache[malId]) _gogoCache[malId] = {};
       _gogoCache[malId][cacheKey] = parsed;
       return parsed;
-    } catch {}
-  }
+    }
+  } catch {}
 
-  // Pick a live host first — avoids hanging on dead instances
   const host = await pickConsometHost();
-  if (!host) {
-    console.warn('[KamiStream] All Consumet hosts unreachable. Sakura server unavailable.');
-    if (!_gogoCache[malId]) _gogoCache[malId] = {};
-    _gogoCache[malId][cacheKey] = null;
-    return null;
-  }
-
-  // Try up to 2 different hosts in case the health check was stale
-  const hostsToTry = [host, ...CONSUMET_HOSTS.filter(h => h !== host)].slice(0, 2);
-
-  for (const h of hostsToTry) {
-    try {
-      // Step 1: search for the anime
-      const searchQuery = encodeURIComponent(title.replace(/[^\w\s]/g, '').trim());
-      const isDub = lang === 'dub';
-      const searchUrl = `${h}/anime/gogoanime/${searchQuery}${isDub ? '%20(dub)' : ''}`;
-      const sr = await fetch(searchUrl, { signal: AbortSignal.timeout(6000) });
-      if (!sr.ok) continue;
-      const searchData = await sr.json();
-      const results: any[] = searchData?.results || [];
-      if (!results.length) continue;
-
-      const epInt = parseInt(epNum);
-      const match = results.find((r: any) =>
-        r.title?.toLowerCase() === title.toLowerCase() ||
-        r.title?.toLowerCase().includes(title.toLowerCase().slice(0, 20))
-      ) || results[0];
-
-      if (!match?.id) continue;
-
-      // Step 2: get episode list
-      const infoUrl = `${h}/anime/gogoanime/info/${encodeURIComponent(match.id)}`;
-      const ir = await fetch(infoUrl, { signal: AbortSignal.timeout(6000) });
-      if (!ir.ok) continue;
-      const info = await ir.json();
-      const episodes: any[] = info?.episodes || [];
-      const ep = episodes.find((e: any) => e.number === epInt) || episodes[epInt - 1];
-      if (!ep?.id) continue;
-
-      // Step 3: get streaming links
-      const streamUrl = `${h}/anime/gogoanime/watch/${encodeURIComponent(ep.id)}`;
-      const stmr = await fetch(streamUrl, { signal: AbortSignal.timeout(8000) });
-      if (!stmr.ok) continue;
-      const streamData = await stmr.json();
-
-      const embedUrl: string = streamData?.headers?.Referer || '';
-      const sources: any[] = streamData?.sources || [];
-      const downloads: DownloadLink[] = sources
-        .filter((s: any) => s?.url)
-        .map((s: any) => ({
-          quality: s.quality || 'default',
-          url:     s.url,
-          isM3u8:  s.isM3u8 ?? s.url?.includes('.m3u8') ?? false,
-        }))
-        .filter((s: DownloadLink) => !s.isM3u8);
-
-      const dlPage: any[] = streamData?.download
-        ? [{ quality: 'Download Page', url: streamData.download, isM3u8: false }]
-        : [];
-      const allDownloads = [...downloads, ...dlPage];
-
-      const result: GogoResult = { embedUrl, downloads: allDownloads };
-      if (!_gogoCache[malId]) _gogoCache[malId] = {};
-      _gogoCache[malId][cacheKey] = result;
-      sessionStorage.setItem(ssKey, JSON.stringify(result));
-      return result;
-    } catch { continue; }
-  }
-
-  if (!_gogoCache[malId]) _gogoCache[malId] = {};
-  _gogoCache[malId][cacheKey] = null;
-  return null;
-}
-// ─────────────────────────────────────────────────────────────────────────────
-// AnimePahe resolver
-// Uses your self-hosted AnimePahe API (deploy from github.com/ElijahCodes12345/animepahe-api)
-// Set VITE_ANIMEPAHE_HOST in your .env to point to your Render/Railway instance.
-//
-// Returns:
-//   embedUrl  → kwik.si iframe URL for in-browser streaming
-//   downloads → pahe.win links at 360p / 720p / 1080p for direct download
-// ─────────────────────────────────────────────────────────────────────────────
-const ANIMEPAHE_HOST = (import.meta.env.VITE_ANIMEPAHE_HOST as string | undefined)
-  ?.replace(/\/$/, '') || '';
-
-interface PaheDownloadLink { quality: string; url: string; audio: string; }
-interface PaheResult { embedUrl: string; downloads: PaheDownloadLink[]; }
-
-const _paheCache: Record<string, Record<string, PaheResult | null>> = {};
-
-async function resolveAnimepaheEmbed(
-  malId: string,
-  epNum: string,
-  title: string,
-  lang: 'sub' | 'dub'
-): Promise<PaheResult | null> {
-  if (!ANIMEPAHE_HOST) return null; // not configured — skip silently
-
-  const cacheKey = `${lang}_${epNum}`;
-  if (_paheCache[malId]?.[cacheKey] !== undefined) return _paheCache[malId][cacheKey] ?? null;
-
-  const ssKey = `pahe_${malId}_${lang}_${epNum}`;
-  const saved = sessionStorage.getItem(ssKey);
-  if (saved) {
-    try {
-      const parsed = JSON.parse(saved);
-      if (!_paheCache[malId]) _paheCache[malId] = {};
-      _paheCache[malId][cacheKey] = parsed;
-      return parsed;
-    } catch {}
-  }
+  if (!host) return null;
 
   try {
-    // Step 1: search by title
-    const q   = encodeURIComponent(title.trim());
-    const sr  = await fetch(`${ANIMEPAHE_HOST}/api/search?q=${q}`, { signal: AbortSignal.timeout(6000) });
+    const isDub = lang === 'dub';
+    const suffix = isDub ? '-dub' : '';
+    const q = encodeURIComponent(title.trim());
+
+    const sr = await fetch(`${host}/anime/gogoanime/${q}`, { signal: AbortSignal.timeout(6000) });
     if (!sr.ok) return null;
     const searchData = await sr.json();
-    const results: any[] = searchData?.results || searchData?.data || [];
+    const results: any[] = searchData?.results || [];
     if (!results.length) return null;
 
-    // Best match: prefer exact title, fall back to first result
+    const clean = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const cleanTitle = clean(title);
     const match =
-      results.find((r: any) =>
-        r.title?.toLowerCase() === title.toLowerCase()
-      ) ||
-      results.find((r: any) =>
-        r.title?.toLowerCase().includes(title.toLowerCase().slice(0, 15))
-      ) ||
+      results.find((r: any) => clean(r.id || '').endsWith(suffix) && clean(r.title || '') === cleanTitle) ||
+      results.find((r: any) => clean(r.id || '').endsWith(suffix)) ||
+      results.find((r: any) => clean(r.title || '') === cleanTitle) ||
       results[0];
 
-    const animeSession: string = match?.session || match?.id;
-    if (!animeSession) return null;
+    if (!match?.id) return null;
 
-    // Step 2: get episode releases — page through until we find the right ep number
-    let episodeSession: string | null = null;
-    let page = 1;
-    while (!episodeSession) {
-      const er = await fetch(
-        `${ANIMEPAHE_HOST}/api/${animeSession}/releases?sort=episode_asc&page=${page}`,
-        { signal: AbortSignal.timeout(6000) }
-      );
-      if (!er.ok) break;
-      const epData = await er.json();
-      const eps: any[] = epData?.results || epData?.data || [];
-      if (!eps.length) break;
-
-      const targetEp = parseInt(epNum);
-      const found = eps.find((e: any) => {
-        const n = e.episode ?? e.number ?? e.ep;
-        return Math.floor(parseFloat(String(n))) === targetEp;
-      });
-      if (found) {
-        episodeSession = found.session || found.id;
-        break;
-      }
-      // If last page reached with no match, stop
-      if (!epData?.next_page_url && eps.length < 30) break;
-      page++;
-      if (page > 20) break; // safety cap — ~600 episodes max
-    }
-    if (!episodeSession) return null;
-
-    // Step 3: get streaming links for this episode
-    const isDub = lang === 'dub';
-    const streamR = await fetch(
-      `${ANIMEPAHE_HOST}/api/play/${animeSession}?episodeId=${episodeSession}&downloads=true`,
-      { signal: AbortSignal.timeout(8000) }
-    );
+    const epId = `${match.id}-episode-${epNum}`;
+    const streamR = await fetch(`${host}/anime/gogoanime/watch/${epId}`, { signal: AbortSignal.timeout(8000) });
     if (!streamR.ok) return null;
     const streamData = await streamR.json();
 
-    // Sources: prefer dub audio if requested, otherwise sub (jpn)
-    const sources: any[] = streamData?.sources || streamData?.data?.sources || [];
-    const preferredAudio = isDub ? 'eng' : 'jpn';
-    const filteredSources = sources.filter((s: any) =>
-      (s.audio || '').toLowerCase().includes(preferredAudio)
-    );
-    const useSources = filteredSources.length > 0 ? filteredSources : sources;
+    const embedUrl: string = streamData?.headers?.Referer || streamData?.sources?.[0]?.url || '';
+    const downloads: DownloadLink[] = (streamData?.download || streamData?.sources || [])
+      .filter((s: any) => !s.isM3u8)
+      .map((s: any) => ({ quality: s.quality || 'Download', url: s.url, isM3u8: false }));
 
-    // Pick the embed URL — prefer 720p for balance
-    const sortOrder = ['1080p', '720p', '360p'];
-    const sorted = [...useSources].sort(
-      (a, b) =>
-        sortOrder.indexOf(a.quality || '') - sortOrder.indexOf(b.quality || '')
-    );
-    // kwik.si/e/{id} is the iframe embed URL
-    const embedSource = sorted.find((s: any) => s.url?.includes('kwik.si/e/') || s.url?.includes('kwik.cx/e/')) || sorted[0];
-    const embedUrl: string = embedSource?.url || '';
-
-    // Build download links from pahe.win URLs
-    const downloads: PaheDownloadLink[] = useSources
-      .filter((s: any) => s.url)
-      .map((s: any) => ({
-        quality: s.quality || 'unknown',
-        url:     s.url,
-        audio:   s.audio || 'jpn',
-      }));
-
-    if (!embedUrl && !downloads.length) return null;
-
-    const result: PaheResult = { embedUrl, downloads };
-    if (!_paheCache[malId]) _paheCache[malId] = {};
-    _paheCache[malId][cacheKey] = result;
-    sessionStorage.setItem(ssKey, JSON.stringify(result));
+    const result: GogoResult = { embedUrl, downloads };
+    if (!_gogoCache[malId]) _gogoCache[malId] = {};
+    _gogoCache[malId][cacheKey] = result;
+    try { sessionStorage.setItem(ssKey, JSON.stringify(result)); } catch {}
     return result;
   } catch (e) {
-    console.warn('[KamiStream] AnimePahe resolver failed:', e);
+    console.warn('[KamiStream] Gogo resolver failed:', e);
     return null;
   }
 }
@@ -455,7 +370,9 @@ export default function Watch() {
   const [alId,           setAlId]           = useState<string | null>(null);
   const [anikotoEmbedId, setAnikotoEmbedId] = useState<string | null>(null);
   const [gogoResult,     setGogoResult]     = useState<GogoResult | null>(null);
-  const [paheResult,     setPaheResult]     = useState<PaheResult | null>(null);
+  const [animeApiResult, setPaheResult]     = useState<{ embedUrl: string } | null>(null);
+  // aliased as paheResult in JSX below for minimal diff
+  const paheResult = animeApiResult;
   const [showDownloads,  setShowDownloads]  = useState(false);
 
   // Playback prefs
@@ -540,9 +457,9 @@ export default function Watch() {
       servers.push({ id: 'gogo', name: 'Sakura', url: gogoResult.embedUrl });
     }
 
-    // AnimePahe via Kwik embed (appears when resolved — high quality)
+    // AnimeAPI (Aniwatch scraper) — adds a 3rd server option
     if (paheResult?.embedUrl) {
-      servers.push({ id: 'pahe', name: 'Pahe', url: paheResult.embedUrl, badge: '1080p' });
+      servers.push({ id: 'animeapi', name: 'Aniwatch', url: paheResult.embedUrl });
     }
 
     return servers;
@@ -625,14 +542,14 @@ export default function Watch() {
     Promise.all([
       resolveAnilistId(malId),
       fetchAdminSources(malId, epId),
-      resolveAnikotoEmbedId(malId, epId),
+      resolveAnikotoEmbedId(malId, epId, titleForResolvers),
       titleForResolvers
         ? resolveGogoEmbed(malId, epId, titleForResolvers, initialLangTyped)
         : Promise.resolve(null),
-      titleForResolvers && ANIMEPAHE_HOST
-        ? resolveAnimepaheEmbed(malId, epId, titleForResolvers, initialLangTyped)
+      titleForResolvers
+        ? resolveAnimeApiEmbed(malId, epId, titleForResolvers)
         : Promise.resolve(null),
-    ]).then(([al, adminResult, embedId, gogo, pahe]) => {
+    ]).then(([al, adminResult, embedId, gogo, animeApi]) => {
       // AniList id
       if (al) setAlId(al);
 
@@ -654,8 +571,8 @@ export default function Watch() {
       // Gogoanime/Consumet — adds Sakura server + download links
       if (gogo) setGogoResult(gogo);
 
-      // AnimePahe — adds Pahe server + multi-quality download links
-      if (pahe) setPaheResult(pahe);
+      // AnimeAPI (Aniwatch) — adds Aniwatch server
+      if (animeApi) setPaheResult(animeApi as any);
     });
 
     return () => { if (elapsedTimer.current) clearInterval(elapsedTimer.current); };
@@ -852,9 +769,7 @@ export default function Watch() {
                       <div>{anikotoEmbedId ? '✓ OniChan S-2 resolved' : '⏳ OniChan S-2 resolving…'}</div>
                       <div>{alId ? '✓ AniList ID resolved' : '⏳ AniList ID resolving…'}</div>
                       <div>{gogoResult ? '✓ Sakura (Consumet) resolved' : '⏳ Sakura resolving… (may be unavailable)'}</div>
-                      {ANIMEPAHE_HOST && (
-                        <div>{paheResult ? '✓ Pahe (AnimePahe) resolved' : '⏳ Pahe resolving…'}</div>
-                      )}
+                      <div>{paheResult ? '✓ Aniwatch resolved' : '⏳ Aniwatch resolving…'}</div>
                       {adminSources.length > 0 && (
                         <div className="text-[var(--green)]">✓ {adminSources.length} admin source{adminSources.length > 1 ? 's' : ''} available</div>
                       )}
@@ -964,8 +879,8 @@ export default function Watch() {
           {(() => {
             const adminDl = adminSources.filter((s: any) => s.download_url);
             const gogoDl  = gogoResult?.downloads || [];
-            const paheDl  = paheResult?.downloads || [];
-            const hasAny  = adminDl.length > 0 || gogoDl.length > 0 || paheDl.length > 0;
+            const paheDl: any[]  = []; // AnimeAPI embed-only, no direct downloads
+            const hasAny  = adminDl.length > 0 || gogoDl.length > 0;
             if (!hasAny) return null;
             return (
               <div className="mt-4">
@@ -1023,7 +938,7 @@ export default function Watch() {
                           <div className="px-1 pt-2 pb-1">
                             <span className="text-[9px] font-black text-[var(--purple)] uppercase tracking-wider">AnimePahe</span>
                           </div>
-                          {paheDl.map((dl: PaheDownloadLink, i: number) => (
+                          {paheDl.map((dl: any, i: number) => (
                             <a key={i} href={dl.url} target="_blank" rel="noopener noreferrer"
                               className="flex items-center gap-3 px-3 py-2.5 bg-[var(--bg3)] hover:bg-[var(--purple)]/10 border border-transparent hover:border-[var(--purple)]/30 rounded-xl transition-all group">
                               <div className="w-8 h-8 bg-[var(--purple)]/15 rounded-lg flex items-center justify-center shrink-0 group-hover:bg-[var(--purple)]/25 transition-colors">
