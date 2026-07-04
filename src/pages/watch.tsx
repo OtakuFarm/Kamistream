@@ -52,62 +52,81 @@ async function resolveAnilistId(malId: string): Promise<string | null> {
 // ─────────────────────────────────────────────────────────────────────────────
 // 1. Anikoto API  →  MegaPlay /stream/s-2/{embed-id}/{lang}
 //
-// anikotoapi.site is a free public API.
-// Strategy: search by title slug directly (much more reliable than scanning
-// recent-anime pages hoping for a mal_id match — Anikoto doesn't expose
-// mal_id in /recent-anime).
+// anikotoapi.site — free public API.
+// IMPORTANT: docs warn against calling from browser on every request.
+// We mitigate by:
+//   a) Caching full episode map in sessionStorage (one call per anime per tab)
+//   b) Matching by mal_id directly (response includes mal_id — no title fuzzy search)
+//   c) Storing ready-made embed_url.sub/dub so URL is read straight from cache
 // ─────────────────────────────────────────────────────────────────────────────
 const ANIKOTO_BASE = 'https://anikotoapi.site';
-const _anikotoCache: Record<string, Record<string, string>> = {}; // malId → { epNum: embedId }
 
-async function resolveAnikotoEmbedId(malId: string, epNum: string, title: string): Promise<string | null> {
-  if (_anikotoCache[malId]?.[epNum]) return _anikotoCache[malId][epNum];
+// malId → { epNum: { sub, dub, embedId } }
+const _anikotoCache: Record<string, Record<string, { sub: string; dub: string; embedId: string }>> = {};
 
-  const ssKey = `anikoto_${malId}`;
+async function resolveAnikotoEmbedId(malId: string, epNum: string, _title: string): Promise<string | null> {
+  // Memory cache hit
+  const memHit = _anikotoCache[malId]?.[epNum];
+  if (memHit) return memHit.embedId || null;
+
+  // SessionStorage cache — survives SPA navigation within same tab
+  const ssKey = `anikoto_v2_${malId}`;
   try {
-    const cached = sessionStorage.getItem(ssKey);
-    if (cached) {
-      const map = JSON.parse(cached) as Record<string, string>;
+    const saved = sessionStorage.getItem(ssKey);
+    if (saved) {
+      const map = JSON.parse(saved) as Record<string, { sub: string; dub: string; embedId: string }>;
       _anikotoCache[malId] = map;
-      if (map[epNum]) return map[epNum];
+      if (map[epNum]) return map[epNum].embedId || null;
     }
   } catch {}
 
   try {
-    // Search by title — Anikoto exposes a search endpoint
-    const q   = encodeURIComponent(title.trim().slice(0, 50));
-    const sr  = await fetch(`${ANIKOTO_BASE}/search?q=${q}`, { signal: AbortSignal.timeout(6000) });
+    // Step 1: find Anikoto series id by mal_id — scan /recent-anime pages
+    // The response includes mal_id and ani_id so we match directly, no title guessing
+    let anikotoSeriesId: string | null = null;
+    for (let page = 1; page <= 8 && !anikotoSeriesId; page++) {
+      const r = await fetch(
+        `${ANIKOTO_BASE}/recent-anime?page=${page}&per_page=25`,
+        { signal: AbortSignal.timeout(6000) }
+      );
+      if (!r.ok) break;
+      const json = await r.json();
+      const list: any[] = json?.data || json?.results || [];
+      if (!list.length) break;
+      const match = list.find((a: any) => String(a.mal_id) === malId || String(a.ani_id) === malId);
+      if (match) { anikotoSeriesId = String(match.id ?? match.s_id ?? ''); break; }
+      if (!json?.pagination?.has_next_page) break;
+    }
+    if (!anikotoSeriesId) return null;
+
+    // Step 2: load series — response has episodes[].embed_url.sub / .dub already built
+    const sr = await fetch(`${ANIKOTO_BASE}/series/${anikotoSeriesId}`, { signal: AbortSignal.timeout(6000) });
     if (!sr.ok) return null;
-    const searchData = await sr.json();
-    const results: any[] = searchData?.results || searchData?.data || searchData || [];
-    if (!results.length) return null;
+    const series = await sr.json();
+    const episodes: any[] = series?.data?.episodes || series?.episodes || [];
 
-    // Best match: prefer exact or partial title match
-    const clean = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
-    const cleanTitle = clean(title);
-    const match =
-      results.find((r: any) => clean(r.title || r.name || '') === cleanTitle) ||
-      results.find((r: any) => clean(r.title || r.name || '').includes(cleanTitle.slice(0, 15))) ||
-      results[0];
-
-    const seriesId = match?.id || match?.slug;
-    if (!seriesId) return null;
-
-    // Fetch episode list for this series
-    const er = await fetch(`${ANIKOTO_BASE}/series/${seriesId}`, { signal: AbortSignal.timeout(6000) });
-    if (!er.ok) return null;
-    const series = await er.json();
-    const episodes: any[] = series?.episodes || series?.data?.episodes || [];
-
-    // Build ep_number → embed_id map
-    const map: Record<string, string> = {};
+    const map: Record<string, { sub: string; dub: string; embedId: string }> = {};
     for (const ep of episodes) {
-      const num     = String(ep.episode_number ?? ep.number ?? ep.ep ?? '');
-      const embedId = String(ep.episode_embed_id ?? ep.embed_id ?? ep.id ?? '');
-      if (num && embedId) map[num] = embedId;
+      const num     = String(ep.number ?? ep.episode_number ?? '');
+      const embedId = String(ep.episode_embed_id ?? '');
+      const sub     = ep.embed_url?.sub || (embedId ? `https://megaplay.buzz/stream/s-2/${embedId}/sub` : '');
+      const dub     = ep.embed_url?.dub || (embedId ? `https://megaplay.buzz/stream/s-2/${embedId}/dub` : '');
+      if (num && (sub || dub)) map[num] = { sub, dub, embedId };
     }
 
     _anikotoCache[malId] = map;
+    try { sessionStorage.setItem(ssKey, JSON.stringify(map)); } catch {}
+    return map[epNum]?.embedId || null;
+  } catch { return null; }
+}
+
+// Returns the ready-made Anikoto embed URL for the current language
+function getAnikotoUrl(malId: string, epNum: string, lang: 'sub' | 'dub'): string | null {
+  const ep = _anikotoCache[malId]?.[epNum];
+  if (!ep) return null;
+  return lang === 'dub' ? (ep.dub || ep.sub) : (ep.sub || ep.dub);
+}
+
     try { sessionStorage.setItem(ssKey, JSON.stringify(map)); } catch {}
     return map[epNum] || null;
   } catch {
@@ -464,9 +483,10 @@ export default function Watch() {
       });
     }
 
-    // MegaPlay S-2 via Anikoto embed id (highest quality path)
+    // MegaPlay S-2 via Anikoto embed id (uses ready-made URL from API cache)
     if (anikotoEmbedId) {
-      servers.push({ id: 'mp-s2', name: 'OniChan', url: megaplayS2(anikotoEmbedId, lang) });
+      const anikotoUrl = getAnikotoUrl(malId, epId, lang);
+      servers.push({ id: 'mp-s2', name: 'OniChan', url: anikotoUrl || megaplayS2(anikotoEmbedId, lang) });
     }
 
     // MegaPlay MAL (always works, no extra API needed)
@@ -658,7 +678,9 @@ export default function Watch() {
 
     // Rebuild MegaPlay URL for whichever server is active
     if (selectedServerId === 'mp-s2' && anikotoEmbedId) {
-      setActiveSource(megaplayS2(anikotoEmbedId, currentLang));
+      // Use cached Anikoto URL directly (has correct sub/dub from API)
+      const anikotoUrl = getAnikotoUrl(malId, epId, currentLang);
+      setActiveSource(anikotoUrl || megaplayS2(anikotoEmbedId, currentLang));
     } else if (selectedServerId === 'mp-ani' && alId) {
       setActiveSource(megaplayAni(alId, epId, currentLang));
     } else if (selectedServerId === 'dropfile-mal') {
