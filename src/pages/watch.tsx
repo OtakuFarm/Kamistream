@@ -327,6 +327,31 @@ function megaplayS2(embedId: string, lang: 'sub' | 'dub') {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// DropFile Embed  — dropfile.cc
+// Supports MAL ID, AniList ID, IMDB, TMDB. JSON API + iframe.
+// No API calls needed — URL construction only.
+// ─────────────────────────────────────────────────────────────────────────────
+function dropfileUrl(malId: string, ep: string, lang: 'sub' | 'dub') {
+  // MAL ID path: /anime/mal/{mal_id}/{ep}/{lang}
+  const l = lang === 'dub' ? 'dub' : 'sub';
+  return `https://dropfile.cc/anime/mal/${malId}/${ep}/${l}`;
+}
+function dropfileAniUrl(alId: string, ep: string, lang: 'sub' | 'dub') {
+  // AniList ID path: /anime/al/{al_id}/{ep}/{lang}
+  const l = lang === 'dub' ? 'dub' : 'sub';
+  return `https://dropfile.cc/anime/al/${alId}/${ep}/${l}`;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// VidNest  — AniList ID iframe embed
+// Includes AnimePahe library as a source. No API calls needed.
+// ─────────────────────────────────────────────────────────────────────────────
+function vidnestUrl(alId: string, ep: string, lang: 'sub' | 'dub') {
+  // /embed/al/{al_id}/{ep}?audio={sub|dub}
+  return `https://vidnest.me/embed/al/${alId}/${ep}?audio=${lang}`;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Supabase admin sources  (unchanged)
 // ─────────────────────────────────────────────────────────────────────────────
 async function fetchAdminSources(malId: string, epNum: string) {
@@ -460,6 +485,19 @@ export default function Watch() {
     // AnimeAPI (Aniwatch scraper) — adds a 3rd server option
     if (paheResult?.embedUrl) {
       servers.push({ id: 'animeapi', name: 'Aniwatch', url: paheResult.embedUrl });
+    }
+
+    // DropFile — MAL ID path (always available, no resolution needed)
+    servers.push({ id: 'dropfile-mal', name: 'DropFile', url: dropfileUrl(malId, epId, lang) });
+
+    // DropFile — AniList ID path (richer source pool, available when alId resolved)
+    if (alId) {
+      servers.push({ id: 'dropfile-ani', name: 'DropFile+', url: dropfileAniUrl(alId, epId, lang) });
+    }
+
+    // VidNest — AniList ID required (includes AnimePahe library)
+    if (alId) {
+      servers.push({ id: 'vidnest', name: 'VidNest', url: vidnestUrl(alId, epId, lang) });
     }
 
     return servers;
@@ -623,6 +661,12 @@ export default function Watch() {
       setActiveSource(megaplayS2(anikotoEmbedId, currentLang));
     } else if (selectedServerId === 'mp-ani' && alId) {
       setActiveSource(megaplayAni(alId, epId, currentLang));
+    } else if (selectedServerId === 'dropfile-mal') {
+      setActiveSource(dropfileUrl(malId, epId, currentLang));
+    } else if (selectedServerId === 'dropfile-ani' && alId) {
+      setActiveSource(dropfileAniUrl(alId, epId, currentLang));
+    } else if (selectedServerId === 'vidnest' && alId) {
+      setActiveSource(vidnestUrl(alId, epId, currentLang));
     } else {
       setActiveSource(megaplayMal(malId, epId, currentLang));
       setSelectedServerId('mp-mal');
@@ -767,9 +811,10 @@ export default function Watch() {
                     {/* Source status hints */}
                     <div className="mt-2 text-[10px] text-[var(--text3)] font-mono text-center space-y-0.5">
                       <div>{anikotoEmbedId ? '✓ OniChan S-2 resolved' : '⏳ OniChan S-2 resolving…'}</div>
-                      <div>{alId ? '✓ AniList ID resolved' : '⏳ AniList ID resolving…'}</div>
+                      <div>{alId ? '✓ AniList ID resolved — DropFile+ & VidNest ready' : '⏳ AniList ID resolving…'}</div>
                       <div>{gogoResult ? '✓ Sakura (Consumet) resolved' : '⏳ Sakura resolving… (may be unavailable)'}</div>
                       <div>{paheResult ? '✓ Aniwatch resolved' : '⏳ Aniwatch resolving…'}</div>
+                      <div className="text-[var(--green)]">✓ DropFile always available</div>
                       {adminSources.length > 0 && (
                         <div className="text-[var(--green)]">✓ {adminSources.length} admin source{adminSources.length > 1 ? 's' : ''} available</div>
                       )}
