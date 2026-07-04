@@ -9,6 +9,7 @@ import {
 import { AnimeCard } from "@/components/AnimeCard";
 import { useSEO } from "@/hooks/useSEO";
 import { jikanFetch } from "@/lib/jikanFetch";
+import { dedupeByMalId } from "@/lib/dedupeAnime";
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 function getCurrentSeason(): { season: string; year: number } {
@@ -143,7 +144,7 @@ export default function Category() {
     );
   }
 
-  const items: any[] = data?.data || [];
+  const items: any[] = dedupeByMalId(data?.data || []);
 
   function goPage(p: number) {
     setPage(p);

@@ -6,6 +6,7 @@ import { GridSkeleton } from "@/components/LoadingSkeleton";
 import { useSEO } from "@/hooks/useSEO";
 import { ChevronLeft, Loader2 } from "lucide-react";
 import { jikanFetch } from "@/lib/jikanFetch";
+import { dedupeByMalId } from "@/lib/dedupeAnime";
 
 // ── Verified Jikan MAL genre IDs ─────────────────────────────────────────────
 // FIX: Previous IDs were wrong (e.g. 5 was labelled Comedy but is Avant Garde).
@@ -121,7 +122,7 @@ export default function Genre() {
     staleTime:        5 * 60 * 1000,
   });
 
-  const anime = data?.pages.flatMap((p: any) => p.data ?? []) ?? [];
+  const anime = dedupeByMalId(data?.pages.flatMap((p: any) => p.data ?? []) ?? []);
 
   return (
     <div className="p-4 md:p-6 pb-20">

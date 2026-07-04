@@ -13,6 +13,7 @@ import { getAiringSchedule, getRecentlyAired } from '@/lib/anilist';
 import { Link, useLocation } from 'wouter';
 import { useSEO } from '@/hooks/useSEO';
 import { supabase } from '@/lib/supabase';
+import { dedupeByMalId } from '@/lib/dedupeAnime';
 
 export default function Home() {
   const { data: trending,  isLoading: trendingLoading  } = useTrendingAnime();
@@ -533,7 +534,7 @@ export default function Home() {
         </div>
         {trendingLoading ? <GridSkeleton /> : (
           <div className="grid grid-cols-5 sm:grid-cols-6 md:grid-cols-7 lg:grid-cols-9 xl:grid-cols-11 gap-2">
-            {trending?.data?.map((anime: any) => <AnimeCard key={anime.mal_id} anime={anime} />)}
+            {dedupeByMalId(trending?.data ?? []).map((anime: any) => <AnimeCard key={anime.mal_id} anime={anime} />)}
           </div>
         )}
       </section>
@@ -548,7 +549,7 @@ export default function Home() {
         </div>
         {topRatedLoading ? <GridSkeleton /> : (
           <div className="grid grid-cols-5 sm:grid-cols-6 md:grid-cols-7 lg:grid-cols-9 xl:grid-cols-11 gap-2">
-            {topRated?.data?.map((anime: any) => <AnimeCard key={anime.mal_id} anime={anime} />)}
+            {dedupeByMalId(topRated?.data ?? []).map((anime: any) => <AnimeCard key={anime.mal_id} anime={anime} />)}
           </div>
         )}
       </section>
@@ -563,7 +564,7 @@ export default function Home() {
         </div>
         {seasonalLoading ? <GridSkeleton /> : (
           <div className="grid grid-cols-5 sm:grid-cols-6 md:grid-cols-7 lg:grid-cols-9 xl:grid-cols-11 gap-2">
-            {seasonal?.data?.map((anime: any) => <AnimeCard key={anime.mal_id} anime={anime} />)}
+            {dedupeByMalId(seasonal?.data ?? []).map((anime: any) => <AnimeCard key={anime.mal_id} anime={anime} />)}
           </div>
         )}
       </section>

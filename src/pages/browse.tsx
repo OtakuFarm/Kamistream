@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { AnimeCard } from '@/components/AnimeCard';
+import { dedupeByMalId } from '@/lib/dedupeAnime';
 import { GridSkeleton } from '@/components/LoadingSkeleton';
 import { useInfiniteQuery } from '@tanstack/react-query';
 import { SlidersHorizontal, X, Search, Loader2 } from 'lucide-react';
@@ -196,13 +197,17 @@ export default function Browse() {
   const usingALTop    = topError;
   const usingALSearch = searchError;
 
-  const topAnime    = usingALTop
-    ? (alTopPages?.pages.flatMap((p: any) => p.data ?? []) ?? [])
-    : (topPages?.pages.flatMap((p: any) => p.data ?? []) ?? []);
+  const topAnime    = dedupeByMalId(
+    usingALTop
+      ? (alTopPages?.pages.flatMap((p: any) => p.data ?? []) ?? [])
+      : (topPages?.pages.flatMap((p: any) => p.data ?? []) ?? [])
+  );
 
-  const searchAnime = usingALSearch
-    ? (alSearchPages?.pages.flatMap((p: any) => p.data ?? []) ?? [])
-    : (searchPages?.pages.flatMap((p: any) => p.data ?? []) ?? []);
+  const searchAnime = dedupeByMalId(
+    usingALSearch
+      ? (alSearchPages?.pages.flatMap((p: any) => p.data ?? []) ?? [])
+      : (searchPages?.pages.flatMap((p: any) => p.data ?? []) ?? [])
+  );
 
   const setFilter = (key: keyof Filters, val: string) => setFilters(f => ({ ...f, [key]: val }));
   const resetFilters = () => setFilters(f => ({ ...DEFAULT_FILTERS, q: f.q }));
@@ -336,7 +341,7 @@ export default function Browse() {
       ) : animeList.length > 0 ? (
         <>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-            {animeList.map((anime: any) => <AnimeCard key={`${anime.mal_id}-${anime.title}`} anime={anime} />)}
+            {animeList.map((anime: any) => <AnimeCard key={anime.mal_id} anime={anime} />)}
           </div>
           {hasMore && (
             <div className="flex justify-center mt-10">
