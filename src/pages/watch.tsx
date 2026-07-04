@@ -260,6 +260,145 @@ async function resolveGogoEmbed(
   _gogoCache[malId][cacheKey] = null;
   return null;
 }
+// ─────────────────────────────────────────────────────────────────────────────
+// AnimePahe resolver
+// Uses your self-hosted AnimePahe API (deploy from github.com/ElijahCodes12345/animepahe-api)
+// Set VITE_ANIMEPAHE_HOST in your .env to point to your Render/Railway instance.
+//
+// Returns:
+//   embedUrl  → kwik.si iframe URL for in-browser streaming
+//   downloads → pahe.win links at 360p / 720p / 1080p for direct download
+// ─────────────────────────────────────────────────────────────────────────────
+const ANIMEPAHE_HOST = (import.meta.env.VITE_ANIMEPAHE_HOST as string | undefined)
+  ?.replace(/\/$/, '') || '';
+
+interface PaheDownloadLink { quality: string; url: string; audio: string; }
+interface PaheResult { embedUrl: string; downloads: PaheDownloadLink[]; }
+
+const _paheCache: Record<string, Record<string, PaheResult | null>> = {};
+
+async function resolveAnimepaheEmbed(
+  malId: string,
+  epNum: string,
+  title: string,
+  lang: 'sub' | 'dub'
+): Promise<PaheResult | null> {
+  if (!ANIMEPAHE_HOST) return null; // not configured — skip silently
+
+  const cacheKey = `${lang}_${epNum}`;
+  if (_paheCache[malId]?.[cacheKey] !== undefined) return _paheCache[malId][cacheKey] ?? null;
+
+  const ssKey = `pahe_${malId}_${lang}_${epNum}`;
+  const saved = sessionStorage.getItem(ssKey);
+  if (saved) {
+    try {
+      const parsed = JSON.parse(saved);
+      if (!_paheCache[malId]) _paheCache[malId] = {};
+      _paheCache[malId][cacheKey] = parsed;
+      return parsed;
+    } catch {}
+  }
+
+  try {
+    // Step 1: search by title
+    const q   = encodeURIComponent(title.trim());
+    const sr  = await fetch(`${ANIMEPAHE_HOST}/api/search?q=${q}`, { signal: AbortSignal.timeout(6000) });
+    if (!sr.ok) return null;
+    const searchData = await sr.json();
+    const results: any[] = searchData?.results || searchData?.data || [];
+    if (!results.length) return null;
+
+    // Best match: prefer exact title, fall back to first result
+    const match =
+      results.find((r: any) =>
+        r.title?.toLowerCase() === title.toLowerCase()
+      ) ||
+      results.find((r: any) =>
+        r.title?.toLowerCase().includes(title.toLowerCase().slice(0, 15))
+      ) ||
+      results[0];
+
+    const animeSession: string = match?.session || match?.id;
+    if (!animeSession) return null;
+
+    // Step 2: get episode releases — page through until we find the right ep number
+    let episodeSession: string | null = null;
+    let page = 1;
+    while (!episodeSession) {
+      const er = await fetch(
+        `${ANIMEPAHE_HOST}/api/${animeSession}/releases?sort=episode_asc&page=${page}`,
+        { signal: AbortSignal.timeout(6000) }
+      );
+      if (!er.ok) break;
+      const epData = await er.json();
+      const eps: any[] = epData?.results || epData?.data || [];
+      if (!eps.length) break;
+
+      const targetEp = parseInt(epNum);
+      const found = eps.find((e: any) => {
+        const n = e.episode ?? e.number ?? e.ep;
+        return Math.floor(parseFloat(String(n))) === targetEp;
+      });
+      if (found) {
+        episodeSession = found.session || found.id;
+        break;
+      }
+      // If last page reached with no match, stop
+      if (!epData?.next_page_url && eps.length < 30) break;
+      page++;
+      if (page > 20) break; // safety cap — ~600 episodes max
+    }
+    if (!episodeSession) return null;
+
+    // Step 3: get streaming links for this episode
+    const isDub = lang === 'dub';
+    const streamR = await fetch(
+      `${ANIMEPAHE_HOST}/api/play/${animeSession}?episodeId=${episodeSession}&downloads=true`,
+      { signal: AbortSignal.timeout(8000) }
+    );
+    if (!streamR.ok) return null;
+    const streamData = await streamR.json();
+
+    // Sources: prefer dub audio if requested, otherwise sub (jpn)
+    const sources: any[] = streamData?.sources || streamData?.data?.sources || [];
+    const preferredAudio = isDub ? 'eng' : 'jpn';
+    const filteredSources = sources.filter((s: any) =>
+      (s.audio || '').toLowerCase().includes(preferredAudio)
+    );
+    const useSources = filteredSources.length > 0 ? filteredSources : sources;
+
+    // Pick the embed URL — prefer 720p for balance
+    const sortOrder = ['1080p', '720p', '360p'];
+    const sorted = [...useSources].sort(
+      (a, b) =>
+        sortOrder.indexOf(a.quality || '') - sortOrder.indexOf(b.quality || '')
+    );
+    // kwik.si/e/{id} is the iframe embed URL
+    const embedSource = sorted.find((s: any) => s.url?.includes('kwik.si/e/') || s.url?.includes('kwik.cx/e/')) || sorted[0];
+    const embedUrl: string = embedSource?.url || '';
+
+    // Build download links from pahe.win URLs
+    const downloads: PaheDownloadLink[] = useSources
+      .filter((s: any) => s.url)
+      .map((s: any) => ({
+        quality: s.quality || 'unknown',
+        url:     s.url,
+        audio:   s.audio || 'jpn',
+      }));
+
+    if (!embedUrl && !downloads.length) return null;
+
+    const result: PaheResult = { embedUrl, downloads };
+    if (!_paheCache[malId]) _paheCache[malId] = {};
+    _paheCache[malId][cacheKey] = result;
+    sessionStorage.setItem(ssKey, JSON.stringify(result));
+    return result;
+  } catch (e) {
+    console.warn('[KamiStream] AnimePahe resolver failed:', e);
+    return null;
+  }
+}
+
 const MP_BASE = 'https://megaplay.buzz';
 
 function megaplayMal(malId: string, ep: string, lang: 'sub' | 'dub') {
@@ -313,10 +452,11 @@ export default function Watch() {
   const epId  = params?.ep || '1';
 
   // IDs
-  const [alId,         setAlId]         = useState<string | null>(null);
+  const [alId,           setAlId]           = useState<string | null>(null);
   const [anikotoEmbedId, setAnikotoEmbedId] = useState<string | null>(null);
-  const [gogoResult,   setGogoResult]   = useState<GogoResult | null>(null);
-  const [showDownloads, setShowDownloads] = useState(false);
+  const [gogoResult,     setGogoResult]     = useState<GogoResult | null>(null);
+  const [paheResult,     setPaheResult]     = useState<PaheResult | null>(null);
+  const [showDownloads,  setShowDownloads]  = useState(false);
 
   // Playback prefs
   const [dub,          setDub]          = useState(false);
@@ -400,8 +540,13 @@ export default function Watch() {
       servers.push({ id: 'gogo', name: 'Sakura', url: gogoResult.embedUrl });
     }
 
+    // AnimePahe via Kwik embed (appears when resolved — high quality)
+    if (paheResult?.embedUrl) {
+      servers.push({ id: 'pahe', name: 'Pahe', url: paheResult.embedUrl, badge: '1080p' });
+    }
+
     return servers;
-  }, [adminSources, anikotoEmbedId, alId, malId, epId, lang, gogoResult]);
+  }, [adminSources, anikotoEmbedId, alId, malId, epId, lang, gogoResult, paheResult]);
 
   const serverList = buildServerList();
 
@@ -447,6 +592,7 @@ export default function Watch() {
     setAdminSources([]);
     setActiveSource('');
     setGogoResult(null);
+    setPaheResult(null);
     setShowDownloads(false);
     setAlId(null);
     setAnikotoEmbedId(null);
@@ -475,12 +621,18 @@ export default function Watch() {
 
     // Fire all resolvers in parallel — results upgrade the server list
     // without touching the currently-playing iframe.
+    const titleForResolvers = detail?.data?.title || '';
     Promise.all([
       resolveAnilistId(malId),
       fetchAdminSources(malId, epId),
       resolveAnikotoEmbedId(malId, epId),
-      detail?.data?.title ? resolveGogoEmbed(malId, epId, detail.data.title, initialLangTyped) : Promise.resolve(null),
-    ]).then(([al, adminResult, embedId, gogo]) => {
+      titleForResolvers
+        ? resolveGogoEmbed(malId, epId, titleForResolvers, initialLangTyped)
+        : Promise.resolve(null),
+      titleForResolvers && ANIMEPAHE_HOST
+        ? resolveAnimepaheEmbed(malId, epId, titleForResolvers, initialLangTyped)
+        : Promise.resolve(null),
+    ]).then(([al, adminResult, embedId, gogo, pahe]) => {
       // AniList id
       if (al) setAlId(al);
 
@@ -501,6 +653,9 @@ export default function Watch() {
 
       // Gogoanime/Consumet — adds Sakura server + download links
       if (gogo) setGogoResult(gogo);
+
+      // AnimePahe — adds Pahe server + multi-quality download links
+      if (pahe) setPaheResult(pahe);
     });
 
     return () => { if (elapsedTimer.current) clearInterval(elapsedTimer.current); };
@@ -697,6 +852,9 @@ export default function Watch() {
                       <div>{anikotoEmbedId ? '✓ OniChan S-2 resolved' : '⏳ OniChan S-2 resolving…'}</div>
                       <div>{alId ? '✓ AniList ID resolved' : '⏳ AniList ID resolving…'}</div>
                       <div>{gogoResult ? '✓ Sakura (Consumet) resolved' : '⏳ Sakura resolving… (may be unavailable)'}</div>
+                      {ANIMEPAHE_HOST && (
+                        <div>{paheResult ? '✓ Pahe (AnimePahe) resolved' : '⏳ Pahe resolving…'}</div>
+                      )}
                       {adminSources.length > 0 && (
                         <div className="text-[var(--green)]">✓ {adminSources.length} admin source{adminSources.length > 1 ? 's' : ''} available</div>
                       )}
@@ -806,7 +964,8 @@ export default function Watch() {
           {(() => {
             const adminDl = adminSources.filter((s: any) => s.download_url);
             const gogoDl  = gogoResult?.downloads || [];
-            const hasAny  = adminDl.length > 0 || gogoDl.length > 0;
+            const paheDl  = paheResult?.downloads || [];
+            const hasAny  = adminDl.length > 0 || gogoDl.length > 0 || paheDl.length > 0;
             if (!hasAny) return null;
             return (
               <div className="mt-4">
@@ -858,6 +1017,29 @@ export default function Watch() {
                           </span>
                         </a>
                       ))}
+                      {/* AnimePahe / Kwik download sources */}
+                      {paheDl.length > 0 && (
+                        <>
+                          <div className="px-1 pt-2 pb-1">
+                            <span className="text-[9px] font-black text-[var(--purple)] uppercase tracking-wider">AnimePahe</span>
+                          </div>
+                          {paheDl.map((dl: PaheDownloadLink, i: number) => (
+                            <a key={i} href={dl.url} target="_blank" rel="noopener noreferrer"
+                              className="flex items-center gap-3 px-3 py-2.5 bg-[var(--bg3)] hover:bg-[var(--purple)]/10 border border-transparent hover:border-[var(--purple)]/30 rounded-xl transition-all group">
+                              <div className="w-8 h-8 bg-[var(--purple)]/15 rounded-lg flex items-center justify-center shrink-0 group-hover:bg-[var(--purple)]/25 transition-colors">
+                                <Download className="w-3.5 h-3.5 text-[var(--purple)]" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="text-[12px] font-bold text-white">{dl.quality}</div>
+                                <div className="text-[10px] text-[var(--text3)]">
+                                  AnimePahe · {dl.audio === 'eng' ? 'DUB' : 'SUB'}
+                                </div>
+                              </div>
+                              <span className="text-[10px] font-bold text-[var(--purple)] shrink-0">↓ Download</span>
+                            </a>
+                          ))}
+                        </>
+                      )}
                       <p className="text-[9px] text-[var(--text3)] px-1 pt-1">
                         Links open in new tab. Use a download manager for best results.
                       </p>
