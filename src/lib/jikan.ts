@@ -45,7 +45,7 @@ function enqueue<T>(fn: () => Promise<T>): Promise<T> {
 // ─────────────────────────────────────────────────────────────────────────────
 // Core fetch helper — retries once on 429 with back-off
 // ─────────────────────────────────────────────────────────────────────────────
-const fetchJikan = async <T>(endpoint: string): Promise<T> => {
+export const fetchJikan = async <T>(endpoint: string): Promise<T> => {
   return enqueue(async () => {
     const res = await fetch(`${BASE_URL}${endpoint}`);
 
