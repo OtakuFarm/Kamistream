@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { useTrendingAnime, useTopRatedAnime, useSeasonalAnime, fetchJikan } from '@/lib/jikan';
 import { AnimeCard } from '@/components/AnimeCard';
 import { AnimeListCard } from '@/components/AnimeListCard';
@@ -26,6 +26,32 @@ export default function Home() {
   const [heroIndex, setHeroIndex] = useState(0);
   const [isHovered, setIsHovered] = useState(false);
   const [topPeriod, setTopPeriod] = useState<'day' | 'week' | 'month'>('day');
+
+  // Hero parallax — direct style mutation (no re-render per mousemove),
+  // desktop-only, disabled under prefers-reduced-motion.
+  const heroImgRef = useRef<HTMLImageElement>(null);
+  const heroBoxRef = useRef<HTMLDivElement>(null);
+  const heroRaf = useRef(0);
+  const handleHeroMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const isDesktop = window.matchMedia('(pointer: fine)').matches;
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (!isDesktop || reducedMotion) return;
+    const box = heroBoxRef.current;
+    const img = heroImgRef.current;
+    if (!box || !img) return;
+    const rect = box.getBoundingClientRect();
+    const px = (e.clientX - rect.left) / rect.width - 0.5;   // -0.5..0.5
+    const py = (e.clientY - rect.top) / rect.height - 0.5;
+    if (heroRaf.current) return;
+    heroRaf.current = requestAnimationFrame(() => {
+      img.style.transform = `scale(1.08) translate(${-px * 16}px, ${-py * 12}px)`;
+      heroRaf.current = 0;
+    });
+  };
+  const resetHeroParallax = () => {
+    setIsHovered(false);
+    if (heroImgRef.current) heroImgRef.current.style.transform = '';
+  };
 
   // Schedule state
   const [activeDayIndex, setActiveDayIndex] = useState(0);
@@ -129,7 +155,7 @@ export default function Home() {
   const { data: newRelease } = useQuery({
     queryKey: ['home', 'new-release'],
     queryFn: async () => {
-      const j = await fetchJikan<any>('/anime?status=airing&order_by=members&sort=desc&limit=5&sfw=true');
+      const j = await fetchJikan<any>('/anime?status=airing&order_by=members&sort=desc&limit=8&sfw=true');
       return j.data || [];
     },
     staleTime: 15 * 60 * 1000,
@@ -211,13 +237,16 @@ export default function Home() {
       {activeHero ? (
         <div
           className="relative w-full h-[320px] md:h-[420px] rounded-2xl overflow-hidden"
+          ref={heroBoxRef}
           onMouseEnter={() => setIsHovered(true)}
-          onMouseLeave={() => setIsHovered(false)}
+          onMouseMove={handleHeroMouseMove}
+          onMouseLeave={resetHeroParallax}
         >
           <img
+            ref={heroImgRef}
             src={activeHero.trailer?.images?.maximum_image_url || activeHero.images?.webp?.large_image_url || activeHero.images?.jpg?.large_image_url || ''}
             alt={activeHero.title}
-            className="absolute inset-0 w-full h-full object-cover transition-all duration-700"
+            className="absolute inset-0 w-full h-full object-cover scale-105 transition-transform duration-300 ease-out will-change-transform"
           />
           <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/60 to-transparent" />
           <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
@@ -477,10 +506,10 @@ export default function Home() {
         </section>
       )}
 
-      {/* ── New Release / New Added / Just Completed ── */}
+      {/* ── New Release / New Added / Just Completed — bento layout ── */}
       <section>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-          <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl overflow-hidden">
+        <div className="grid grid-cols-1 md:grid-cols-4 md:grid-rows-2 gap-3">
+          <div className="md:col-span-2 md:row-span-2 bg-[var(--card)] border border-[var(--border)] rounded-2xl overflow-hidden">
             <div className="flex items-center justify-between px-3 py-2 border-b border-[var(--border)]">
               <h3 className="text-[12px] font-heading font-black uppercase tracking-wide">🔥 New Release</h3>
               <Link href="/category/new-release" className="text-[10px] text-[var(--text3)] hover:text-[var(--pink)] transition-colors font-bold">See All →</Link>
@@ -489,7 +518,7 @@ export default function Home() {
               {(newRelease || []).map((a: any) => <AnimeListCard key={a.mal_id} anime={a} badge="AIRING" />)}
             </div>
           </div>
-          <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl overflow-hidden">
+          <div className="md:col-span-2 bg-[var(--card)] border border-[var(--border)] rounded-2xl overflow-hidden">
             <div className="flex items-center justify-between px-3 py-2 border-b border-[var(--border)]">
               <h3 className="text-[12px] font-heading font-black uppercase tracking-wide">⚡ New Added</h3>
               <Link href="/category/new-added" className="text-[10px] text-[var(--text3)] hover:text-[var(--pink)] transition-colors font-bold">See All →</Link>
@@ -500,7 +529,7 @@ export default function Home() {
               ))}
             </div>
           </div>
-          <div className="bg-[var(--card)] border border-[var(--border)] rounded-xl overflow-hidden">
+          <div className="md:col-span-2 bg-[var(--card)] border border-[var(--border)] rounded-2xl overflow-hidden">
             <div className="flex items-center justify-between px-3 py-2 border-b border-[var(--border)]">
               <h3 className="text-[12px] font-heading font-black uppercase tracking-wide">✅ Just Completed</h3>
               <Link href="/category/just-completed" className="text-[10px] text-[var(--text3)] hover:text-[var(--pink)] transition-colors font-bold">See All →</Link>
