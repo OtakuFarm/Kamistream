@@ -50,7 +50,7 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
   }
 
   return (
-    <div className="h-[60px] bg-[var(--bg2)] border-b border-[var(--border)] flex items-center px-4 md:px-6 gap-3 md:gap-4 shrink-0 sticky top-0 z-50">
+    <div className="h-[60px] bg-[var(--bg2)]/70 backdrop-blur-xl border-b border-[var(--border)] flex items-center px-4 md:px-6 gap-3 md:gap-4 shrink-0 sticky top-0 z-50">
       <div className="absolute bottom-[-2px] left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-[var(--pink)] via-[var(--purple)] via-[var(--blue)] to-transparent bg-[length:200%_auto] animate-[tbLine_3s_linear_infinite]" />
 
       {/* Hamburger */}

@@ -165,7 +165,7 @@ export function AnimeCard({ anime }: AnimeCardProps) {
   return (
     <div
       ref={cardRef}
-      className={`group relative bg-[var(--card)] rounded-xl overflow-visible cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-black/50 select-none ${pressing ? "scale-[0.97]" : ""}`}
+      className={`group relative bg-[var(--card)] rounded-2xl overflow-visible cursor-pointer transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_0_0_1px_var(--border),0_16px_40px_-12px_var(--pink)] select-none ${pressing ? "scale-[0.97]" : ""}`}
       onClick={onClick}
       onMouseDown={onMouseDown}
       onMouseUp={onMouseUp}
@@ -177,7 +177,7 @@ export function AnimeCard({ anime }: AnimeCardProps) {
       style={{ WebkitUserSelect: "none", userSelect: "none" }}
     >
       {/* ── Poster ── */}
-      <div className="relative aspect-[2/3] overflow-hidden rounded-xl bg-[var(--bg3)]">
+      <div className="relative aspect-[2/3] overflow-hidden rounded-2xl bg-[var(--bg3)]">
         {imgSrc ? (
           <img
             src={imgSrc}
@@ -206,7 +206,7 @@ export function AnimeCard({ anime }: AnimeCardProps) {
 
         {/* Long-press ring indicator */}
         {pressing && (
-          <div className="absolute inset-0 rounded-xl border-2 border-[var(--pink)] animate-pulse pointer-events-none" />
+          <div className="absolute inset-0 rounded-2xl border-2 border-[var(--pink)] animate-pulse pointer-events-none" />
         )}
 
         {/* Score */}

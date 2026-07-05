@@ -1,7 +1,9 @@
 import React, { useState } from 'react';
 import { Topbar } from './Topbar';
 import { Sidebar } from './Sidebar';
-import { Link } from 'wouter';
+import { Link, useLocation } from 'wouter';
+import { CursorSpotlight } from './CursorSpotlight';
+import { AnimatePresence, motion } from 'framer-motion';
 
 function Footer() {
   const year = new Date().getFullYear();
@@ -55,16 +57,34 @@ function Footer() {
   );
 }
 
+function PageTransition({ children }: { children: React.ReactNode }) {
+  const [location] = useLocation();
+  return (
+    <AnimatePresence mode="wait">
+      <motion.div
+        key={location}
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -8 }}
+        transition={{ duration: 0.2, ease: 'easeOut' }}
+      >
+        {children}
+      </motion.div>
+    </AnimatePresence>
+  );
+}
+
 export function Layout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-[var(--bg)] text-white font-sans">
+      <CursorSpotlight />
       <Topbar onMenuClick={() => setSidebarOpen(s => !s)} />
       <div className="flex flex-1 overflow-hidden relative">
         <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
         <main className="flex-1 overflow-y-auto relative flex flex-col">
-          <div className="flex-1">{children}</div>
+          <div className="flex-1"><PageTransition>{children}</PageTransition></div>
           <Footer />
         </main>
       </div>
@@ -75,6 +95,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 export function MinimalLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-[var(--bg)] text-white font-sans">
+      <CursorSpotlight />
       <Topbar onMenuClick={() => {}} />
       <main className="flex-1 overflow-y-auto relative flex flex-col">
         <div className="flex-1">{children}</div>
