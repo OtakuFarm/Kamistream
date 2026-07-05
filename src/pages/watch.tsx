@@ -53,13 +53,16 @@ async function resolveAnilistId(malId: string): Promise<string | null> {
 // 1. Anikoto API  →  MegaPlay /stream/s-2/{embed-id}/{lang}
 //
 // anikotoapi.site — free public API.
-// IMPORTANT: docs warn against calling from browser on every request.
-// We mitigate by:
+// IMPORTANT: docs warn against calling from browser on every request, so we
+// route through our own /api/anikoto serverless proxy instead of hitting
+// anikotoapi.site directly. The proxy adds CDN caching on top, so repeat
+// requests within the cache window don't even leave Vercel. We mitigate
+// further by:
 //   a) Caching full episode map in sessionStorage (one call per anime per tab)
 //   b) Matching by mal_id directly (response includes mal_id — no title fuzzy search)
 //   c) Storing ready-made embed_url.sub/dub so URL is read straight from cache
 // ─────────────────────────────────────────────────────────────────────────────
-const ANIKOTO_BASE = 'https://anikotoapi.site';
+const ANIKOTO_BASE = '/api/anikoto';
 
 // malId → { epNum: { sub, dub, embedId } }
 const _anikotoCache: Record<string, Record<string, { sub: string; dub: string; embedId: string }>> = {};
@@ -86,7 +89,7 @@ async function resolveAnikotoEmbedId(malId: string, epNum: string, _title: strin
     let anikotoSeriesId: string | null = null;
     for (let page = 1; page <= 8 && !anikotoSeriesId; page++) {
       const r = await fetch(
-        `${ANIKOTO_BASE}/recent-anime?page=${page}&per_page=25`,
+        `${ANIKOTO_BASE}?action=recent&page=${page}&per_page=25`,
         { signal: AbortSignal.timeout(6000) }
       );
       if (!r.ok) break;
@@ -100,7 +103,7 @@ async function resolveAnikotoEmbedId(malId: string, epNum: string, _title: strin
     if (!anikotoSeriesId) return null;
 
     // Step 2: load series — response has episodes[].embed_url.sub / .dub already built
-    const sr = await fetch(`${ANIKOTO_BASE}/series/${anikotoSeriesId}`, { signal: AbortSignal.timeout(6000) });
+    const sr = await fetch(`${ANIKOTO_BASE}?action=series&id=${encodeURIComponent(anikotoSeriesId)}`, { signal: AbortSignal.timeout(6000) });
     if (!sr.ok) return null;
     const series = await sr.json();
     const episodes: any[] = series?.data?.episodes || series?.episodes || [];
@@ -127,212 +130,6 @@ function getAnikotoUrl(malId: string, epNum: string, lang: 'sub' | 'dub'): strin
   return lang === 'dub' ? (ep.dub || ep.sub) : (ep.sub || ep.dub);
 }
 
-    try { sessionStorage.setItem(ssKey, JSON.stringify(map)); } catch {}
-    return map[epNum] || null;
-  } catch {
-    return null;
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// 2. Anime-API (Aniwatch scraper)  — api-anime-rouge.vercel.app
-//    Fully public, no auth, CORS enabled, deployed on Vercel.
-//    Returns episode stream sources (mp4/m3u8) + iframe embed URL.
-//    Source: github.com/falcon71181/Anime-API
-// ─────────────────────────────────────────────────────────────────────────────
-const ANIMEAPI_BASE = 'https://api-anime-rouge.vercel.app/aniwatch';
-const _animeApiCache: Record<string, Record<string, string>> = {}; // malId → { epNum: episodeId }
-
-interface AnimeApiResult { embedUrl: string; }
-const _animeApiEmbedCache: Record<string, Record<string, AnimeApiResult | null>> = {};
-
-async function resolveAnimeApiEmbed(
-  malId: string, epNum: string, title: string
-): Promise<AnimeApiResult | null> {
-  if (_animeApiEmbedCache[malId]?.[epNum] !== undefined) {
-    return _animeApiEmbedCache[malId][epNum];
-  }
-
-  try {
-    // Step 1: search by title
-    const q  = encodeURIComponent(title.trim().slice(0, 60));
-    const sr = await fetch(`${ANIMEAPI_BASE}/search?keyword=${q}`, { signal: AbortSignal.timeout(6000) });
-    if (!sr.ok) return null;
-    const searchData = await sr.json();
-    const animes: any[] = searchData?.animes || searchData?.results || [];
-    if (!animes.length) return null;
-
-    // Match by MAL id if available, else title
-    const clean = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
-    const match =
-      animes.find((a: any) => String(a.mal_id) === malId) ||
-      animes.find((a: any) => clean(a.name || '') === clean(title)) ||
-      animes.find((a: any) => clean(a.name || '').includes(clean(title).slice(0, 15))) ||
-      animes[0];
-
-    const animeId: string = match?.id;
-    if (!animeId) return null;
-
-    // Step 2: get episodes for this anime
-    let episodeId: string | null = null;
-    if (_animeApiCache[malId]?.[epNum]) {
-      episodeId = _animeApiCache[malId][epNum];
-    } else {
-      const er = await fetch(`${ANIMEAPI_BASE}/episodes/${animeId}`, { signal: AbortSignal.timeout(6000) });
-      if (!er.ok) return null;
-      const epData = await er.json();
-      const episodes: any[] = epData?.episodes || [];
-
-      const map: Record<string, string> = {};
-      for (const ep of episodes) {
-        const num = String(ep.number ?? ep.episodeId?.split('?ep=')[1] ?? '');
-        const id  = ep.episodeId || ep.id || '';
-        if (num && id) map[num] = id;
-      }
-      if (!_animeApiCache[malId]) _animeApiCache[malId] = {};
-      Object.assign(_animeApiCache[malId], map);
-      episodeId = map[epNum] || null;
-    }
-    if (!episodeId) return null;
-
-    // Step 3: get streaming sources for this episode
-    const streamR = await fetch(
-      `${ANIMEAPI_BASE}/sources?animeEpisodeId=${encodeURIComponent(episodeId)}`,
-      { signal: AbortSignal.timeout(8000) }
-    );
-    if (!streamR.ok) return null;
-    const streamData = await streamR.json();
-
-    // Prefer iframe embed URL from the response
-    const embedUrl: string =
-      streamData?.embedUrl ||
-      streamData?.embed_url ||
-      streamData?.iframe ||
-      // Fall back: construct MegaPlay URL via AniList id if available
-      (match?.al_id ? `https://megaplay.buzz/stream/ani/${match.al_id}/${epNum}/sub` : '') ||
-      '';
-
-    if (!embedUrl) return null;
-
-    const result: AnimeApiResult = { embedUrl };
-    if (!_animeApiEmbedCache[malId]) _animeApiEmbedCache[malId] = {};
-    _animeApiEmbedCache[malId][epNum] = result;
-    return result;
-  } catch (e) {
-    console.warn('[KamiStream] AnimeAPI resolver failed:', e);
-    return null;
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// 3. Gogoanime via Consumet  — multiple public instances, health-checked
-//    Returns embed URL + Kwik download links.
-// ─────────────────────────────────────────────────────────────────────────────
-const CONSUMET_HOSTS: string[] = [
-  ...(import.meta.env.VITE_CONSUMET_HOST ? [import.meta.env.VITE_CONSUMET_HOST as string] : []),
-  'https://consumet-api.onrender.com',
-  'https://api-consumet.vercel.app',
-  'https://consumet.animekai.net',
-  'https://consumet.pages.dev',
-  'https://api.consumet.org',
-];
-
-const _hostHealthCache: Record<string, { ok: boolean; ts: number }> = {};
-const HOST_TTL_MS = 5 * 60 * 1000;
-
-async function isHostAlive(host: string): Promise<boolean> {
-  const cached = _hostHealthCache[host];
-  if (cached && Date.now() - cached.ts < HOST_TTL_MS) return cached.ok;
-  try {
-    const res = await fetch(`${host}/anime/gogoanime/one-piece`, { signal: AbortSignal.timeout(4000) });
-    _hostHealthCache[host] = { ok: res.ok, ts: Date.now() };
-    return res.ok;
-  } catch {
-    _hostHealthCache[host] = { ok: false, ts: Date.now() };
-    return false;
-  }
-}
-
-async function pickConsometHost(): Promise<string | null> {
-  const results = await Promise.allSettled(
-    CONSUMET_HOSTS.map(async (host) => {
-      const alive = await isHostAlive(host);
-      if (!alive) throw new Error('dead');
-      return host;
-    })
-  );
-  for (const r of results) {
-    if (r.status === 'fulfilled') return r.value;
-  }
-  return null;
-}
-
-interface DownloadLink { quality: string; url: string; isM3u8: boolean; }
-interface GogoResult   { embedUrl: string; downloads: DownloadLink[]; }
-const _gogoCache: Record<string, Record<string, GogoResult | null>> = {};
-
-async function resolveGogoEmbed(
-  malId: string, epNum: string, title: string, lang: 'sub' | 'dub'
-): Promise<GogoResult | null> {
-  const cacheKey = `${lang}_${epNum}`;
-  if (_gogoCache[malId]?.[cacheKey] !== undefined) return _gogoCache[malId][cacheKey];
-
-  const ssKey = `gogo_${malId}_${lang}_${epNum}`;
-  try {
-    const saved = sessionStorage.getItem(ssKey);
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      if (!_gogoCache[malId]) _gogoCache[malId] = {};
-      _gogoCache[malId][cacheKey] = parsed;
-      return parsed;
-    }
-  } catch {}
-
-  const host = await pickConsometHost();
-  if (!host) return null;
-
-  try {
-    const isDub = lang === 'dub';
-    const suffix = isDub ? '-dub' : '';
-    const q = encodeURIComponent(title.trim());
-
-    const sr = await fetch(`${host}/anime/gogoanime/${q}`, { signal: AbortSignal.timeout(6000) });
-    if (!sr.ok) return null;
-    const searchData = await sr.json();
-    const results: any[] = searchData?.results || [];
-    if (!results.length) return null;
-
-    const clean = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
-    const cleanTitle = clean(title);
-    const match =
-      results.find((r: any) => clean(r.id || '').endsWith(suffix) && clean(r.title || '') === cleanTitle) ||
-      results.find((r: any) => clean(r.id || '').endsWith(suffix)) ||
-      results.find((r: any) => clean(r.title || '') === cleanTitle) ||
-      results[0];
-
-    if (!match?.id) return null;
-
-    const epId = `${match.id}-episode-${epNum}`;
-    const streamR = await fetch(`${host}/anime/gogoanime/watch/${epId}`, { signal: AbortSignal.timeout(8000) });
-    if (!streamR.ok) return null;
-    const streamData = await streamR.json();
-
-    const embedUrl: string = streamData?.headers?.Referer || streamData?.sources?.[0]?.url || '';
-    const downloads: DownloadLink[] = (streamData?.download || streamData?.sources || [])
-      .filter((s: any) => !s.isM3u8)
-      .map((s: any) => ({ quality: s.quality || 'Download', url: s.url, isM3u8: false }));
-
-    const result: GogoResult = { embedUrl, downloads };
-    if (!_gogoCache[malId]) _gogoCache[malId] = {};
-    _gogoCache[malId][cacheKey] = result;
-    try { sessionStorage.setItem(ssKey, JSON.stringify(result)); } catch {}
-    return result;
-  } catch (e) {
-    console.warn('[KamiStream] Gogo resolver failed:', e);
-    return null;
-  }
-}
-
 const MP_BASE = 'https://megaplay.buzz';
 
 function megaplayMal(malId: string, ep: string, lang: 'sub' | 'dub') {
@@ -343,31 +140,6 @@ function megaplayAni(alId: string, ep: string, lang: 'sub' | 'dub') {
 }
 function megaplayS2(embedId: string, lang: 'sub' | 'dub') {
   return `${MP_BASE}/stream/s-2/${embedId}/${lang}`;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// DropFile Embed  — dropfile.cc
-// Supports MAL ID, AniList ID, IMDB, TMDB. JSON API + iframe.
-// No API calls needed — URL construction only.
-// ─────────────────────────────────────────────────────────────────────────────
-function dropfileUrl(malId: string, ep: string, lang: 'sub' | 'dub') {
-  // MAL ID path: /anime/mal/{mal_id}/{ep}/{lang}
-  const l = lang === 'dub' ? 'dub' : 'sub';
-  return `https://dropfile.cc/anime/mal/${malId}/${ep}/${l}`;
-}
-function dropfileAniUrl(alId: string, ep: string, lang: 'sub' | 'dub') {
-  // AniList ID path: /anime/al/{al_id}/{ep}/{lang}
-  const l = lang === 'dub' ? 'dub' : 'sub';
-  return `https://dropfile.cc/anime/al/${alId}/${ep}/${l}`;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// VidNest  — AniList ID iframe embed
-// Includes AnimePahe library as a source. No API calls needed.
-// ─────────────────────────────────────────────────────────────────────────────
-function vidnestUrl(alId: string, ep: string, lang: 'sub' | 'dub') {
-  // /embed/al/{al_id}/{ep}?audio={sub|dub}
-  return `https://vidnest.me/embed/al/${alId}/${ep}?audio=${lang}`;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -413,10 +185,6 @@ export default function Watch() {
   // IDs
   const [alId,           setAlId]           = useState<string | null>(null);
   const [anikotoEmbedId, setAnikotoEmbedId] = useState<string | null>(null);
-  const [gogoResult,     setGogoResult]     = useState<GogoResult | null>(null);
-  const [animeApiResult, setPaheResult]     = useState<{ embedUrl: string } | null>(null);
-  // aliased as paheResult in JSX below for minimal diff
-  const paheResult = animeApiResult;
   const [showDownloads,  setShowDownloads]  = useState(false);
 
   // Playback prefs
@@ -497,31 +265,8 @@ export default function Watch() {
       servers.push({ id: 'mp-ani', name: 'Otaku', url: megaplayAni(alId, epId, lang) });
     }
 
-    // Gogoanime via Consumet (appears when resolved)
-    if (gogoResult?.embedUrl) {
-      servers.push({ id: 'gogo', name: 'Sakura', url: gogoResult.embedUrl });
-    }
-
-    // AnimeAPI (Aniwatch scraper) — adds a 3rd server option
-    if (paheResult?.embedUrl) {
-      servers.push({ id: 'animeapi', name: 'Aniwatch', url: paheResult.embedUrl });
-    }
-
-    // DropFile — MAL ID path (always available, no resolution needed)
-    servers.push({ id: 'dropfile-mal', name: 'DropFile', url: dropfileUrl(malId, epId, lang) });
-
-    // DropFile — AniList ID path (richer source pool, available when alId resolved)
-    if (alId) {
-      servers.push({ id: 'dropfile-ani', name: 'DropFile+', url: dropfileAniUrl(alId, epId, lang) });
-    }
-
-    // VidNest — AniList ID required (includes AnimePahe library)
-    if (alId) {
-      servers.push({ id: 'vidnest', name: 'VidNest', url: vidnestUrl(alId, epId, lang) });
-    }
-
     return servers;
-  }, [adminSources, anikotoEmbedId, alId, malId, epId, lang, gogoResult, paheResult]);
+  }, [adminSources, anikotoEmbedId, alId, malId, epId, lang]);
 
   const serverList = buildServerList();
 
@@ -566,8 +311,6 @@ export default function Watch() {
     setPlayerError(false);
     setAdminSources([]);
     setActiveSource('');
-    setGogoResult(null);
-    setPaheResult(null);
     setShowDownloads(false);
     setAlId(null);
     setAnikotoEmbedId(null);
@@ -601,13 +344,7 @@ export default function Watch() {
       resolveAnilistId(malId),
       fetchAdminSources(malId, epId),
       resolveAnikotoEmbedId(malId, epId, titleForResolvers),
-      titleForResolvers
-        ? resolveGogoEmbed(malId, epId, titleForResolvers, initialLangTyped)
-        : Promise.resolve(null),
-      titleForResolvers
-        ? resolveAnimeApiEmbed(malId, epId, titleForResolvers)
-        : Promise.resolve(null),
-    ]).then(([al, adminResult, embedId, gogo, animeApi]) => {
+    ]).then(([al, adminResult, embedId]) => {
       // AniList id
       if (al) setAlId(al);
 
@@ -625,12 +362,6 @@ export default function Watch() {
 
       // Anikoto embed id
       if (embedId) setAnikotoEmbedId(embedId);
-
-      // Gogoanime/Consumet — adds Sakura server + download links
-      if (gogo) setGogoResult(gogo);
-
-      // AnimeAPI (Aniwatch) — adds Aniwatch server
-      if (animeApi) setPaheResult(animeApi as any);
     });
 
     return () => { if (elapsedTimer.current) clearInterval(elapsedTimer.current); };
@@ -683,12 +414,6 @@ export default function Watch() {
       setActiveSource(anikotoUrl || megaplayS2(anikotoEmbedId, currentLang));
     } else if (selectedServerId === 'mp-ani' && alId) {
       setActiveSource(megaplayAni(alId, epId, currentLang));
-    } else if (selectedServerId === 'dropfile-mal') {
-      setActiveSource(dropfileUrl(malId, epId, currentLang));
-    } else if (selectedServerId === 'dropfile-ani' && alId) {
-      setActiveSource(dropfileAniUrl(alId, epId, currentLang));
-    } else if (selectedServerId === 'vidnest' && alId) {
-      setActiveSource(vidnestUrl(alId, epId, currentLang));
     } else {
       setActiveSource(megaplayMal(malId, epId, currentLang));
       setSelectedServerId('mp-mal');
@@ -833,10 +558,7 @@ export default function Watch() {
                     {/* Source status hints */}
                     <div className="mt-2 text-[10px] text-[var(--text3)] font-mono text-center space-y-0.5">
                       <div>{anikotoEmbedId ? '✓ OniChan S-2 resolved' : '⏳ OniChan S-2 resolving…'}</div>
-                      <div>{alId ? '✓ AniList ID resolved — DropFile+ & VidNest ready' : '⏳ AniList ID resolving…'}</div>
-                      <div>{gogoResult ? '✓ Sakura (Consumet) resolved' : '⏳ Sakura resolving… (may be unavailable)'}</div>
-                      <div>{paheResult ? '✓ Aniwatch resolved' : '⏳ Aniwatch resolving…'}</div>
-                      <div className="text-[var(--green)]">✓ DropFile always available</div>
+                      <div>{alId ? '✓ AniList ID resolved — Otaku ready' : '⏳ AniList ID resolving…'}</div>
                       {adminSources.length > 0 && (
                         <div className="text-[var(--green)]">✓ {adminSources.length} admin source{adminSources.length > 1 ? 's' : ''} available</div>
                       )}
@@ -945,9 +667,7 @@ export default function Watch() {
           {/* ── Download Panel ── */}
           {(() => {
             const adminDl = adminSources.filter((s: any) => s.download_url);
-            const gogoDl  = gogoResult?.downloads || [];
-            const paheDl: any[]  = []; // AnimeAPI embed-only, no direct downloads
-            const hasAny  = adminDl.length > 0 || gogoDl.length > 0;
+            const hasAny  = adminDl.length > 0;
             if (!hasAny) return null;
             return (
               <div className="mt-4">
@@ -981,47 +701,6 @@ export default function Watch() {
                           <span className="text-[10px] font-bold text-[var(--pink)] shrink-0">↓ Download</span>
                         </a>
                       ))}
-                      {/* Gogoanime/Kwik download sources */}
-                      {gogoDl.map((dl: DownloadLink, i: number) => (
-                        <a key={i} href={dl.url} target="_blank" rel="noopener noreferrer"
-                          className="flex items-center gap-3 px-3 py-2.5 bg-[var(--bg3)] hover:bg-[var(--blue)]/10 border border-transparent hover:border-[var(--blue)]/30 rounded-xl transition-all group">
-                          <div className="w-8 h-8 bg-[var(--blue)]/15 rounded-lg flex items-center justify-center shrink-0 group-hover:bg-[var(--blue)]/25 transition-colors">
-                            <Download className="w-3.5 h-3.5 text-[var(--blue)]" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="text-[12px] font-bold text-white capitalize">
-                              {dl.quality === 'Download Page' ? 'Download Page' : `${dl.quality}`}
-                            </div>
-                            <div className="text-[10px] text-[var(--text3)]">Sakura · {lang.toUpperCase()}</div>
-                          </div>
-                          <span className="text-[10px] font-bold text-[var(--blue)] shrink-0">
-                            {dl.quality === 'Download Page' ? '↗ Open' : '↓ Download'}
-                          </span>
-                        </a>
-                      ))}
-                      {/* AnimePahe / Kwik download sources */}
-                      {paheDl.length > 0 && (
-                        <>
-                          <div className="px-1 pt-2 pb-1">
-                            <span className="text-[9px] font-black text-[var(--purple)] uppercase tracking-wider">AnimePahe</span>
-                          </div>
-                          {paheDl.map((dl: any, i: number) => (
-                            <a key={i} href={dl.url} target="_blank" rel="noopener noreferrer"
-                              className="flex items-center gap-3 px-3 py-2.5 bg-[var(--bg3)] hover:bg-[var(--purple)]/10 border border-transparent hover:border-[var(--purple)]/30 rounded-xl transition-all group">
-                              <div className="w-8 h-8 bg-[var(--purple)]/15 rounded-lg flex items-center justify-center shrink-0 group-hover:bg-[var(--purple)]/25 transition-colors">
-                                <Download className="w-3.5 h-3.5 text-[var(--purple)]" />
-                              </div>
-                              <div className="flex-1 min-w-0">
-                                <div className="text-[12px] font-bold text-white">{dl.quality}</div>
-                                <div className="text-[10px] text-[var(--text3)]">
-                                  AnimePahe · {dl.audio === 'eng' ? 'DUB' : 'SUB'}
-                                </div>
-                              </div>
-                              <span className="text-[10px] font-bold text-[var(--purple)] shrink-0">↓ Download</span>
-                            </a>
-                          ))}
-                        </>
-                      )}
                       <p className="text-[9px] text-[var(--text3)] px-1 pt-1">
                         Links open in new tab. Use a download manager for best results.
                       </p>

@@ -40,6 +40,71 @@ async function resolveAnilistId(malId: string): Promise<string | null> {
 
 function mpMal(malId: string, ep: string, lang: 'sub'|'dub') { return `${MP_BASE}/stream/mal/${malId}/${ep}/${lang}`; }
 function mpAni(alId: string, ep: string, lang: 'sub'|'dub')  { return `${MP_BASE}/stream/ani/${alId}/${ep}/${lang}`; }
+function mpS2(embedId: string, lang: 'sub'|'dub') { return `${MP_BASE}/stream/s-2/${embedId}/${lang}`; }
+
+// ── Anikoto (OniChan S-2) resolver — same approach as watch.tsx ─────────
+// Routes through /api/anikoto (server-side proxy) instead of calling
+// anikotoapi.site directly from the browser. Cached in sessionStorage so
+// we only resolve once per anime per tab.
+const ANIKOTO_BASE = '/api/anikoto';
+const _anikotoCache: Record<string, Record<string, { sub: string; dub: string; embedId: string }>> = {};
+
+async function resolveAnikotoEmbedId(malId: string, epNum: string): Promise<string | null> {
+  const memHit = _anikotoCache[malId]?.[epNum];
+  if (memHit) return memHit.embedId || null;
+
+  const ssKey = `anikoto_v2_${malId}`;
+  try {
+    const saved = sessionStorage.getItem(ssKey);
+    if (saved) {
+      const map = JSON.parse(saved) as Record<string, { sub: string; dub: string; embedId: string }>;
+      _anikotoCache[malId] = map;
+      if (map[epNum]) return map[epNum].embedId || null;
+    }
+  } catch {}
+
+  try {
+    let anikotoSeriesId: string | null = null;
+    for (let page = 1; page <= 8 && !anikotoSeriesId; page++) {
+      const r = await fetch(
+        `${ANIKOTO_BASE}?action=recent&page=${page}&per_page=25`,
+        { signal: AbortSignal.timeout(6000) }
+      );
+      if (!r.ok) break;
+      const json = await r.json();
+      const list: any[] = json?.data || json?.results || [];
+      if (!list.length) break;
+      const match = list.find((a: any) => String(a.mal_id) === malId || String(a.ani_id) === malId);
+      if (match) { anikotoSeriesId = String(match.id ?? match.s_id ?? ''); break; }
+      if (!json?.pagination?.has_next_page) break;
+    }
+    if (!anikotoSeriesId) return null;
+
+    const sr = await fetch(`${ANIKOTO_BASE}?action=series&id=${encodeURIComponent(anikotoSeriesId)}`, { signal: AbortSignal.timeout(6000) });
+    if (!sr.ok) return null;
+    const series = await sr.json();
+    const episodes: any[] = series?.data?.episodes || series?.episodes || [];
+
+    const map: Record<string, { sub: string; dub: string; embedId: string }> = {};
+    for (const ep of episodes) {
+      const num     = String(ep.number ?? ep.episode_number ?? '');
+      const embedId = String(ep.episode_embed_id ?? '');
+      const sub     = ep.embed_url?.sub || (embedId ? `${MP_BASE}/stream/s-2/${embedId}/sub` : '');
+      const dub     = ep.embed_url?.dub || (embedId ? `${MP_BASE}/stream/s-2/${embedId}/dub` : '');
+      if (num && (sub || dub)) map[num] = { sub, dub, embedId };
+    }
+
+    _anikotoCache[malId] = map;
+    try { sessionStorage.setItem(ssKey, JSON.stringify(map)); } catch {}
+    return map[epNum]?.embedId || null;
+  } catch { return null; }
+}
+
+function getAnikotoUrl(malId: string, epNum: string, lang: 'sub' | 'dub'): string | null {
+  const ep = _anikotoCache[malId]?.[epNum];
+  if (!ep) return null;
+  return lang === 'dub' ? (ep.dub || ep.sub) : (ep.sub || ep.dub);
+}
 
 interface ServerEntry { id: string; name: string; url: string; badge?: string; }
 
@@ -82,6 +147,7 @@ export default function AnimeDetail() {
   const [activeEp,      setActiveEp]      = useState<string | null>(null);  // ep number or null = not playing
   const [dub,           setDub]           = useState(false);
   const [alId,          setAlId]          = useState<string | null>(null);
+  const [anikotoEmbedId, setAnikotoEmbedId] = useState<string | null>(null);
   const [selectedSrv,   setSelectedSrv]   = useState('mp-mal');
   const [activeSource,  setActiveSource]  = useState('');
   const [loadingPlayer, setLoadingPlayer] = useState(false);
@@ -140,6 +206,7 @@ export default function AnimeDetail() {
     setLoadingPlayer(true);
     setPlayerError(false);
     setSelectedSrv('mp-mal');
+    setAnikotoEmbedId(null);
     const lang = dub ? 'dub' : 'sub';
 
     // Start with MAL immediately
@@ -150,6 +217,9 @@ export default function AnimeDetail() {
     if (!alId) {
       resolveAnilistId(id).then(al => { if (al) setAlId(al); });
     }
+
+    // Resolve Anikoto (OniChan S-2) in background
+    resolveAnikotoEmbedId(id, epNum).then(embedId => { if (embedId) setAnikotoEmbedId(embedId); });
 
     // Scroll player into view
     setTimeout(() => { playerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 100);
@@ -177,12 +247,16 @@ export default function AnimeDetail() {
   const buildServers = useCallback((): ServerEntry[] => {
     if (!activeEp) return [];
     const lang = dub ? 'dub' : 'sub';
-    const servers: ServerEntry[] = [
-      { id: 'mp-mal', name: 'OniChan', url: mpMal(id, activeEp, lang) },
-    ];
+    const servers: ServerEntry[] = [];
+
+    if (anikotoEmbedId) {
+      const anikotoUrl = getAnikotoUrl(id, activeEp, lang);
+      servers.push({ id: 'mp-s2', name: 'OniChan', url: anikotoUrl || mpS2(anikotoEmbedId, lang) });
+    }
+    servers.push({ id: 'mp-mal', name: anikotoEmbedId ? 'Otaku' : 'OniChan', url: mpMal(id, activeEp, lang) });
     if (alId) servers.push({ id: 'mp-ani', name: 'Otaku', url: mpAni(alId, activeEp, lang) });
     return servers;
-  }, [activeEp, dub, id, alId]);
+  }, [activeEp, dub, id, alId, anikotoEmbedId]);
 
   const serverList = buildServers();
 
@@ -190,8 +264,14 @@ export default function AnimeDetail() {
   useEffect(() => {
     if (!activeEp) return;
     const lang = dub ? 'dub' : 'sub';
-    if (selectedSrv === 'mp-ani' && alId) setActiveSource(mpAni(alId, activeEp, lang));
-    else setActiveSource(mpMal(id, activeEp, lang));
+    if (selectedSrv === 'mp-s2' && anikotoEmbedId) {
+      const anikotoUrl = getAnikotoUrl(id, activeEp, lang);
+      setActiveSource(anikotoUrl || mpS2(anikotoEmbedId, lang));
+    } else if (selectedSrv === 'mp-ani' && alId) {
+      setActiveSource(mpAni(alId, activeEp, lang));
+    } else {
+      setActiveSource(mpMal(id, activeEp, lang));
+    }
   }, [dub]);
 
   useEffect(() => () => { if (errorTimerRef.current) clearTimeout(errorTimerRef.current); }, []);
