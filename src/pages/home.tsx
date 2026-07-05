@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { useTrendingAnime, useTopRatedAnime, useSeasonalAnime } from '@/lib/jikan';
+import { useTrendingAnime, useTopRatedAnime, useSeasonalAnime, fetchJikan } from '@/lib/jikan';
 import { AnimeCard } from '@/components/AnimeCard';
 import { AnimeListCard } from '@/components/AnimeListCard';
 import { ContinueWatching } from '@/components/ContinueWatching';
@@ -38,11 +38,7 @@ export default function Home() {
   };
   const { data: topAnimeData, isLoading: topAnimeLoading } = useQuery({
     queryKey: ['home', 'top-anime', topPeriod],
-    queryFn: async () => {
-      const res = await fetch(`https://api.jikan.moe/v4/top/anime?${topPeriodFilter[topPeriod]}&limit=10&sfw=true`);
-      if (!res.ok) throw new Error('Failed');
-      return res.json();
-    },
+    queryFn: () => fetchJikan(`/top/anime?${topPeriodFilter[topPeriod]}&limit=10&sfw=true`),
     staleTime: 30 * 60 * 1000, // low-priority — cache for 30min
   });
 
@@ -128,42 +124,34 @@ export default function Home() {
   }
 
   // New Release (currently airing, sorted by members/popularity)
-  // Staggered 600ms so it doesn't race with trending/topRated/seasonal on mount
-  const [newReleaseEnabled, setNewReleaseEnabled] = React.useState(false);
-  useEffect(() => { const t = setTimeout(() => setNewReleaseEnabled(true), 600); return () => clearTimeout(t); }, []);
+  // Routed through the shared Jikan queue (jikan.ts) — no manual staggering
+  // needed since the queue serialises every request app-wide.
   const { data: newRelease } = useQuery({
     queryKey: ['home', 'new-release'],
     queryFn: async () => {
-      const res = await fetch('https://api.jikan.moe/v4/anime?status=airing&order_by=members&sort=desc&limit=5&sfw=true');
-      const j = await res.json(); return j.data || [];
+      const j = await fetchJikan<any>('/anime?status=airing&order_by=members&sort=desc&limit=5&sfw=true');
+      return j.data || [];
     },
-    enabled: newReleaseEnabled,
     staleTime: 15 * 60 * 1000,
   });
 
-  // Just Completed — staggered 1200ms
-  const [justCompletedEnabled, setJustCompletedEnabled] = React.useState(false);
-  useEffect(() => { const t = setTimeout(() => setJustCompletedEnabled(true), 1200); return () => clearTimeout(t); }, []);
+  // Just Completed
   const { data: justCompleted } = useQuery({
     queryKey: ['home', 'just-completed'],
     queryFn: async () => {
-      const res = await fetch('https://api.jikan.moe/v4/anime?status=complete&order_by=end_date&sort=desc&limit=5&sfw=true');
-      const j = await res.json(); return j.data || [];
+      const j = await fetchJikan<any>('/anime?status=complete&order_by=end_date&sort=desc&limit=5&sfw=true');
+      return j.data || [];
     },
-    enabled: justCompletedEnabled,
     staleTime: 15 * 60 * 1000,
   });
 
-  // Upcoming anime — staggered 1800ms
-  const [upcomingEnabled, setUpcomingEnabled] = React.useState(false);
-  useEffect(() => { const t = setTimeout(() => setUpcomingEnabled(true), 1800); return () => clearTimeout(t); }, []);
+  // Upcoming anime
   const { data: upcoming } = useQuery({
     queryKey: ['home', 'upcoming'],
     queryFn: async () => {
-      const res = await fetch('https://api.jikan.moe/v4/anime?status=upcoming&order_by=members&sort=desc&limit=12&sfw=true');
-      const j = await res.json(); return j.data || [];
+      const j = await fetchJikan<any>('/anime?status=upcoming&order_by=members&sort=desc&limit=12&sfw=true');
+      return j.data || [];
     },
-    enabled: upcomingEnabled,
     staleTime: 30 * 60 * 1000,
   });
 
