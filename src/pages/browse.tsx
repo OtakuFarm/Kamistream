@@ -6,6 +6,7 @@ import { useInfiniteQuery } from '@tanstack/react-query';
 import { SlidersHorizontal, X, Search, Loader2 } from 'lucide-react';
 import { useSEO } from '@/hooks/useSEO';
 import { useSearch } from 'wouter';
+import { fetchJikan } from '@/lib/jikan';
 
 // ── AniList fallback for browse ───────────────────────────────────────
 import {
@@ -15,50 +16,14 @@ import {
   JIKAN_TYPE_TO_ANILIST,
   JIKAN_STATUS_TO_ANILIST,
 } from '@/lib/anilist';
-// Jikan allows ~3 req/sec. This queue spaces calls 350ms apart so the
-// auto-fetch burst on the Top 1000 tab never triggers 429s.
-const JIKAN_BASE = 'https://api.jikan.moe/v4';
-const MIN_GAP_MS = 350;
-let lastReqTime = 0;
-let browseQueue: Array<() => void> = [];
-let browseQueueRunning = false;
-
-function runBrowseQueue() {
-  if (browseQueueRunning || browseQueue.length === 0) return;
-  browseQueueRunning = true;
-  const next = browseQueue.shift()!;
-  const wait = Math.max(0, lastReqTime + MIN_GAP_MS - Date.now());
-  setTimeout(() => {
-    lastReqTime = Date.now();
-    next();
-    browseQueueRunning = false;
-    runBrowseQueue();
-  }, wait);
-}
-
-function jikanFetch(url: string): Promise<any> {
-  return new Promise((resolve, reject) => {
-    browseQueue.push(async () => {
-      try {
-        const res = await fetch(url);
-        if (res.status === 429) {
-          // One automatic retry after back-off
-          await new Promise(r => setTimeout(r, 1500));
-          const retry = await fetch(url);
-          if (!retry.ok) return reject(new Error(`Jikan 429 retry failed: ${retry.status}`));
-          return resolve(retry.json());
-        }
-        if (!res.ok) return reject(new Error(`Jikan error: ${res.status}`));
-        resolve(res.json());
-      } catch (e) { reject(e); }
-    });
-    runBrowseQueue();
-  });
-}
 
 // ── Jikan top anime (infinite) ────────────────────────────────────────
+// Routed through the shared rate-limit queue in lib/jikan.ts instead of a
+// separate local queue — this page's requests now correctly serialize
+// alongside the Topbar's trending call and any other Jikan fetch in flight,
+// rather than racing them.
 async function fetchTopPage(page: number) {
-  return jikanFetch(`${JIKAN_BASE}/top/anime?limit=25&page=${page}&sfw=true`);
+  return fetchJikan(`/top/anime?limit=25&page=${page}&sfw=true`);
 }
 
 async function fetchJikanFiltered(f: Filters, page = 1) {
@@ -73,7 +38,7 @@ async function fetchJikanFiltered(f: Filters, page = 1) {
   params.set('limit', '25');
   params.set('page',  String(page));
   params.set('sfw',   'true');
-  return jikanFetch(`${JIKAN_BASE}/anime?${params}`);
+  return fetchJikan(`/anime?${params}`);
 }
 
 // ── Types & constants ─────────────────────────────────────────────────
