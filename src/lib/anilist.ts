@@ -153,8 +153,14 @@ async function fetchALSeasonal(page = 1) {
 }
 
 async function fetchALSearch(q: string, page = 1, filters: Record<string, any> = {}) {
-  const vars: Record<string, any> = { p: page, q: q || undefined };
-  const filterClauses: string[] = ['type:ANIME', 'isAdult:false', 'sort:POPULARITY_DESC'];
+  const vars: Record<string, any> = { p: page };
+  if (q) vars.q = q;
+  // Sort is tracked separately from filterClauses so pushing a filter can
+  // never accidentally overwrite it (or vice versa) — previously this used
+  // filterClauses[filterClauses.length - 1] = 'sort:...', which clobbered
+  // whichever filter clause happened to be pushed last.
+  const filterClauses: string[] = ['type:ANIME', 'isAdult:false'];
+  let sortClause = 'sort:POPULARITY_DESC';
 
   if (q) filterClauses.push('search:$q');
   if (filters.genre) { filterClauses.push('genre:$genre'); vars.genre = filters.genre; }
@@ -170,8 +176,9 @@ async function fetchALSearch(q: string, page = 1, filters: Record<string, any> =
     title:      'TITLE_ROMAJI',
   };
   if (filters.orderBy && sortMap[filters.orderBy]) {
-    filterClauses[filterClauses.length - 1] = `sort:${sortMap[filters.orderBy]}`;
+    sortClause = `sort:${sortMap[filters.orderBy]}`;
   }
+  filterClauses.push(sortClause);
 
   const varDefs = Object.keys(vars).map(k => {
     if (k === 'p') return '$p:Int';
