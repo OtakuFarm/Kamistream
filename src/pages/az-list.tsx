@@ -18,14 +18,40 @@ const TYPE_OPTIONS = ['All', 'TV', 'Movie', 'OVA', 'ONA', 'Special'];
 
 import { jikanFetch } from '@/lib/jikanFetch';
 
+// Jikan's API returns ZERO results when `order_by`/`sort` are combined with the
+// `letter` filter (see jikan-me/jikan-rest#211 — order_by and search-style
+// filters conflict). So when a letter is active, we omit order_by/sort from
+// the request entirely and sort the page client-side instead.
+function clientSort(list: any[], sort: string) {
+  const sorted = [...list];
+  if (sort === 'title_asc')       sorted.sort((a, b) => (a.title || '').localeCompare(b.title || ''));
+  else if (sort === 'title_desc') sorted.sort((a, b) => (b.title || '').localeCompare(a.title || ''));
+  else if (sort === 'score')      sorted.sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
+  else if (sort === 'members')    sorted.sort((a, b) => (b.members ?? 0) - (a.members ?? 0));
+  return sorted;
+}
+
 async function fetchByLetter(letter: string, sort: string, type: string, page: number) {
-  let endpoint = `/anime?page=${page}&limit=24&sfw=true&order_by=title&sort=asc`;
-  if (letter !== '#') endpoint += `&letter=${encodeURIComponent(letter)}`;
+  let endpoint = `/anime?page=${page}&limit=24&sfw=true`;
+
+  if (letter !== '#') {
+    // Letter filter present: no order_by/sort — sort client-side after fetch.
+    endpoint += `&letter=${encodeURIComponent(letter)}`;
+  } else {
+    // No letter filter: order_by/sort works fine on its own.
+    if (sort === 'score')        endpoint += `&order_by=score&sort=desc`;
+    else if (sort === 'members') endpoint += `&order_by=members&sort=desc`;
+    else if (sort === 'title_desc') endpoint += `&order_by=title&sort=desc`;
+    else                          endpoint += `&order_by=title&sort=asc`;
+  }
+
   if (type !== 'All') endpoint += `&type=${type.toLowerCase()}`;
-  if (sort === 'score')        endpoint = endpoint.replace('order_by=title&sort=asc', 'order_by=score&sort=desc');
-  else if (sort === 'members') endpoint = endpoint.replace('order_by=title&sort=asc', 'order_by=members&sort=desc');
-  else if (sort === 'title_desc') endpoint = endpoint.replace('sort=asc', 'sort=desc');
-  return jikanFetch(endpoint);
+
+  const result = await jikanFetch(endpoint);
+  if (letter !== '#' && result?.data) {
+    return { ...result, data: clientSort(result.data, sort) };
+  }
+  return result;
 }
 
 export default function AZList() {
