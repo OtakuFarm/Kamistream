@@ -1,25 +1,47 @@
 /* ════════════════════════════════════════════════════════════════════════
- * KamiStream — Ads Manager (v10)
+ * KamiStream — Ads Manager (v12 — all zones, no daily cap)
  * ────────────────────────────────────────────────────────────────────────
- * Popunder     zones : 10936622, 10937524  (alternating)
- * In-Page Push zone  : 10937463  →  https://nap5k.com/tag.min.js
+ * Popunder      zones : 11482508, 10944552, 10937465, 10936606 (rotating)
+ * In-Page Push  zones : one per slot — home/player/sidebar/detail
+ * Vignette      zones : 11482510, 11482506, 10937467, 10936591 (rotating)
+ * Push Notifications  : NOT wired here — needs a service worker + browser
+ *                        permission prompt, separate integration
  *
- * Revenue strategy (not aggressive):
- *   · One pop per meaningful user action, with generous cooldowns
+ * Revenue strategy:
+ *   · No daily cap — popunder + vignette fire on every trigger, subject
+ *     only to per-trigger cooldowns (prevents literal double-fire, not a
+ *     revenue limiter)
+ *   · Popunder fires immediately on first pageload each session
+ *   · Vignette is a fully separate trigger/cooldown from popunder — an
+ *     additional revenue moment on episode navigation, not a duplicate
+ *   · Zones rotate within each format for demand-source redundancy
  *   · In-page push reloads on every episode change (passive, non-blocking)
- *   · First-session pop on page load (highest value, fires once per session)
- *   · Card clicks, episode nav, server switch all have independent cooldowns
  *   · T1 users get tighter cooldowns (higher CPM, worth it)
- *   · All triggers respect a global minimum gap (no double-fire)
  * ════════════════════════════════════════════════════════════════════════ */
 (function (global) {
   'use strict';
 
   /* ── Zones ─────────────────────────────────────────────────────── */
+  // All 4 of your OnClick (Popunder) zones, rotating for redundancy —
+  // if one demand source has no fill, the next zone in rotation still
+  // gets a shot instead of showing nothing.
   var POP_URLS = [
-    'https://omg10.com/4/10936622',
-    'https://omg10.com/4/10937524'
+    'https://omg10.com/4/11482508',
+    'https://omg10.com/4/10944552',
+    'https://omg10.com/4/10937465',
+    'https://omg10.com/4/10936606'
   ];
+
+  // All 4 Vignette Banner zones — separate revenue stream from popunder,
+  // its own trigger/cooldown below, also rotating across zones.
+  var VIGNETTE_ZONES = ['11482510', '11482506', '10937467', '10936591'];
+  var VIGNETTE_SRC   = 'https://n6wxm.com/vignette.min.js'; // confirmed for 11482506; verify others match
+  var _vigIndex = 0;
+  function _nextVignetteZone() {
+    var z = VIGNETTE_ZONES[_vigIndex % VIGNETTE_ZONES.length];
+    _vigIndex++;
+    return z;
+  }
   var _popIndex = 0;
   function _nextPopUrl() {
     var url = POP_URLS[_popIndex % POP_URLS.length];
@@ -27,7 +49,14 @@
     return url;
   }
 
-  var INPAGE = { zone: '10937463', src: 'https://nap5k.com/tag.min.js' };
+  // Real In-Page Push zones from your Monetag dashboard, one per slot —
+  // no more shared-zone duplication across home/player/sidebar/detail.
+  var INPAGE = {
+    'home-ad':    { zone: '10937463', src: 'https://nap5k.com/tag.min.js' },
+    'player-ad':  { zone: '10937466', src: 'https://nap5k.com/tag.min.js' },
+    'sidebar-ad': { zone: '11482502', src: 'https://nap5k.com/tag.min.js' },
+    'detail-ad':  { zone: '11482509', src: 'https://nap5k.com/tag.min.js' }
+  };
 
   /* ── Production hosts ───────────────────────────────────────────── */
   var PROD_HOSTS = [
@@ -37,21 +66,24 @@
   ];
 
   /* ── Timing constants ───────────────────────────────────────────── */
-  // Global minimum between any two pops (hard floor — prevents double-fire)
-  var GLOBAL_MIN_MS       = 15 * 1000;   // 15s — never fire twice this fast
+  // Global minimum between any two pops (hard floor — prevents accidental
+  // double-fire from overlapping event handlers, not a monetization limiter)
+  var GLOBAL_MIN_MS       = 5 * 1000;
 
   // Per-trigger cooldowns (T1 / T3)
-  var PAGELOAD_CD_T1      = 0;            // fire immediately on first visit
-  var PAGELOAD_CD_T3      = 0;
+  var CARD_CD_T1          = 3  * 60 * 1000;
+  var CARD_CD_T3          = 4  * 60 * 1000;
 
-  var CARD_CD_T1          = 2  * 60 * 1000;  // 2 min
-  var CARD_CD_T3          = 3  * 60 * 1000;  // 3 min
+  var EP_NAV_CD_T1        = 90 * 1000;
+  var EP_NAV_CD_T3        = 120 * 1000;
 
-  var EP_NAV_CD_T1        = 60 * 1000;        // 60s  — between episodes
-  var EP_NAV_CD_T3        = 90 * 1000;        // 90s
+  var SERVER_CD_T1        = 60 * 1000;
+  var SERVER_CD_T3        = 90 * 1000;
 
-  var SERVER_CD_T1        = 45 * 1000;        // 45s  — server switch
-  var SERVER_CD_T3        = 60 * 1000;        // 60s
+  // Vignette has its own independent cooldown so it lands as a genuinely
+  // separate revenue moment rather than stacking with the popunder
+  var VIGNETTE_CD_T1      = 60 * 1000;
+  var VIGNETTE_CD_T3      = 90 * 1000;
 
   // In-page push
   var INPAGE_EP_GAP_MS    = 45 * 1000;   // min gap between in-page reloads
@@ -126,6 +158,9 @@
 
   /* ── Core popunder ──────────────────────────────────────────────── */
   function _openPop() {
+    // Don't pop into a backgrounded/inactive tab — that's a wasted call,
+    // not revenue, so this check costs you nothing and isn't a "cap".
+    try { if (document.visibilityState && document.visibilityState !== 'visible') return; } catch(e) {}
     try {
       var url = _nextPopUrl();
       var w = window.open(url, '_blank');
@@ -141,16 +176,41 @@
     return (_now() - _s.lastPopTime) >= GLOBAL_MIN_MS;
   }
 
-  /* ── Trigger: page load (once per session) ──────────────────────── */
+  /* ── Trigger: page load (once per session, fires immediately) ────── */
   function _tryPageloadPop() {
     if (_disabled()) return;
     if (_ssGet(SESSION_POP_KEY)) return; // already fired this session
     _ssSet(SESSION_POP_KEY, '1');
-    // Small delay so the page feels loaded before the pop
     setTimeout(function() {
       if (_disabled()) return;
       _openPop();
-    }, 3000);
+    }, 1500);
+  }
+
+  /* ── Vignette Banner ───────────────────────────────────────────────
+   * Self-appending overlay ad — separate demand source from popunder,
+   * its own cooldown so it lands as its own revenue moment. Rotates
+   * across all 4 vignette zones. */
+  function _fireVignette() {
+    if (_disabled()) return;
+    try { if (document.visibilityState && document.visibilityState !== 'visible') return; } catch(e) {}
+    try {
+      var zone = _nextVignetteZone();
+      var s = document.createElement('script');
+      s.dataset.zone = zone;
+      s.src = VIGNETTE_SRC;
+      [document.documentElement, document.body].filter(Boolean).pop().appendChild(s);
+      _s.lastVignette = _now();
+      _log('[KamiAds] Vignette fired, zone:', zone);
+    } catch(e) {}
+  }
+
+  function _tryVignette(trigger) {
+    if (_disabled()) return;
+    if (!_globalReady()) return;
+    var cd = _t1() ? VIGNETTE_CD_T1 : VIGNETTE_CD_T3;
+    if ((_now() - (_s.lastVignette || 0)) < cd) return;
+    _fireVignette();
   }
 
   /* ── Trigger: card click (home / browse / detail) ───────────────── */
@@ -222,6 +282,10 @@
 
     _openPop();
     _log('[KamiAds] Episode click pop, type:', type || 'unknown');
+
+    // Independent second trigger — different demand source, own cooldown,
+    // so this is genuinely additional revenue rather than a duplicate call
+    _tryVignette(type);
   }
 
   /* ── Trigger: episode change → reload in-page push ─────────────── */
@@ -245,11 +309,16 @@
       var el = document.getElementById(containerId);
       if (!el) return;
 
+      var cfg = INPAGE[containerId];
+      if (!cfg || !cfg.zone || /^REPLACE_ME/.test(cfg.zone)) {
+        _log('[KamiAds] No zone configured for slot:', containerId);
+        return;
+      }
       var vt = null;
       var fire = function() {
         try {
           el.innerHTML = '';
-          el.appendChild(_buildScript(INPAGE.zone, INPAGE.src));
+          el.appendChild(_buildScript(cfg.zone, cfg.src));
           _s.inpageContainers[containerId] = true;
         } catch(e) {}
       };
@@ -292,7 +361,7 @@
     _s.armed = true;
 
     _detectGeo();
-    _tryPageloadPop();      // once per session on first load
+    _tryPageloadPop();      // fires once per session, shortly after load
     _applyToCards();        // wrap existing cards
     _watchCards();          // watch for React-rendered cards
     _initInPageSlots();     // load all visible in-page push slots
@@ -307,6 +376,7 @@
       geoTier:       _s.geoTier,
       globalReady:   _globalReady(),
       lastPopAgo:    Math.round((now - _s.lastPopTime) / 1000) + 's',
+      lastVignetteAgo: Math.round((now - (_s.lastVignette || 0)) / 1000) + 's',
       lastCardAgo:   Math.round((now - _s.lastCardPop) / 1000) + 's',
       lastEpNavAgo:  Math.round((now - _s.lastEpNavPop) / 1000) + 's',
       lastServerAgo: Math.round((now - _s.lastServerPop) / 1000) + 's',

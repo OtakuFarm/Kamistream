@@ -1,14 +1,27 @@
 /* ═══════════════════════════════════════════════════
- * KamiStream Service Worker v2
+ * KamiStream Service Worker v3
  * - Caches app shell for instant loads
  * - Does NOT block our own ad domains
  * - Passes through all external API/embed traffic
+ * - Also handles Monetag Push Notifications (zone 11482651)
  * ═══════════════════════════════════════════════════ */
-const CACHE     = 'kamistream-v2';
+
+/* ── Monetag Push Notifications config ────────────────────────────
+ * Merged in rather than replacing this file — a scope can only have
+ * one active sw.js, and overwriting this one would have silently
+ * killed the app-shell caching below. */
+self.options = {
+  "domain": "5gvci.com",
+  "zoneId": 11482651
+};
+self.lary = "";
+importScripts('https://5gvci.com/act/files/service-worker.min.js?r=sw');
+
+const CACHE     = 'kamistream-v3';
 const SHELL     = ['/', '/index.html', '/ads.js', '/manifest.json'];
 
 // Only block third-party embed player ad injections
-// NOT our own Monetag domains (omg10.com, nap5k.com)
+// NOT our own Monetag domains (omg10.com, nap5k.com, n6wxm.com, 5gvci.com)
 const EMBED_AD_BLOCKLIST = [
   'exoclick.com',
   'trafficjunky.com',
@@ -31,9 +44,11 @@ function isEmbedAdRequest(url) {
 function isPassThrough(url) {
   // Always pass through: our ad network, APIs, embeds, fonts
   const pass = [
-    'omg10.com',         // Monetag popunder — OUR ads
-    'nap5k.com',         // Monetag in-page push — OUR ads
-    'ipapi.co',          // geo detection
+    'omg10.com',          // Monetag popunder — OUR ads
+    'nap5k.com',          // Monetag in-page push — OUR ads
+    'n6wxm.com',          // Monetag vignette banner — OUR ads
+    '5gvci.com',          // Monetag push notifications — OUR ads
+    'ipapi.co',           // geo detection
     'jikan.moe',
     'anilist.co',
     'myanimelist.net',
