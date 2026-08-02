@@ -1,21 +1,15 @@
 /* ═══════════════════════════════════════════════════
- * KamiStream Service Worker v3
+ * KamiStream Service Worker v3.1 (HOTFIX — push import removed)
  * - Caches app shell for instant loads
  * - Does NOT block our own ad domains
  * - Passes through all external API/embed traffic
- * - Also handles Monetag Push Notifications (zone 11482651)
+ *
+ * Push Notifications (zone 11482651) are DISABLED here for now.
+ * The Monetag push SDK likely registers its own 'fetch' listener,
+ * which conflicts with ours (two respondWith() calls on the same
+ * request throws and breaks every fetch on the page). Needs to be
+ * tested in isolation before re-adding — see notes at bottom of file.
  * ═══════════════════════════════════════════════════ */
-
-/* ── Monetag Push Notifications config ────────────────────────────
- * Merged in rather than replacing this file — a scope can only have
- * one active sw.js, and overwriting this one would have silently
- * killed the app-shell caching below. */
-self.options = {
-  "domain": "5gvci.com",
-  "zoneId": 11482651
-};
-self.lary = "";
-importScripts('https://5gvci.com/act/files/service-worker.min.js?r=sw');
 
 const CACHE     = 'kamistream-v3';
 const SHELL     = ['/', '/index.html', '/ads.js', '/manifest.json'];
