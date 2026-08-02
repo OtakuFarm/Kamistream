@@ -165,7 +165,7 @@ export function AnimeCard({ anime }: AnimeCardProps) {
   return (
     <div
       ref={cardRef}
-      className={`group relative bg-[var(--card)] rounded-2xl overflow-visible cursor-pointer transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_0_0_1px_var(--border),0_16px_40px_-12px_var(--pink)] select-none ${pressing ? "scale-[0.97]" : ""}`}
+      className={`kami-card group relative bg-[var(--card)] rounded-2xl overflow-visible cursor-pointer transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_0_0_1px_var(--border),0_16px_40px_-12px_var(--pink)] select-none ${pressing ? "scale-[0.97]" : ""}`}
       onClick={onClick}
       onMouseDown={onMouseDown}
       onMouseUp={onMouseUp}

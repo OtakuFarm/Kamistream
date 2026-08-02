@@ -35,7 +35,7 @@ export function ContinueWatching() {
       <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-thin">
         {recent.map((item) => (
           <Link key={item.mal_id} href={`/watch/${item.mal_id}/${item.ep_id}`}>
-            <div className="group shrink-0 w-32 cursor-pointer">
+            <div className="kami-card group shrink-0 w-32 cursor-pointer">
               <div className="relative aspect-[2/3] rounded-xl overflow-hidden bg-[var(--card)] mb-2">
                 {item.image_url ? (
                   <img
