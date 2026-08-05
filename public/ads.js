@@ -1,35 +1,40 @@
 /* ════════════════════════════════════════════════════════════════════════
- * KamiStream — Ads Manager (v12 — all zones, no daily cap)
+ * KamiStream — Ads Manager (v14 — forced 10s click cadence, EXPERIMENTAL)
  * ────────────────────────────────────────────────────────────────────────
- * Popunder      zones : 11482508, 10944552, 10937465, 10936606 (rotating)
+ * Popunder      zones : 11482508, 10944552, 10937465, 10936606
+ *                        AUTO-ATTACH scripts (quge5.com / al5sm.com).
+ *                        We re-inject a fresh script tag on every click,
+ *                        gated by a 10s cooldown, no total cap. This
+ *                        overrides Monetag's own internal firing cadence
+ *                        by force — there's no documented API for this,
+ *                        so behavior on repeated injection is unverified.
+ *                        Watch Monetag's invalid-traffic flags closely
+ *                        after deploying this.
  * In-Page Push  zones : one per slot — home/player/sidebar/detail
- * Vignette      zones : 11482510, 11482506, 10937467, 10936591 (rotating)
- * Push Notifications  : NOT wired here — needs a service worker + browser
- *                        permission prompt, separate integration
- *
- * Revenue strategy:
- *   · No daily cap — popunder + vignette fire on every trigger, subject
- *     only to per-trigger cooldowns (prevents literal double-fire, not a
- *     revenue limiter)
- *   · Popunder fires immediately on first pageload each session
- *   · Vignette is a fully separate trigger/cooldown from popunder — an
- *     additional revenue moment on episode navigation, not a duplicate
- *   · Zones rotate within each format for demand-source redundancy
- *   · In-page push reloads on every episode change (passive, non-blocking)
- *   · T1 users get tighter cooldowns (higher CPM, worth it)
+ * Vignette      zones : 11482510, 11482506, 10937467, 10936591 (rotating),
+ *                        still manually triggered by us on episode nav
+ * Push Notifications  : NOT wired here — see /public/sw.js notes
  * ════════════════════════════════════════════════════════════════════════ */
 (function (global) {
   'use strict';
 
   /* ── Zones ─────────────────────────────────────────────────────── */
-  // All 4 of your OnClick (Popunder) zones, rotating for redundancy —
-  // if one demand source has no fill, the next zone in rotation still
-  // gets a shot instead of showing nothing.
-  var POP_URLS = [
-    'https://omg10.com/4/11482508',
-    'https://omg10.com/4/10944552',
-    'https://omg10.com/4/10937465',
-    'https://omg10.com/4/10936606'
+  // OnClick (Popunder) — AUTO-ATTACH scripts across two companies. Each
+  // one listens for clicks anywhere on the page and fires its own
+  // popunder with its own internal frequency logic. We inject exactly
+  // ONE of these per pageload (rotating), never multiple at once —
+  // running two networks' popunder scripts simultaneously risks a
+  // double-fire on the same click and violates most networks' terms.
+  //
+  // Monetag entries need a `zone` (rendered as data-zone on the tag).
+  // Adsterra's tag is self-contained — the URL already encodes the zone,
+  // so no zone/data-zone attribute is added for those entries.
+  var POP_ZONES = [
+    { network: 'monetag',  zone: '11482508', src: 'https://quge5.com/88/tag.min.js' },
+    { network: 'monetag',  zone: '10944552', src: 'https://al5sm.com/tag.min.js' },
+    { network: 'monetag',  zone: '10937465', src: 'https://quge5.com/88/tag.min.js' },
+    { network: 'monetag',  zone: '10936606', src: 'https://al5sm.com/tag.min.js' },
+    { network: 'adsterra', src: 'https://pl30707075.effectivecpmnetwork.com/0a/5d/1f/0a5d1f029a04ceee852996a15e2a9c3d.js' }
   ];
 
   // All 4 Vignette Banner zones — separate revenue stream from popunder,
@@ -43,11 +48,15 @@
     return z;
   }
   var _popIndex = 0;
-  function _nextPopUrl() {
-    var url = POP_URLS[_popIndex % POP_URLS.length];
-    _popIndex++;
-    return url;
-  }
+
+  // Native Banner (Adsterra) — the script auto-detects its container div
+  // by exact ID and renders into it. One slot for now: anime detail pages.
+  var NATIVE_BANNERS = {
+    'anime-native': {
+      containerId: 'container-246d201d05be7eb163a939228e4f4e1c',
+      src: 'https://pl30707076.effectivecpmnetwork.com/246d201d05be7eb163a939228e4f4e1c/invoke.js'
+    }
+  };
 
   // Real In-Page Push zones from your Monetag dashboard, one per slot —
   // no more shared-zone duplication across home/player/sidebar/detail.
@@ -66,22 +75,8 @@
   ];
 
   /* ── Timing constants ───────────────────────────────────────────── */
-  // Global minimum between any two pops (hard floor — prevents accidental
-  // double-fire from overlapping event handlers, not a monetization limiter)
-  var GLOBAL_MIN_MS       = 5 * 1000;
-
-  // Per-trigger cooldowns (T1 / T3)
-  var CARD_CD_T1          = 3  * 60 * 1000;
-  var CARD_CD_T3          = 4  * 60 * 1000;
-
-  var EP_NAV_CD_T1        = 90 * 1000;
-  var EP_NAV_CD_T3        = 120 * 1000;
-
-  var SERVER_CD_T1        = 60 * 1000;
-  var SERVER_CD_T3        = 90 * 1000;
-
   // Vignette has its own independent cooldown so it lands as a genuinely
-  // separate revenue moment rather than stacking with the popunder
+  // separate revenue moment from the auto-attach popunder
   var VIGNETTE_CD_T1      = 60 * 1000;
   var VIGNETTE_CD_T3      = 90 * 1000;
 
@@ -91,26 +86,10 @@
   var INPAGE_VIS_RATIO    = 0.2;
   var INPAGE_VIS_MS       = 1500;
 
-  // Session pop: fire once per session on first meaningful navigation
-  var SESSION_POP_KEY     = 'kami_sess_pop';
-
-  /* ── Card selectors ─────────────────────────────────────────────── */
-  // kami-card is the class on every AnimeCard component
-  // Legacy selectors kept for any older markup
-  var CARD_SELECTORS = [
-    '.kami-card',
-    '.tr-card','.cw-card','.bfv-card',
-    '.rel-card','.ru-card','.pw-item','.wl-card'
-  ].join(',');
-
   /* ── State ──────────────────────────────────────────────────────── */
   var _s = {
     armed:             false,
-    cardObserver:      null,
-    lastPopTime:       0,       // global last pop timestamp (in-memory)
-    lastCardPop:       0,
-    lastEpNavPop:      0,
-    lastServerPop:     0,
+    lastVignette:      0,
     lastInpageEp:      0,
     inpageContainers:  {},
     geoTier:           null     // 'T1' | 'T3' | null (resolving)
@@ -156,35 +135,41 @@
     } catch(e) { _s.geoTier = 'T3'; }
   }
 
-  /* ── Core popunder ──────────────────────────────────────────────── */
-  function _openPop() {
-    // Don't pop into a backgrounded/inactive tab — that's a wasted call,
-    // not revenue, so this check costs you nothing and isn't a "cap".
-    try { if (document.visibilityState && document.visibilityState !== 'visible') return; } catch(e) {}
+  /* ── Popunder: re-inject Monetag's auto-attach script on every click,
+   * gated only by a 10s cooldown (no cap on total count). This is
+   * EXPERIMENTAL — Monetag's script manages its own click detection and
+   * firing internally, so we don't have a documented way to force its
+   * cadence. Re-injecting a fresh <script> tag is the only lever we have;
+   * it may fire cleanly, may no-op (some ad SDKs flag themselves as
+   * already-loaded and skip re-init), or may stack listeners. Test this
+   * carefully after deploying. */
+  var POP_COOLDOWN_MS = 10 * 1000;
+  var _lastPopInject  = 0;
+  function _injectPopScript() {
+    if (_disabled()) return;
     try {
-      var url = _nextPopUrl();
-      var w = window.open(url, '_blank');
-      if (w) { w.opener = null; }
-      window.focus();
-      _s.lastPopTime = _now();
-      _log('[KamiAds] Pop fired:', url);
+      var pick = POP_ZONES[_popIndex % POP_ZONES.length];
+      _popIndex++;
+      var s;
+      if (pick.zone) {
+        s = _buildScript(pick.zone, pick.src);   // Monetag: adds data-zone
+      } else {
+        s = document.createElement('script');    // Adsterra: bare src, self-contained
+        s.src = pick.src;
+        s.async = true;
+      }
+      (document.body || document.documentElement).appendChild(s);
+      _lastPopInject = _now();
+      _log('[KamiAds] Popunder script (re)injected:', pick.network + (pick.zone ? ' / ' + pick.zone : ''));
     } catch(e) {}
   }
-
-  // Returns true if the global minimum gap has passed
-  function _globalReady() {
-    return (_now() - _s.lastPopTime) >= GLOBAL_MIN_MS;
-  }
-
-  /* ── Trigger: page load (once per session, fires immediately) ────── */
-  function _tryPageloadPop() {
+  function _armClickTrigger() {
     if (_disabled()) return;
-    if (_ssGet(SESSION_POP_KEY)) return; // already fired this session
-    _ssSet(SESSION_POP_KEY, '1');
-    setTimeout(function() {
+    document.addEventListener('click', function() {
       if (_disabled()) return;
-      _openPop();
-    }, 1500);
+      if ((_now() - _lastPopInject) < POP_COOLDOWN_MS) return;
+      _injectPopScript();
+    }, { capture: true, passive: true });
   }
 
   /* ── Vignette Banner ───────────────────────────────────────────────
@@ -207,84 +192,19 @@
 
   function _tryVignette(trigger) {
     if (_disabled()) return;
-    if (!_globalReady()) return;
     var cd = _t1() ? VIGNETTE_CD_T1 : VIGNETTE_CD_T3;
     if ((_now() - (_s.lastVignette || 0)) < cd) return;
     _fireVignette();
   }
 
-  /* ── Trigger: card click (home / browse / detail) ───────────────── */
-  function _wrapCard(card) {
-    if (card._kamiWrapped) return;
-    card._kamiWrapped = true;
-    card.addEventListener('click', function() {
-      if (_disabled()) return;
-      if (!_globalReady()) return;
-      var cd = _t1() ? CARD_CD_T1 : CARD_CD_T3;
-      if ((_now() - _s.lastCardPop) < cd) return;
-      _s.lastCardPop = _now();
-      _openPop();
-    }, false);
-  }
-
-  function _applyToCards(root) {
-    if (_disabled()) return;
-    root = root || document;
-    try {
-      var cards = root.querySelectorAll(CARD_SELECTORS);
-      for (var i = 0; i < cards.length; i++) _wrapCard(cards[i]);
-    } catch(e) {}
-  }
-
-  function _watchCards() {
-    if (_s.cardObserver) return;
-    if (!('MutationObserver' in global)) return;
-    var debounce = null;
-    _s.cardObserver = new MutationObserver(function(mutations) {
-      var hasNew = false;
-      for (var i = 0; i < mutations.length; i++) {
-        var nodes = mutations[i].addedNodes;
-        for (var j = 0; j < nodes.length; j++) {
-          var n = nodes[j];
-          if (n.nodeType === 1) {
-            if ((n.matches && n.matches(CARD_SELECTORS)) ||
-                (n.querySelector && n.querySelector(CARD_SELECTORS))) {
-              hasNew = true; break;
-            }
-          }
-        }
-        if (hasNew) break;
-      }
-      if (hasNew) {
-        clearTimeout(debounce);
-        debounce = setTimeout(function() { _applyToCards(); }, 120);
-      }
-    });
-    _s.cardObserver.observe(document.body, { childList: true, subtree: true });
-  }
-
-  /* ── Trigger: episode navigation (called from React) ────────────── */
+  /* ── Trigger: episode navigation (called from React) ──────────────
+   * Popunder no longer fires from here — Monetag's auto-attach script
+   * already catches this click (and every other click on the page)
+   * itself. We just handle the separate Vignette trigger here, since
+   * that's still manually controlled by us. */
   // type: 'prev' | 'next' | 'list' | 'player' | 'server'
   function onEpisodeClick(type) {
     if (_disabled()) return;
-    if (!_globalReady()) return;
-
-    var cd;
-    if (type === 'server') {
-      cd = _t1() ? SERVER_CD_T1 : SERVER_CD_T3;
-      if ((_now() - _s.lastServerPop) < cd) return;
-      _s.lastServerPop = _now();
-    } else {
-      cd = _t1() ? EP_NAV_CD_T1 : EP_NAV_CD_T3;
-      if ((_now() - _s.lastEpNavPop) < cd) return;
-      _s.lastEpNavPop = _now();
-    }
-
-    _openPop();
-    _log('[KamiAds] Episode click pop, type:', type || 'unknown');
-
-    // Independent second trigger — different demand source, own cooldown,
-    // so this is genuinely additional revenue rather than a duplicate call
     _tryVignette(type);
   }
 
@@ -354,6 +274,46 @@
     }
   }
 
+  /* ── Native Banner (Adsterra) ─────────────────────────────────────
+   * The container div's ID is fixed by Adsterra's script — don't rename
+   * it. Loads once the container is actually visible, same as in-page
+   * push, so we're not paying for/serving impressions on offscreen slots. */
+  var _nativeLoaded = {};
+  function _loadNativeBanner(slotName) {
+    if (_disabled()) return;
+    try {
+      var cfg = NATIVE_BANNERS[slotName];
+      if (!cfg) { _log('[KamiAds] No native banner config for slot:', slotName); return; }
+      if (_nativeLoaded[slotName]) return;
+      var el = document.getElementById(cfg.containerId);
+      if (!el) return; // container not in DOM yet
+
+      var fire = function() {
+        if (_nativeLoaded[slotName]) return;
+        _nativeLoaded[slotName] = true;
+        try {
+          var s = document.createElement('script');
+          s.async = true;
+          s.setAttribute('data-cfasync', 'false');
+          s.src = cfg.src;
+          (document.body || document.documentElement).appendChild(s);
+          _log('[KamiAds] Native banner loaded:', slotName);
+        } catch(e) {}
+      };
+
+      if ('IntersectionObserver' in global) {
+        var io = new IntersectionObserver(function(entries) {
+          for (var i = 0; i < entries.length; i++) {
+            if (entries[i].isIntersecting) { io.disconnect(); fire(); break; }
+          }
+        }, { threshold: 0.1 });
+        io.observe(el);
+      } else {
+        fire();
+      }
+    } catch(e) {}
+  }
+
   /* ── Bootstrap ──────────────────────────────────────────────────── */
   function initAds() {
     if (_disabled()) return;
@@ -361,9 +321,7 @@
     _s.armed = true;
 
     _detectGeo();
-    _tryPageloadPop();      // fires once per session, shortly after load
-    _applyToCards();        // wrap existing cards
-    _watchCards();          // watch for React-rendered cards
+    _armClickTrigger();     // re-injects popunder script on every click, 10s cooldown, no cap
     _initInPageSlots();     // load all visible in-page push slots
   }
 
@@ -371,17 +329,13 @@
   function _diag() {
     var now = _now();
     return {
-      prod:          _isProd(),
-      disabled:      _disabled(),
-      geoTier:       _s.geoTier,
-      globalReady:   _globalReady(),
-      lastPopAgo:    Math.round((now - _s.lastPopTime) / 1000) + 's',
+      prod:            _isProd(),
+      disabled:        _disabled(),
+      geoTier:         _s.geoTier,
+      popInjected:     _popIndex > 0,
+      popCooldownLeft: Math.max(0, POP_COOLDOWN_MS - (now - _lastPopInject)) + 'ms',
       lastVignetteAgo: Math.round((now - (_s.lastVignette || 0)) / 1000) + 's',
-      lastCardAgo:   Math.round((now - _s.lastCardPop) / 1000) + 's',
-      lastEpNavAgo:  Math.round((now - _s.lastEpNavPop) / 1000) + 's',
-      lastServerAgo: Math.round((now - _s.lastServerPop) / 1000) + 's',
-      inpageLoaded:  Object.keys(_s.inpageContainers),
-      sessionPop:    !!_ssGet(SESSION_POP_KEY)
+      inpageLoaded:    Object.keys(_s.inpageContainers)
     };
   }
 
@@ -398,6 +352,7 @@
     onEpisodeClick:    onEpisodeClick,
     onEpisodeChange:   onEpisodeChange,
     loadInPagePush:    _loadInPagePush,
+    loadNativeBanner:  _loadNativeBanner,
 
     // Slot loaders (called from React component refs)
     loadSidebarAd:     function() { _loadInPagePush('sidebar-ad'); },
