@@ -1,18 +1,21 @@
 /* ═══════════════════════════════════════════════════
- * KamiStream Service Worker v3.1 (HOTFIX — push import removed)
+ * KamiStream Service Worker v3.2 (HOTFIX — ads.js excluded from cache)
  * - Caches app shell for instant loads
  * - Does NOT block our own ad domains
  * - Passes through all external API/embed traffic
+ * - ads.js is NEVER cached — always fetched fresh from network, since
+ *   it changes frequently and a stale cached copy silently breaks new
+ *   ad slots (e.g. "X is not a function" errors after deploying updates)
  *
  * Push Notifications (zone 11482651) are DISABLED here for now.
  * The Monetag push SDK likely registers its own 'fetch' listener,
  * which conflicts with ours (two respondWith() calls on the same
  * request throws and breaks every fetch on the page). Needs to be
- * tested in isolation before re-adding — see notes at bottom of file.
+ * tested in isolation (preview deploy) before re-adding.
  * ═══════════════════════════════════════════════════ */
 
-const CACHE     = 'kamistream-v3';
-const SHELL     = ['/', '/index.html', '/ads.js', '/manifest.json'];
+const CACHE     = 'kamistream-v4';
+const SHELL     = ['/', '/index.html', '/manifest.json'];
 
 // Only block third-party embed player ad injections
 // NOT our own Monetag domains (omg10.com, nap5k.com, n6wxm.com, 5gvci.com)
@@ -102,7 +105,9 @@ self.addEventListener('fetch', e => {
   }
 
   // Static assets (JS/CSS/fonts/images): cache first
-  if (url.includes('/assets/') || url.match(/\.(js|css|woff2?|png|svg|jpg|webp|ico)(\?|$)/)) {
+  // ads.js is EXCLUDED — it changes frequently and must always be fresh,
+  // never served stale from cache. Falls through to network-only below.
+  if (!url.endsWith('/ads.js') && (url.includes('/assets/') || url.match(/\.(js|css|woff2?|png|svg|jpg|webp|ico)(\?|$)/))) {
     e.respondWith(
       caches.match(req).then(cached => {
         if (cached) return cached;
