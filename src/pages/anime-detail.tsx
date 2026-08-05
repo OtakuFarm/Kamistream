@@ -756,6 +756,10 @@ export default function AnimeDetail() {
             <div id="detail-ad" className="min-h-[1px]"
               ref={el => { if (el && (window as any).KamiAds) (window as any).KamiAds.loadInPagePush('detail-ad'); }} />
 
+            {/* Adsterra Native Banner — ID is fixed by their script, don't rename */}
+            <div id="container-246d201d05be7eb163a939228e4f4e1c" className="mt-3 min-h-[1px]"
+              ref={el => { if (el && (window as any).KamiAds) (window as any).KamiAds.loadNativeBanner('anime-native'); }} />
+
           </div>
         </div>
       </div>
