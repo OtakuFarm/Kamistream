@@ -1,8 +1,10 @@
 import React, { useState, useRef, useCallback, useEffect } from "react";
 import { useLocation } from "wouter";
+import { motion } from "framer-motion";
 import { Plus, Check, Play, ExternalLink, Bookmark, BookmarkCheck, Share2, X, Copy, Info } from "lucide-react";
 import { useWatchlist } from "@/hooks/useWatchlist";
 import { useWatchHistory } from "@/hooks/useWatchHistory";
+import { fireWatchlistConfetti } from "@/components/motionBits";
 
 interface AnimeCardProps {
   anime: any;
@@ -153,6 +155,7 @@ export function AnimeCard({ anime, index }: AnimeCardProps) {
     setMenuOpen(false);
   }
   function saveToWatchlist() {
+    const adding = !isSaved;
     toggleWatchlist({
       mal_id:    anime.mal_id,
       title:     anime.title,
@@ -160,6 +163,7 @@ export function AnimeCard({ anime, index }: AnimeCardProps) {
       episodes:  anime.episodes,
       score:     anime.score,
     });
+    if (adding) fireWatchlistConfetti();
     setMenuOpen(false);
   }
 
@@ -240,7 +244,15 @@ export function AnimeCard({ anime, index }: AnimeCardProps) {
               : "bg-black/60 text-white/70 hover:bg-[var(--pink)] hover:text-white"
           }`}
         >
-          {isSaved ? <Check className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
+          <motion.span
+            key={isSaved ? "on" : "off"}
+            initial={{ scale: 0.2, rotate: -30 }}
+            animate={{ scale: 1, rotate: 0 }}
+            transition={{ type: "spring", stiffness: 600, damping: 16 }}
+            className="flex items-center justify-center"
+          >
+            {isSaved ? <Check className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
+          </motion.span>
         </button>
 
         {/* Progress bar */}

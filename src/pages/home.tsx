@@ -16,6 +16,7 @@ import { useSEO } from '@/hooks/useSEO';
 import { supabase } from '@/lib/supabase';
 import { dedupeByMalId } from '@/lib/dedupeAnime';
 import { CategoryPills } from '@/components/CategoryPills';
+import { FloatingPetals } from '@/components/motionBits';
 
 export default function Home() {
   const { data: trending,  isLoading: trendingLoading  } = useTrendingAnime();
@@ -252,6 +253,7 @@ export default function Home() {
           />
           <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/60 to-transparent" />
           <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
+          <FloatingPetals count={9} />
 
           <motion.div
             key={activeHero.mal_id}

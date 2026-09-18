@@ -223,6 +223,21 @@
   }
 }
 
+/* Tier-2: ambient floating particles (petals / orbs) */
+@keyframes kami-float {
+  0%   { transform: translateY(0) rotate(0deg) translateX(0); opacity: 0; }
+  8%   { opacity: 0.8; }
+  92%  { opacity: 0.4; }
+  100% { transform: translateY(-110vh) rotate(300deg) translateX(var(--drift, 0px)); opacity: 0; }
+}
+.kami-float {
+  animation: kami-float linear infinite;
+  will-change: transform, opacity;
+}
+@media (prefers-reduced-motion: reduce) {
+  .kami-float { animation: none; opacity: 0; }
+}
+
 .kami-rise {
   animation: kami-rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) backwards;
 }
