@@ -131,6 +131,7 @@ async function alPage(
 // ─────────────────────────────────────────────────────────────────────────────
 const GENRE_MAP: Record<string, string> = {
   "1": "Action", "2": "Adventure", "4": "Comedy", "7": "Mystery",
+  "9": "Ecchi",
   // NOTE: AniList only accepts its own fixed genre set — Jikan/MAL-only
   // categories (Historical, School, Isekai, …) must map to the closest valid
   // AniList genre or the fallback query fails outright.
@@ -141,6 +142,22 @@ const GENRE_MAP: Record<string, string> = {
   "38": "Action", "40": "Psychological", "41": "Thriller", "42": "Seinen",
   "43": "Josei", "66": "Fantasy", "79": "Fantasy", "85": "Action",
   "86": "Adventure", "88": "Sci-Fi", "89": "Supernatural", "70": "Mahou Shoujo",
+};
+
+// Jikan/MAL ids that have no AniList *genre* equivalent are expressed as
+// AniList *tags* instead. Without this, the fallback dropped the genre filter
+// entirely and returned unfiltered popular anime — which made the Genre page
+// show titles that didn't match the selected genre whenever Jikan 429'd.
+const TAG_MAP: Record<string, string> = {
+  "46": "Award Winning",   "47": "Food",             "50": "Adult Cast",
+  "55": "Delinquents",     "56": "Detective",        "57": "Educational",
+  "60": "Gore",            "61": "Harem",            "62": "High Stakes Game",
+  "65": "Idols (Male)",    "67": "Iyashikei",        "71": "Medical",
+  "72": "Mythology",       "74": "Otaku Culture",    "75": "Parody",
+  "77": "Pets",            "78": "Racing",           "82": "Samurai",
+  "83": "Showbiz",         "84": "Strategy Game",    "87": "Team Sports",
+  "91": "Villainess",      "93": "Witchcraft",       "94": "Boys' Love",
+  "95": "Girls' Love",
 };
 const FORMAT_MAP: Record<string, string> = {
   tv: "TV", movie: "MOVIE", ova: "OVA", ona: "ONA", special: "SPECIAL",
@@ -214,9 +231,19 @@ export async function jikanToAL(endpoint: string): Promise<any> {
   // Support comma-separated genre ids (e.g. "1,2") — map each id and use
   // genre_in so multi-genre moods survive the AniList fallback too.
   if (genres) {
-    const names = genres.split(",").map(s => GENRE_MAP[s.trim()]).filter(Boolean);
-    if (names.length === 1)      filters.push(`,genre:"${names[0]}"`);
-    else if (names.length > 1)   filters.push(`,genre_in:[${names.map(n => `"${n}"`).join(",")}]`);
+    // Try the genre map first; any id without a genre equivalent falls back
+    // to a tag filter so the filter is NEVER silently dropped.
+    const genreNames = genres.split(",").map(s => GENRE_MAP[s.trim()]).filter(Boolean);
+    if (genreNames.length === genres.split(",").length) {
+      if (genreNames.length === 1)    filters.push(`,genre:"${genreNames[0]}"`);
+      else                            filters.push(`,genre_in:[${genreNames.map(n => `"${n}"`).join(",")}]`);
+    } else {
+      // Prefer a tag match on the first id; combine genre+tag when mixed.
+      const firstId = genres.split(",")[0].trim();
+      const tag = TAG_MAP[firstId];
+      if (genreNames.length > 0) filters.push(`,genre_in:[${genreNames.map(n => `"${n}"`).join(",")}]`);
+      if (tag)                   filters.push(`,tag:"${tag}"`);
+    }
   }
   if (type)     { const f = FORMAT_MAP[type.toLowerCase()]; if (f) filters.push(`,format:${f}`); }
   if (status)   { const s = STATUS_MAP[status]; if (s) filters.push(`,status:${s}`); }
