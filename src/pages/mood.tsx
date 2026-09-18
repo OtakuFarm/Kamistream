@@ -19,6 +19,12 @@ const MOODS = [
   { id: 'chill',     label: 'Chill',     emoji: '🍵', desc: 'Peaceful slice of life',  genres: [36],     color: 'from-green-400 to-teal-500'    },
   { id: 'mystery',   label: 'Mystery',   emoji: '🔍', desc: 'Puzzles & suspense',      genres: [7],      color: 'from-amber-600 to-yellow-700'  },
   { id: 'sports',    label: 'Sports',    emoji: '🏆', desc: 'Competition & teamwork',  genres: [30],     color: 'from-orange-400 to-red-400'    },
+  { id: 'isekai',    label: 'Isekai',    emoji: '🌀', desc: 'Transported to new worlds', genres: [66, 10], color: 'from-violet-500 to-fuchsia-600' },
+  { id: 'mecha',     label: 'Mecha',     emoji: '🤖', desc: 'Giant robots & war machines', genres: [18],  color: 'from-zinc-500 to-slate-700'    },
+  { id: 'supernat',  label: 'Supernatural', emoji: '🦊', desc: 'Spirits, demons & yokai', genres: [37],   color: 'from-fuchsia-500 to-purple-700' },
+  { id: 'music',     label: 'Music',     emoji: '🎵', desc: 'Idols, bands & rhythm',   genres: [19],     color: 'from-pink-500 to-rose-400'     },
+  { id: 'history',   label: 'Historical', emoji: '⛩️', desc: 'Samurai, empires & the past', genres: [13],  color: 'from-stone-500 to-amber-800'   },
+  { id: 'vampire',   label: 'Vampire',   emoji: '🧛', desc: 'Blood & the eternal night', genres: [89],    color: 'from-red-700 to-purple-900'    },
 ];
 
 export default function Mood() {

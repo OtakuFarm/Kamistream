@@ -131,13 +131,16 @@ async function alPage(
 // ─────────────────────────────────────────────────────────────────────────────
 const GENRE_MAP: Record<string, string> = {
   "1": "Action", "2": "Adventure", "4": "Comedy", "7": "Mystery",
-  "8": "Drama", "10": "Fantasy", "13": "Historical", "14": "Horror",
+  // NOTE: AniList only accepts its own fixed genre set — Jikan/MAL-only
+  // categories (Historical, School, Isekai, …) must map to the closest valid
+  // AniList genre or the fallback query fails outright.
+  "8": "Drama", "10": "Fantasy", "13": "Drama", "14": "Horror",
   "17": "Martial Arts", "18": "Mecha", "19": "Music", "22": "Romance",
-  "23": "School", "24": "Sci-Fi", "25": "Shoujo", "27": "Shounen",
-  "29": "Space", "30": "Sports", "36": "Slice of Life", "37": "Supernatural",
-  "38": "Military", "40": "Psychological", "41": "Thriller", "42": "Seinen",
-  "43": "Josei", "66": "Isekai", "79": "Reincarnation", "85": "Super Power",
-  "86": "Survival",
+  "23": "Slice of Life", "24": "Sci-Fi", "25": "Shoujo", "27": "Shounen",
+  "29": "Sci-Fi", "30": "Sports", "36": "Slice of Life", "37": "Supernatural",
+  "38": "Action", "40": "Psychological", "41": "Thriller", "42": "Seinen",
+  "43": "Josei", "66": "Fantasy", "79": "Fantasy", "85": "Action",
+  "86": "Adventure", "88": "Sci-Fi", "89": "Supernatural", "70": "Mahou Shoujo",
 };
 const FORMAT_MAP: Record<string, string> = {
   tv: "TV", movie: "MOVIE", ova: "OVA", ona: "ONA", special: "SPECIAL",
