@@ -1,10 +1,12 @@
 import React, { useEffect } from 'react';
 import { useGamification, ACHIEVEMENTS, calculateLevel, xpForLevel, xpForNextLevel } from '@/hooks/useGamification';
 import { useSEO } from '@/hooks/useSEO';
+import { SakuraTrail } from '@/components/motionBits';
 import { Trophy, Lock, Zap } from 'lucide-react';
 
 export default function Achievements() {
   useSEO({ title: 'Achievements' });
+  <SakuraTrail />
   const { getStats, checkAndUnlockAchievements } = useGamification();
   const stats    = getStats();
   const earned   = stats.achievements;

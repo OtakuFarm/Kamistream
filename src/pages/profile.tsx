@@ -7,6 +7,7 @@ import { useEpisodeProgress } from '@/hooks/useEpisodeProgress';
 import { useActivityFeed } from '@/hooks/useActivityFeed';
 import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { useSEO } from '@/hooks/useSEO';
+import { SakuraTrail } from '@/components/motionBits';
 import { supabase } from '@/lib/supabase';
 import {
   Play, Film, Heart, Trophy, Trash2, BookMarked, CheckCircle2,
@@ -65,6 +66,7 @@ export default function Profile() {
   const [pushRequesting, setPushRequesting] = useState(false);
 
   useSEO({ title: 'My Profile' });
+  <SakuraTrail />
 
   useEffect(() => {
     if (!loading && !user) setLocation('/login');

@@ -18,6 +18,9 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
   const { user } = useAuth();
   const { data: trending } = useTrendingAnime();
   const { theme, setTheme, themes } = useTheme();
+  const [spinning, setSpinning]   = useState(false);
+  const [spinTitle, setSpinTitle] = useState('');
+  const [wipe, setWipe]           = useState<{ x: number; y: number; color: string } | null>(null);
 
   useEffect(() => {
     if (debouncedSearch.length > 2) setShowDropdown(true);
@@ -45,8 +48,38 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
   function goRandom() {
     const pool = trending?.data;
     if (!pool?.length) return;
+    if (spinning) return;
     const pick = pool[Math.floor(Math.random() * pool.length)];
-    setLocation(`/anime/${pick.mal_id}`);
+    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    if (reduced) { setLocation(`/anime/${pick.mal_id}`); return; }
+    // Roulette spin — cycle titles briefly, then land
+    setSpinning(true);
+    window.setTimeout(() => {
+      setSpinning(false);
+      setLocation(`/anime/${pick.mal_id}`);
+    }, 1200);
+  }
+
+  // Cycle random titles while the roulette spins
+  useEffect(() => {
+    if (!spinning) return;
+    const pool = trending?.data;
+    if (!pool?.length) return;
+    const iv = window.setInterval(() => {
+      const pick = pool[Math.floor(Math.random() * pool.length)];
+      setSpinTitle(pick.title_english || pick.title || '…');
+    }, 90);
+    return () => window.clearInterval(iv);
+  }, [spinning, trending]);
+
+  function switchTheme(id: string, accent: string, e: React.MouseEvent) {
+    const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    if (!reduced) {
+      const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+      setWipe({ x: r.left + r.width / 2, y: r.top + r.height / 2, color: accent });
+    }
+    setTheme(id as any);
+    setShowTheme(false);
   }
 
   return (
@@ -112,9 +145,9 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
 
       <div className="flex items-center gap-2 ml-auto">
         {/* Random */}
-        <button onClick={goRandom} title="Random anime"
-          className="hidden sm:flex w-9 h-9 items-center justify-center rounded-xl bg-[var(--bg3)] border border-[var(--border)] text-[var(--text3)] hover:text-[var(--pink)] hover:border-[var(--pink)] transition-all">
-          <Shuffle className="w-4 h-4" />
+        <button onClick={goRandom} title="Random anime (spin!)" disabled={spinning}
+          className={`hidden sm:flex w-9 h-9 items-center justify-center rounded-xl bg-[var(--bg3)] border transition-all ${spinning ? 'border-[var(--pink)] text-[var(--pink)]' : 'border-[var(--border)] text-[var(--text3)] hover:text-[var(--pink)] hover:border-[var(--pink)]'}`}>
+          <Shuffle className={`w-4 h-4 ${spinning ? 'animate-spin' : ''}`} />
         </button>
 
         {/* Theme switcher */}
@@ -128,7 +161,7 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
             <div className="absolute right-0 top-full mt-2 bg-[var(--card)] border border-[var(--border)] rounded-xl shadow-2xl overflow-hidden z-50 min-w-[140px]">
               <div className="p-2 text-[9px] font-black text-[var(--text3)] uppercase tracking-widest px-3 pt-3 pb-1">Theme</div>
               {themes.map(t => (
-                <button key={t.id} onClick={() => { setTheme(t.id); setShowTheme(false); }}
+                <button key={t.id} onClick={(e) => switchTheme(t.id, t.accent, e)}
                   className={`w-full flex items-center gap-2.5 px-3 py-2 text-[12px] font-bold hover:bg-[var(--bg3)] transition-colors ${theme === t.id ? 'text-white' : 'text-[var(--text3)]'}`}>
                   <div className="w-4 h-4 rounded-full shrink-0" style={{ background: t.accent }} />
                   {t.name}
@@ -158,6 +191,32 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
           <Link href="/login" className="bg-gradient-to-r from-[var(--pink)] to-[var(--purple)] text-white px-4 py-2 rounded-xl text-[13px] font-bold hover:brightness-110 transition-all">
             Log In
           </Link>
+        )}
+
+        {/* Random roulette overlay */}
+        {spinning && (
+          <div className="fixed inset-0 z-[300] bg-black/85 backdrop-blur-md flex flex-col items-center justify-center gap-6">
+            <Shuffle className="w-14 h-14 text-[var(--pink)] animate-spin" />
+            <div className="text-center">
+              <p className="text-[10px] font-black uppercase tracking-[0.3em] text-[var(--text3)] mb-2">Choosing your fate…</p>
+              <p className="text-2xl font-heading font-black text-white min-h-[36px] px-6 max-w-[80vw] truncate">{spinTitle || '…'}</p>
+            </div>
+            <div className="flex gap-1.5">
+              {[0, 1, 2].map(i => (
+                <span key={i} className="w-2 h-2 rounded-full bg-[var(--pink)] animate-bounce" style={{ animationDelay: `${i * 0.15}s` }} />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Theme switch radial wipe */}
+        {wipe && (
+          <div
+            aria-hidden
+            className="kami-wipe fixed rounded-full pointer-events-none z-[299]"
+            style={{ left: wipe.x, top: wipe.y, width: '250vmax', height: '250vmax', background: wipe.color }}
+            onAnimationEnd={() => setWipe(null)}
+          />
         )}
       </div>
     </div>

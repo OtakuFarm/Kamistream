@@ -238,6 +238,23 @@
   .kami-float { animation: none; opacity: 0; }
 }
 
+/* Tier-3: radial wipe when switching themes — a colored circle expands from
+   the theme-toggle button, masking the instant variable swap underneath. */
+.kami-wipe {
+  transform: translate(-50%, -50%) scale(0);
+  animation: kami-wipe 0.8s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  will-change: transform, opacity;
+  mix-blend-mode: screen;
+}
+@keyframes kami-wipe {
+  0%   { transform: translate(-50%, -50%) scale(0);    opacity: 0.5; }
+  60%  { transform: translate(-50%, -50%) scale(1);    opacity: 0.45; }
+  100% { transform: translate(-50%, -50%) scale(1);    opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .kami-wipe { animation: none; opacity: 0; }
+}
+
 .kami-rise {
   animation: kami-rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) backwards;
 }

@@ -55,6 +55,34 @@ function writeData(d: any) { try { localStorage.setItem(LS_KEY, JSON.stringify(d
 const listeners = new Set<() => void>();
 function notifyGamification() { listeners.forEach(fn => fn()); }
 
+/** Core unlock check — usable from anywhere in the module (also called
+ *  automatically after stat changes so toasts fire while the user watches). */
+function unlockDueAchievements(): Achievement[] {
+  const d = readData(); const str = readStreak(); const xp = d.xp || 0;
+  const s: GamificationStats = {
+    episodesVisited: d.episodesVisited || 0, animeExplored: d.animeExplored || 0,
+    watchlistCount: d.watchlistCount || 0, streak: str.streak || 0,
+    totalXP: xp, level: calculateLevel(xp), achievements: d.achievements || [],
+  };
+  const data = readData();
+  const earned: string[] = data.achievements || [];
+  const newlyUnlocked: Achievement[] = [];
+  for (const ach of ACHIEVEMENTS) {
+    if (!earned.includes(ach.id) && ach.condition(s)) {
+      earned.push(ach.id);
+      newlyUnlocked.push(ach);
+    }
+  }
+  if (newlyUnlocked.length > 0) {
+    const bonus = newlyUnlocked.reduce((sum, a) => sum + a.xpReward, 0);
+    writeData({ ...data, achievements: earned, xp: (data.xp || 0) + bonus });
+    notifyGamification();
+    // Broadcast for the global achievement toaster (see motionBits.tsx)
+    try { window.dispatchEvent(new CustomEvent('kami:achievement', { detail: newlyUnlocked })); } catch {}
+  }
+  return newlyUnlocked;
+}
+
 export function useGamification() {
   const [, forceUpdate] = useState(0);
 
@@ -92,12 +120,14 @@ export function useGamification() {
   const addXP = useCallback((amount: number) => {
     const d = readData();
     writeData({ ...d, xp: (d.xp || 0) + amount });
+    unlockDueAchievements();
     notifyGamification();
   }, []);
 
   const incrementStat = useCallback((key: 'episodesVisited' | 'animeExplored' | 'watchlistCount', value?: number) => {
     const d = readData();
     writeData({ ...d, [key]: (d[key] || 0) + (value ?? 1) });
+    unlockDueAchievements();
     notifyGamification();
   }, []);
 
@@ -108,15 +138,16 @@ export function useGamification() {
   }, []);
 
   const checkAndUnlockAchievements = useCallback((stats?: GamificationStats) => {
-    const s = stats || (() => {
-      const d = readData(); const str = readStreak(); const xp = d.xp || 0;
-      return { episodesVisited: d.episodesVisited||0, animeExplored: d.animeExplored||0, watchlistCount: d.watchlistCount||0, streak: str.streak||0, totalXP: xp, level: calculateLevel(xp), achievements: d.achievements||[] };
-    })();
+    // First pass: check achievements against stored stats (broadcasts if any unlock)
+    unlockDueAchievements();
+    if (!stats) return [];
+    // Second pass: merge the caller's fresher stats (e.g. live watchlist count)
     const d = readData();
     const earned: string[] = d.achievements || [];
+    const merged = { ...stats, achievements: earned };
     const newlyUnlocked: Achievement[] = [];
     for (const ach of ACHIEVEMENTS) {
-      if (!earned.includes(ach.id) && ach.condition(s)) {
+      if (!earned.includes(ach.id) && ach.condition(merged)) {
         earned.push(ach.id);
         newlyUnlocked.push(ach);
       }
@@ -125,6 +156,7 @@ export function useGamification() {
       const bonus = newlyUnlocked.reduce((sum, a) => sum + a.xpReward, 0);
       writeData({ ...d, achievements: earned, xp: (d.xp || 0) + bonus });
       notifyGamification();
+      try { window.dispatchEvent(new CustomEvent('kami:achievement', { detail: newlyUnlocked })); } catch {}
     }
     return newlyUnlocked;
   }, []);

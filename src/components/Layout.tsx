@@ -3,7 +3,7 @@ import { Topbar } from './Topbar';
 import { Sidebar } from './Sidebar';
 import { Link, useLocation } from 'wouter';
 import { CursorSpotlight } from './CursorSpotlight';
-import { ScrollProgress } from './motionBits';
+import { ScrollProgress, AchievementToaster } from './motionBits';
 import { AnimatePresence, motion } from 'framer-motion';
 
 function Footer() {
@@ -82,6 +82,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     <div className="flex flex-col min-h-screen bg-[var(--bg)] text-white font-sans">
       <CursorSpotlight />
       <ScrollProgress />
+      <AchievementToaster />
       <Topbar onMenuClick={() => setSidebarOpen(s => !s)} />
       <div className="flex flex-1 relative">
         <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
