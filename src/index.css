@@ -272,3 +272,38 @@
     animation: none;
   }
 }
+
+/* ── Mobile / touch polish ── */
+
+/* No grey flash-box on taps; faster tap response, no double-tap zoom lag */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+html {
+  touch-action: manipulation;
+}
+
+/* Momentum + snap-less smoothness for horizontal card rails, and hide the
+   scrollbar on touch devices (thumb-swiping is the affordance there) */
+@media (hover: none) and (pointer: coarse) {
+  .overflow-x-auto {
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .overflow-x-auto::-webkit-scrollbar {
+    display: none;
+  }
+  /* Hover-only effects are meaningless on touch — drop the glow ring so
+     tapped cards don't stay stuck "lit" after navigation */
+  .kami-card:hover {
+    box-shadow: none;
+  }
+}
+
+/* Notch / home-indicator safe areas (PWA + iOS Safari with viewport-fit=cover) */
+.kami-safe-top {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+.kami-safe-bottom {
+  bottom: calc(1.25rem + env(safe-area-inset-bottom, 0px));
+}

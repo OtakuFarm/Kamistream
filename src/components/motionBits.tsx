@@ -281,7 +281,7 @@ export function AchievementToaster() {
   }, []);
 
   return (
-    <div className="fixed bottom-5 right-5 z-[210] flex flex-col gap-3 pointer-events-none">
+    <div className="fixed kami-safe-bottom right-5 z-[210] flex flex-col gap-3 pointer-events-none">
       <AnimatePresence>
         {toasts.map(t => (
           <motion.div
