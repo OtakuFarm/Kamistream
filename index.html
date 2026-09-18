@@ -65,11 +65,10 @@
         "query-input": "required name=search_term_string"
       }
     }
-        var b = document.getElementById('kami-boot-error');
-        if (b && !b.textContent) b.textContent = '[no window errors after 8s]';
-      }, 8000);
     </script>
-    <pre id="kami-boot-error" style="position:fixed;top:0;left:0;right:0;background:#7f1d1d;color:#fff;font:11px monospace;padding:8px;z-index:999999;white-space:pre-wrap;"></pre>
+  </head>
+  <body>
+    <div id="root"></div>
     <script src="/ads.js"></script>
     <script type="module" src="/src/main.tsx"></script>
   </body>

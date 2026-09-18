@@ -14,7 +14,7 @@
  * tested in isolation (preview deploy) before re-adding.
  * ═══════════════════════════════════════════════════ */
 
-const CACHE     = 'kamistream-v4';
+const CACHE     = 'kamistream-v5';
 const SHELL     = ['/', '/index.html', '/manifest.json'];
 
 // Only block third-party embed player ad injections
