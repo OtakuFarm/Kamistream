@@ -65,20 +65,6 @@
         "query-input": "required name=search_term_string"
       }
     }
-    </script>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script>
-      // Pre-module error trap — runs before any module, catches import failures.
-      window.__kamiErrors = [];
-      window.addEventListener('error', function (e) {
-        var msg = (e.message || '') + ' @ ' + (e.filename || '') + ':' + (e.lineno || '');
-        window.__kamiErrors.push(msg);
-        var b = document.getElementById('kami-boot-error');
-        if (b) b.textContent += (b.textContent ? '\n' : '') + msg;
-      });
-      setTimeout(function () {
         var b = document.getElementById('kami-boot-error');
         if (b && !b.textContent) b.textContent = '[no window errors after 8s]';
       }, 8000);
