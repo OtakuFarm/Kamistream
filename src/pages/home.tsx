@@ -68,7 +68,13 @@ export default function Home() {
   };
   const { data: topAnimeData, isLoading: topAnimeLoading } = useQuery({
     queryKey: ['home', 'top-anime', topPeriod],
-    queryFn: () => fetchJikan(`/top/anime?${topPeriodFilter[topPeriod]}&limit=10&sfw=true`),
+    queryFn: async () => {
+      // Same fallback treatment as the other sections — Jikan 429/504s left
+      // this section blank; jikanToAL maps /top/anime filters to AniList.
+      const ep = `/top/anime?${topPeriodFilter[topPeriod]}&limit=10&sfw=true`;
+      const j = await withALFallback<any>(() => fetchJikan<any>(ep), () => jikanToAL(ep));
+      return j.data || [];
+    },
     staleTime: 30 * 60 * 1000, // low-priority — cache for 30min
   });
 
@@ -673,7 +679,7 @@ export default function Home() {
                   <div className="flex-1 space-y-1.5"><div className="h-3 bg-[var(--card)] rounded w-3/4" /><div className="h-2.5 bg-[var(--card)] rounded w-1/2" /></div>
                 </div>
               ))
-            : (topAnimeData?.data || []).map((anime: any, i: number) => (
+            : (topAnimeData || []).map((anime: any, i: number) => (
                 <Link key={anime.mal_id} href={`/anime/${anime.mal_id}`}>
                   <div className="kami-card flex items-center gap-3 p-2.5 rounded-xl hover:bg-[var(--bg3)] transition-colors group cursor-pointer">
                     <div className={`w-7 shrink-0 text-center font-black text-[14px] leading-none ${i === 0 ? 'text-[var(--gold)]' : i === 1 ? 'text-[#C0C0C0]' : i === 2 ? 'text-[#cd7f32]' : 'text-[var(--text3)]'}`}>
