@@ -772,7 +772,7 @@ export default function Watch() {
           ref={el => { if (el && (window as any).KamiAds) (window as any).KamiAds.loadInPagePush('sidebar-ad'); }} />
 
         <div className="p-4 md:px-6 md:py-4">
-          <div className="grid grid-cols-8 sm:grid-cols-10 md:grid-cols-14 lg:grid-cols-16 xl:grid-cols-20 gap-1.5">
+          <div className="grid grid-cols-5 sm:grid-cols-8 md:grid-cols-14 lg:grid-cols-16 xl:grid-cols-20 gap-1.5">
             {filteredEps.map((ep: any) => {
               const isCurrent = ep.mal_id.toString() === epId;
               const watched   = isWatched(malId, ep.mal_id);

@@ -344,7 +344,7 @@ export default function Home() {
       {recentlyUpdated && recentlyUpdated.length > 0 && (
         <section>
           <SectionHeader icon={<Radio className="w-4 h-4" />} title="Recently Updated" color="var(--green)" href="/browse" big />
-          <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-7 lg:grid-cols-9 xl:grid-cols-11 gap-2">
+          <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-7 lg:grid-cols-9 xl:grid-cols-11 gap-2">
             {recentlyUpdated.map((anime: any, i: number) => (
               <div key={anime.mal_id} className="relative kami-rise" style={{ animationDelay: `${Math.min(i * 40, 500)}ms` }}>
                 <AnimeCard anime={anime} />
@@ -516,7 +516,7 @@ export default function Home() {
               <Clock className="w-3.5 h-3.5 text-[var(--purple)]" /> Continue Watching
             </h2>
           </div>
-          <div className="grid grid-cols-5 sm:grid-cols-7 md:grid-cols-9 lg:grid-cols-11 xl:grid-cols-13 gap-2">
+          <div className="grid grid-cols-3 sm:grid-cols-7 md:grid-cols-9 lg:grid-cols-11 xl:grid-cols-13 gap-2">
             {recentHistory.map((item: any, i: number) => (
               <AnimeCard key={item.mal_id} anime={histToCard(item)} index={i} />
             ))}
@@ -535,7 +535,7 @@ export default function Home() {
               View All ({watchlist.length}) <ChevronRight className="w-3 h-3" />
             </Link>
           </div>
-          <div className="grid grid-cols-5 sm:grid-cols-7 md:grid-cols-9 lg:grid-cols-11 xl:grid-cols-13 gap-2">
+          <div className="grid grid-cols-3 sm:grid-cols-7 md:grid-cols-9 lg:grid-cols-11 xl:grid-cols-13 gap-2">
             {watchlist.slice(0, 12).map((item: any, i: number) => (
               <AnimeCard key={item.mal_id} anime={wlToCard(item)} index={i} />
             ))}
@@ -582,7 +582,7 @@ export default function Home() {
       <section>
         <SectionHeader icon={<Flame className="w-3.5 h-3.5" />} title="Trending Now" color="#f97316" href="/category/trending" />
         {trendingLoading ? <GridSkeleton /> : (
-          <div className="grid grid-cols-5 sm:grid-cols-6 md:grid-cols-7 lg:grid-cols-9 xl:grid-cols-11 gap-2">
+          <div className="grid grid-cols-3 sm:grid-cols-6 md:grid-cols-7 lg:grid-cols-9 xl:grid-cols-11 gap-2">
             {dedupeByMalId(trending?.data ?? []).map((anime: any, i: number) => <AnimeCard key={anime.mal_id} anime={anime} index={i} />)}
           </div>
         )}
@@ -592,7 +592,7 @@ export default function Home() {
       <section>
         <SectionHeader icon={<Star className="w-3.5 h-3.5" />} title="Top Rated" color="var(--gold)" href="/category/top-rated" />
         {topRatedLoading ? <GridSkeleton /> : (
-          <div className="grid grid-cols-5 sm:grid-cols-6 md:grid-cols-7 lg:grid-cols-9 xl:grid-cols-11 gap-2">
+          <div className="grid grid-cols-3 sm:grid-cols-6 md:grid-cols-7 lg:grid-cols-9 xl:grid-cols-11 gap-2">
             {dedupeByMalId(topRated?.data ?? []).map((anime: any, i: number) => <AnimeCard key={anime.mal_id} anime={anime} index={i} />)}
           </div>
         )}
@@ -602,7 +602,7 @@ export default function Home() {
       <section>
         <SectionHeader icon={<Sparkles className="w-3.5 h-3.5" />} title="This Season" color="var(--purple)" href="/category/this-season" />
         {seasonalLoading ? <GridSkeleton /> : (
-          <div className="grid grid-cols-5 sm:grid-cols-6 md:grid-cols-7 lg:grid-cols-9 xl:grid-cols-11 gap-2">
+          <div className="grid grid-cols-3 sm:grid-cols-6 md:grid-cols-7 lg:grid-cols-9 xl:grid-cols-11 gap-2">
             {dedupeByMalId(seasonal?.data ?? []).map((anime: any, i: number) => <AnimeCard key={anime.mal_id} anime={anime} index={i} />)}
           </div>
         )}
