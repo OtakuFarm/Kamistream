@@ -1,0 +1,212 @@
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Poppins:wght@400;500;600;700;800;900&family=Share+Tech+Mono&display=swap');
+@import "tailwindcss";
+@import "tw-animate-css";
+@plugin "@tailwindcss/typography";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--bg);
+  --color-foreground: var(--text);
+  
+  --color-card: var(--card);
+  --color-card-foreground: var(--text);
+  
+  --color-border: var(--border);
+  --color-input: var(--border);
+  --color-ring: var(--purple);
+  
+  --color-primary: var(--pink);
+  --color-primary-foreground: #ffffff;
+  
+  --color-secondary: var(--bg3);
+  --color-secondary-foreground: var(--text);
+
+  --color-muted: var(--bg2);
+  --color-muted-foreground: var(--text2);
+
+  --color-accent: var(--bg3);
+  --color-accent-foreground: var(--text);
+
+  --color-destructive: var(--red);
+  --color-destructive-foreground: #ffffff;
+  
+  --font-sans: 'Nunito', sans-serif;
+  --font-heading: 'Poppins', sans-serif;
+  --font-mono: 'Share Tech Mono', monospace;
+}
+
+:root {
+  --bg: #0a0a0a;
+  --bg2: #101012;
+  --bg3: #17171b;
+  --card: #131316;
+  --border: #ffffff12;
+  --pink: #a742ff;
+  --purple: #22d3ee;
+  --blue: #38bdf8;
+  --gold: #ffd60a;
+  --green: #06d6a0;
+  --red: #ff4757;
+  --text: #ffffff;
+  --text2: #c8c8d8;
+  --text3: #7a7a8c;
+  --admin: #7c3aed;
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply font-sans antialiased bg-[var(--bg)] text-[var(--text)];
+    color-scheme: dark;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-heading;
+  }
+}
+
+/* ── Shimmer animation for skeletons ── */
+@keyframes shimmer {
+  100% { transform: translateX(200%); }
+}
+
+/* ── Theme: Neon ── */
+[data-theme="neon"] {
+  --bg:     #050510;
+  --bg2:    #0a0a1a;
+  --bg3:    #0f0f24;
+  --card:   #0c0c1e;
+  --border: #00f5ff1a;
+  --pink:   #ff00aa;
+  --purple: #7b2fff;
+  --blue:   #00f5ff;
+  --gold:   #ffd60a;
+  --green:  #00ff9d;
+  --red:    #ff4757;
+  --text3:  #5878a3;
+}
+
+/* ── Theme: Sakura ── */
+[data-theme="sakura"] {
+  --bg:     #0f0a0f;
+  --bg2:    #180f18;
+  --bg3:    #1f121f;
+  --card:   #1a101a;
+  --border: #ff85a11a;
+  --pink:   #ff85a1;
+  --purple: #c77dff;
+  --blue:   #a8dadc;
+  --gold:   #ffd166;
+  --green:  #95d5b2;
+  --red:    #ff6b81;
+  --text3:  #8878a3;
+}
+
+/* ── Theme: Midnight ── */
+[data-theme="midnight"] {
+  --bg:     #070d1f;
+  --bg2:    #0d1530;
+  --bg3:    #131d3d;
+  --card:   #111a38;
+  --border: #4361ee1a;
+  --pink:   #f72585;
+  --purple: #7209b7;
+  --blue:   #4895ef;
+  --gold:   #ffd60a;
+  --green:  #06d6a0;
+  --red:    #ff4757;
+  --text3:  #6878a3;
+}
+
+/* ── Theme: Terminal ──
+   Phosphor CRT hacker aesthetic — green primary / amber secondary on a
+   near-black base, closer to a terminal readout than a neon palette.
+   Three moves carry the whole identity: ambient glow on accent elements,
+   a scanline texture, and monospace headings. Everything else — spacing,
+   radius, layout — stays exactly as every other theme, so this reads as
+   a real console skin rather than a decorated reskin. */
+[data-theme="terminal"] {
+  --bg:     #030704;
+  --bg2:    #070d09;
+  --bg3:    #0b140d;
+  --card:   #081109;
+  --border: #39ff1426;
+  --pink:   #39ff14;
+  --purple: #ffb000;
+  --blue:   #00d9c0;
+  --gold:   #ffb000;
+  --green:  #39ff14;
+  --red:    #ff2b2b;
+  --text3:  #4a7355;
+}
+
+/* Monospace headings — the one typographic break from every other theme */
+[data-theme="terminal"] h1,
+[data-theme="terminal"] h2,
+[data-theme="terminal"] h3,
+[data-theme="terminal"] .font-heading {
+  font-family: 'Share Tech Mono', monospace;
+  letter-spacing: 0.3px;
+}
+
+/* Ambient phosphor glow — targets the same Tailwind arbitrary-value
+   classes components already use (e.g. text-[var(--pink)], bg-[var(--pink)]),
+   so every existing badge, button, and icon picks it up with no
+   component changes. Kept to a soft glow, not a full neon halo. */
+[data-theme="terminal"] [class*="text-[var(--pink)]"],
+[data-theme="terminal"] [class*="text-[var(--green)]"],
+[data-theme="terminal"] [class*="fill-[var(--pink)]"] {
+  text-shadow: 0 0 6px color-mix(in srgb, var(--pink) 55%, transparent);
+}
+[data-theme="terminal"] [class*="text-[var(--purple)]"],
+[data-theme="terminal"] [class*="text-[var(--gold)]"] {
+  text-shadow: 0 0 6px color-mix(in srgb, var(--purple) 45%, transparent);
+}
+[data-theme="terminal"] [class*="bg-[var(--pink)]"] {
+  box-shadow: 0 0 18px color-mix(in srgb, var(--pink) 45%, transparent);
+}
+[data-theme="terminal"] [class*="border-[var(--pink)]"] {
+  box-shadow: 0 0 12px color-mix(in srgb, var(--pink) 35%, transparent);
+}
+
+/* Static scanline texture — subtle, non-animated, pointer-events: none,
+   so it never interferes with the video player or clicks. */
+[data-theme="terminal"] body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(57, 255, 20, 0.035) 0px,
+    rgba(57, 255, 20, 0.035) 1px,
+    transparent 1px,
+    transparent 3px
+  );
+}
+
+/* ── Theme: Washi ──
+   Handmade-paper light theme — sumi ink on rice paper, with a hanko-stamp
+   red accent and indigo/aiiro secondaries pulled from woodblock printing.
+   The only light theme in the set, so unlike the others it also flips
+   color-scheme (native form controls, scrollbars) and text colors. */
+[data-theme="washi"] {
+  --bg:     #f2ede1;
+  --bg2:    #ece4d2;
+  --bg3:    #e2d8c0;
+  --card:   #f8f3e7;
+  --border: #4a3f2e1f;
+  --pink:   #b8272e;
+  --purple: #33366b;
+  --blue:   #2f6690;
+  --gold:   #a9791f;
+  --green:  #4c6b3a;
+  --red:    #a12a1f;
+  --text:   #211c14;
+  --text2:  #5c5344;
+  --text3:  #8f8571;
+  color-scheme: light;
+}

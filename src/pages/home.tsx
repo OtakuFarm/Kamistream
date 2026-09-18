@@ -1,0 +1,700 @@
+import React, { useEffect, useState, useMemo, useRef } from 'react';
+import { useTrendingAnime, useTopRatedAnime, useSeasonalAnime, fetchJikan } from '@/lib/jikan';
+import { AnimeCard } from '@/components/AnimeCard';
+import { AnimeListCard } from '@/components/AnimeListCard';
+import { ContinueWatching } from '@/components/ContinueWatching';
+import { BecauseYouWatched } from '@/components/BecauseYouWatched';
+import { GridSkeleton } from '@/components/LoadingSkeleton';
+import { useWatchlist } from '@/hooks/useWatchlist';
+import { useWatchHistory } from '@/hooks/useWatchHistory';
+import { ChevronRight, ChevronLeft, Star, Flame, Sparkles, BookMarked, Clock, Radio, Shuffle, Calendar, Trophy, Play, Rocket } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { getAiringSchedule, getRecentlyAired } from '@/lib/anilist';
+import { Link, useLocation } from 'wouter';
+import { useSEO } from '@/hooks/useSEO';
+import { supabase } from '@/lib/supabase';
+import { dedupeByMalId } from '@/lib/dedupeAnime';
+import { CategoryPills } from '@/components/CategoryPills';
+
+export default function Home() {
+  const { data: trending,  isLoading: trendingLoading  } = useTrendingAnime();
+  const { data: topRated,  isLoading: topRatedLoading  } = useTopRatedAnime();
+  const { data: seasonal,  isLoading: seasonalLoading  } = useSeasonalAnime();
+  const { watchlist } = useWatchlist();
+  const { getRecentAnime } = useWatchHistory();
+  const [, setLocation] = useLocation();
+
+  const [heroIndex, setHeroIndex] = useState(0);
+  const [isHovered, setIsHovered] = useState(false);
+  const [topPeriod, setTopPeriod] = useState<'day' | 'week' | 'month'>('day');
+
+  // Hero parallax — direct style mutation (no re-render per mousemove),
+  // desktop-only, disabled under prefers-reduced-motion.
+  const heroImgRef = useRef<HTMLImageElement>(null);
+  const heroBoxRef = useRef<HTMLDivElement>(null);
+  const heroRaf = useRef(0);
+  const handleHeroMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const isDesktop = window.matchMedia('(pointer: fine)').matches;
+    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (!isDesktop || reducedMotion) return;
+    const box = heroBoxRef.current;
+    const img = heroImgRef.current;
+    if (!box || !img) return;
+    const rect = box.getBoundingClientRect();
+    const px = (e.clientX - rect.left) / rect.width - 0.5;   // -0.5..0.5
+    const py = (e.clientY - rect.top) / rect.height - 0.5;
+    if (heroRaf.current) return;
+    heroRaf.current = requestAnimationFrame(() => {
+      img.style.transform = `scale(1.08) translate(${-px * 16}px, ${-py * 12}px)`;
+      heroRaf.current = 0;
+    });
+  };
+  const resetHeroParallax = () => {
+    setIsHovered(false);
+    if (heroImgRef.current) heroImgRef.current.style.transform = '';
+  };
+
+  // Schedule state
+  const [activeDayIndex, setActiveDayIndex] = useState(0);
+  const [showMoreCount, setShowMoreCount] = useState(7);
+
+  const topPeriodFilter: Record<string, string> = {
+    day:   'filter=airing',
+    week:  'filter=bypopularity',
+    month: 'filter=favorite',
+  };
+  const { data: topAnimeData, isLoading: topAnimeLoading } = useQuery({
+    queryKey: ['home', 'top-anime', topPeriod],
+    queryFn: () => fetchJikan(`/top/anime?${topPeriodFilter[topPeriod]}&limit=10&sfw=true`),
+    staleTime: 30 * 60 * 1000, // low-priority — cache for 30min
+  });
+
+  // Recently Updated — anime that aired in the past 72 hrs AND have a watchable
+  // source in Supabase. Cross-references AniList schedule with embed_sources so
+  // only anime you've actually uploaded sources for appear here.
+  const { data: recentlyUpdated } = useQuery({
+    queryKey: ['home', 'recently-updated'],
+    queryFn: async () => {
+      // Step 1: fetch episodes that aired in the last 72 hours from AniList
+      const aired = await getRecentlyAired(72);
+      if (!aired.length) return [];
+
+      // Step 2: pull all active mal_ids from Supabase that have embed sources
+      const { data: sourceRows, error } = await supabase
+        .from('embed_sources')
+        .select('episodes(episode_number, anime(mal_id, title_english, title_romaji, cover_image, score, episodes_total))')
+        .eq('is_active', true)
+        .limit(200);
+
+      if (error || !sourceRows) return [];
+
+      // Build a map: mal_id → { latestEp, animeRow } from Supabase
+      const supabaseMap = new Map<number, { latestEp: number; row: any }>();
+      for (const s of sourceRows) {
+        const a   = s.episodes?.anime;
+        const ep  = s.episodes?.episode_number;
+        if (!a?.mal_id || !ep) continue;
+        const existing = supabaseMap.get(a.mal_id);
+        // Keep the highest episode number per anime
+        if (!existing || ep > existing.latestEp) {
+          supabaseMap.set(a.mal_id, { latestEp: ep, row: a });
+        }
+      }
+
+      // Step 3: filter aired episodes to only those in Supabase, dedupe by mal_id
+      const seen    = new Set<number>();
+      const results: any[] = [];
+
+      for (const item of aired) {
+        const malId = item.media?.idMal;
+        if (!malId || seen.has(malId)) continue;
+        const supaEntry = supabaseMap.get(malId);
+        if (!supaEntry) continue; // not on our site — skip
+
+        seen.add(malId);
+        const m = item.media;
+
+        // Use Supabase metadata if richer, AniList as fallback for cover image
+        const a = supaEntry.row;
+        results.push({
+          mal_id:   malId,
+          title:    a.title_english || a.title_romaji || m.title?.english || m.title?.romaji || 'Unknown',
+          score:    a.score ?? (m.averageScore ? +(m.averageScore / 10).toFixed(1) : null),
+          episodes: a.episodes_total ?? m.episodes ?? null,
+          type:     'TV',
+          // Show the episode that actually just aired (from schedule), not just the latest in DB
+          latestEp: item.episode,
+          // Prefer Supabase cover, fall back to AniList cover
+          images: {
+            webp: { large_image_url: a.cover_image || m.coverImage?.extraLarge || m.coverImage?.large || '' },
+            jpg:  { large_image_url: a.cover_image || m.coverImage?.extraLarge || m.coverImage?.large || '' },
+          },
+          // Store airingAt so we can sort by it
+          _airingAt: item.airingAt,
+        });
+
+        if (results.length >= 12) break;
+      }
+
+      // Sort by most recently aired first
+      return results.sort((a, b) => (b._airingAt ?? 0) - (a._airingAt ?? 0));
+    },
+    staleTime: 10 * 60 * 1000, // refresh every 10 min — schedule changes frequently
+  });
+
+  // Random anime from trending
+  function goToRandom() {
+    const pool = trending?.data;
+    if (!pool?.length) return;
+    const pick = pool[Math.floor(Math.random() * pool.length)];
+    setLocation(`/anime/${pick.mal_id}`);
+  }
+
+  // New Release (currently airing, sorted by members/popularity)
+  // Routed through the shared Jikan queue (jikan.ts) — no manual staggering
+  // needed since the queue serialises every request app-wide.
+  const { data: newRelease } = useQuery({
+    queryKey: ['home', 'new-release'],
+    queryFn: async () => {
+      const j = await fetchJikan<any>('/anime?status=airing&order_by=members&sort=desc&limit=8&sfw=true');
+      return j.data || [];
+    },
+    staleTime: 15 * 60 * 1000,
+  });
+
+  // Just Completed
+  const { data: justCompleted } = useQuery({
+    queryKey: ['home', 'just-completed'],
+    queryFn: async () => {
+      const j = await fetchJikan<any>('/anime?status=complete&order_by=end_date&sort=desc&limit=5&sfw=true');
+      return j.data || [];
+    },
+    staleTime: 15 * 60 * 1000,
+  });
+
+  // Upcoming anime
+  const { data: upcoming } = useQuery({
+    queryKey: ['home', 'upcoming'],
+    queryFn: async () => {
+      const j = await fetchJikan<any>('/anime?status=upcoming&order_by=members&sort=desc&limit=12&sfw=true');
+      return j.data || [];
+    },
+    staleTime: 30 * 60 * 1000,
+  });
+
+  const heroAnimes = useMemo(() => trending?.data?.slice(0, 10) || [], [trending?.data]);
+  const activeHero = heroAnimes[heroIndex];
+
+  const recentHistory = useMemo(() => getRecentAnime().slice(0, 12), [getRecentAnime]);
+
+  useSEO({ title: 'Home', description: 'Stream anime free on KamiStream — trending, seasonal and top rated all in one place.' });
+
+  const { data: airingSchedule } = useQuery({
+    queryKey: ['anilist', 'airing-schedule'],
+    queryFn: getAiringSchedule,
+    staleTime: 15 * 60 * 1000,
+  });
+
+  // Build schedule grouped by day
+  const { airingByDay, airingDays } = useMemo(() => {
+    const byDay: Record<string, any[]> = {};
+    (airingSchedule || []).forEach((item: any) => {
+      const d = new Date(item.airingAt * 1000);
+      const key = d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+      if (!byDay[key]) byDay[key] = [];
+      byDay[key].push(item);
+    });
+    Object.keys(byDay).forEach(k => byDay[k].sort((a: any, b: any) => a.airingAt - b.airingAt));
+    return { airingByDay: byDay, airingDays: Object.keys(byDay).slice(0, 7) };
+  }, [airingSchedule]);
+
+  // Reset show-more count when switching days
+  useEffect(() => { setShowMoreCount(7); }, [activeDayIndex]);
+
+  // Normalise a watchlist item to what AnimeCard expects
+  const wlToCard = useMemo(() => (item: any) => ({
+    mal_id: item.mal_id, title: item.title, score: item.score, episodes: item.episodes,
+    type: 'TV', images: { webp: { large_image_url: item.image_url || '' }, jpg: { large_image_url: item.image_url || '' } },
+  }), []);
+
+  const histToCard = useMemo(() => (item: any) => ({
+    mal_id: item.mal_id, title: item.title, score: null, episodes: null,
+    type: 'TV', images: { webp: { large_image_url: item.image_url || '' }, jpg: { large_image_url: item.image_url || '' } },
+  }), []);
+
+  // Auto-advance hero carousel
+  useEffect(() => {
+    if (heroAnimes.length === 0 || isHovered) return;
+    const interval = setInterval(() => {
+      setHeroIndex(prev => (prev + 1) % heroAnimes.length);
+    }, 8000);
+    return () => clearInterval(interval);
+  }, [heroAnimes.length, isHovered]);
+
+  return (
+    <div className="p-4 md:p-6 space-y-10 pb-20">
+
+      {/* ── Hero ── */}
+      {activeHero ? (
+        <div
+          className="relative w-full h-[320px] md:h-[420px] rounded-2xl overflow-hidden"
+          ref={heroBoxRef}
+          onMouseEnter={() => setIsHovered(true)}
+          onMouseMove={handleHeroMouseMove}
+          onMouseLeave={resetHeroParallax}
+        >
+          <img
+            ref={heroImgRef}
+            src={activeHero.trailer?.images?.maximum_image_url || activeHero.images?.webp?.large_image_url || activeHero.images?.jpg?.large_image_url || ''}
+            alt={activeHero.title}
+            className="absolute inset-0 w-full h-full object-cover scale-105 transition-transform duration-300 ease-out will-change-transform"
+          />
+          <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/60 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
+
+          <div className="absolute bottom-0 left-0 p-6 md:p-10 max-w-2xl">
+            <div className="text-[10px] font-black text-[var(--pink)] tracking-[2px] uppercase mb-2">
+              #{heroIndex + 1} Trending This Week
+            </div>
+            <h1 className="text-3xl md:text-5xl font-heading font-black text-white leading-tight mb-3 line-clamp-2">
+              {activeHero.title}
+            </h1>
+            <p className="text-[13px] md:text-[14px] text-[var(--text2)] line-clamp-2 md:line-clamp-3 mb-6 max-w-xl">
+              {activeHero.synopsis}
+            </p>
+            <div className="flex gap-3 flex-wrap">
+              <Link href={`/anime/${activeHero.mal_id}`}>
+                <button className="bg-gradient-to-r from-[var(--pink)] to-[var(--purple)] text-white px-6 py-2.5 rounded-xl text-[13px] font-bold hover:opacity-90 flex items-center gap-2">
+                  <ChevronRight className="w-4 h-4" /> Watch Now
+                </button>
+              </Link>
+              <button onClick={goToRandom} className="bg-white/10 backdrop-blur-md border border-white/20 text-white px-4 py-2.5 rounded-xl text-[13px] font-bold flex items-center gap-2 hover:bg-white/20 transition-all">
+                <Shuffle className="w-4 h-4" /> Random
+              </button>
+              {activeHero.score && (
+                <div className="bg-white/10 backdrop-blur-md border border-white/20 text-white px-4 py-2.5 rounded-xl text-[13px] font-bold flex items-center gap-1.5">
+                  <Star className="w-4 h-4 text-yellow-400 fill-yellow-400" /> {activeHero.score}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="absolute bottom-4 right-6 flex gap-2">
+            {heroAnimes.map((_: any, i: number) => (
+              <button key={i} onClick={() => setHeroIndex(i)}
+                className={`h-1.5 rounded-full transition-all ${i === heroIndex ? 'w-6 bg-[var(--pink)]' : 'w-1.5 bg-white/30 hover:bg-white/60'}`}
+              />
+            ))}
+          </div>
+        </div>
+      ) : (
+        <div className="w-full h-[320px] md:h-[420px] rounded-2xl bg-[var(--card)] animate-pulse" />
+      )}
+
+      {/* ── Category quick-nav pills ── */}
+      <CategoryPills />
+
+      {/* ── Continue Watching ── */}
+      <ContinueWatching />
+
+      {/* ── Because You Watched ── */}
+      <BecauseYouWatched />
+
+      {/* ── Recently Updated ── */}
+      {recentlyUpdated && recentlyUpdated.length > 0 && (
+        <section>
+          <SectionHeader icon={<Radio className="w-4 h-4" />} title="Recently Updated" color="var(--green)" href="/browse" big />
+          <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-7 lg:grid-cols-9 xl:grid-cols-11 gap-2">
+            {recentlyUpdated.map((anime: any) => (
+              <div key={anime.mal_id} className="relative">
+                <AnimeCard anime={anime} />
+                {anime.latestEp && (
+                  <div className="absolute top-2 left-2 bg-[var(--green)] text-black text-[9px] font-black px-1.5 py-0.5 rounded-md z-10">
+                    EP {anime.latestEp}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* ── Airing This Week — Schedule Style ── */}
+      {airingDays.length > 0 && (
+        <section>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-[16px] font-heading font-black text-white flex items-center gap-2">
+              <Calendar className="w-4 h-4 text-[var(--purple)]" /> Airing This Week
+            </h2>
+            <Link href="/schedule" className="text-[11px] font-bold text-[var(--text3)] hover:text-[var(--pink)] transition-colors flex items-center gap-1">
+              Full Schedule <ChevronRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+
+          <div className="bg-[var(--card)] border border-[var(--border)] rounded-2xl overflow-hidden">
+            {/* Now timestamp */}
+            <div className="px-5 py-3 border-b border-[var(--border)] bg-[var(--bg3)]/60">
+              <p className="text-[11px] text-[var(--text3)] font-mono">
+                Estimated Schedule — Now: {new Date().toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+              </p>
+            </div>
+
+            {/* Day tabs with arrows */}
+            <div className="flex items-center border-b border-[var(--border)]">
+              <button
+                onClick={() => setActiveDayIndex(i => Math.max(0, i - 1))}
+                disabled={activeDayIndex === 0}
+                className="p-3 text-[var(--text3)] hover:text-white disabled:opacity-30 transition-colors shrink-0"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+
+              <div className="flex-1 flex overflow-x-auto scrollbar-none">
+                {airingDays.map((day, idx) => {
+                  const parts = day.split(', '); // e.g. "Thu, May 28"
+                  const [weekday, monthDay] = parts;
+                  return (
+                    <button
+                      key={day}
+                      onClick={() => setActiveDayIndex(idx)}
+                      className={`flex flex-col items-center py-3 px-4 min-w-[70px] shrink-0 border-b-2 transition-all ${
+                        idx === activeDayIndex
+                          ? 'border-[var(--pink)] text-white'
+                          : 'border-transparent text-[var(--text3)] hover:text-white'
+                      }`}
+                    >
+                      <span className="text-[9px] font-bold uppercase tracking-wide opacity-70">{monthDay}</span>
+                      <span className={`text-[15px] font-black uppercase mt-0.5 ${idx === activeDayIndex ? 'text-white' : ''}`}>
+                        {weekday?.toUpperCase()}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <button
+                onClick={() => setActiveDayIndex(i => Math.min(airingDays.length - 1, i + 1))}
+                disabled={activeDayIndex === airingDays.length - 1}
+                className="p-3 text-[var(--text3)] hover:text-white disabled:opacity-30 transition-colors shrink-0"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Schedule rows for active day */}
+            {(() => {
+              const dayKey = airingDays[activeDayIndex];
+              const items = airingByDay[dayKey] || [];
+              const visible = items.slice(0, showMoreCount);
+              const hasMore = items.length > showMoreCount;
+
+              return (
+                <div>
+                  {visible.map((item: any, i: number) => {
+                    const m = item.media;
+                    const title = m?.title?.english || m?.title?.romaji || 'Unknown';
+                    const malId = m?.idMal;
+                    const now = Math.floor(Date.now() / 1000);
+                    const isOut = item.airingAt <= now;
+                    const timeStr = new Date(item.airingAt * 1000).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+
+                    return (
+                      <div
+                        key={`${m?.id}-${item.episode}-${i}`}
+                        className="flex items-center gap-4 px-5 py-3 border-b border-[var(--border)]/50 last:border-0 hover:bg-[var(--bg3)]/60 transition-colors group"
+                      >
+                        {/* Time */}
+                        <div className="w-[68px] shrink-0 text-[12px] font-mono text-[var(--text3)] group-hover:text-[var(--text2)] transition-colors">
+                          {timeStr}
+                        </div>
+
+                        {/* Title */}
+                        <div className="flex-1 min-w-0">
+                          {malId ? (
+                            <Link href={`/anime/${malId}`}>
+                              <span className="text-[13px] font-bold text-white hover:text-[var(--pink)] transition-colors line-clamp-1 cursor-pointer">
+                                {title}
+                              </span>
+                            </Link>
+                          ) : (
+                            <span className="text-[13px] font-bold text-white line-clamp-1">{title}</span>
+                          )}
+                        </div>
+
+                        {/* Episode button */}
+                        <div className="shrink-0">
+                          {malId ? (
+                            <Link href={`/anime/${malId}`}>
+                              <button className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all ${
+                                isOut
+                                  ? 'bg-[var(--pink)]/15 border border-[var(--pink)]/40 text-[var(--pink)] hover:bg-[var(--pink)]/30'
+                                  : 'bg-[var(--bg3)] border border-[var(--border)] text-[var(--text3)] hover:text-white hover:border-[var(--border)]'
+                              }`}>
+                                <Play className="w-3 h-3 fill-current" />
+                                Episode {item.episode}
+                              </button>
+                            </Link>
+                          ) : (
+                            <span className="text-[11px] text-[var(--text3)] font-bold px-3 py-1.5">
+                              EP {item.episode}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {/* Show more */}
+                  {hasMore && (
+                    <div className="px-5 py-4 text-center border-t border-[var(--border)]/50">
+                      <button
+                        onClick={() => setShowMoreCount(c => c + 10)}
+                        className="text-[12px] font-bold text-[var(--text3)] hover:text-[var(--pink)] transition-colors"
+                      >
+                        Show more
+                      </button>
+                    </div>
+                  )}
+
+                  {items.length === 0 && (
+                    <div className="py-10 text-center text-[var(--text3)] text-[13px]">
+                      No airing anime scheduled for this day.
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+          </div>
+        </section>
+      )}
+
+      {/* ── Continue Watching ── */}
+      {recentHistory.length > 0 && (
+        <section>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-[15px] font-heading font-black text-white flex items-center gap-2">
+              <Clock className="w-3.5 h-3.5 text-[var(--purple)]" /> Continue Watching
+            </h2>
+          </div>
+          <div className="grid grid-cols-5 sm:grid-cols-7 md:grid-cols-9 lg:grid-cols-11 xl:grid-cols-13 gap-2">
+            {recentHistory.map((item: any) => (
+              <AnimeCard key={item.mal_id} anime={histToCard(item)} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* ── My Watchlist ── */}
+      {watchlist.length > 0 && (
+        <section>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-[15px] font-heading font-black text-white flex items-center gap-2">
+              <BookMarked className="w-3.5 h-3.5 text-[var(--pink)]" /> My Watchlist
+            </h2>
+            <Link href="/watchlist" className="text-[11px] font-bold text-[var(--text3)] hover:text-[var(--pink)] transition-colors flex items-center gap-1">
+              View All ({watchlist.length}) <ChevronRight className="w-3 h-3" />
+            </Link>
+          </div>
+          <div className="grid grid-cols-5 sm:grid-cols-7 md:grid-cols-9 lg:grid-cols-11 xl:grid-cols-13 gap-2">
+            {watchlist.slice(0, 12).map((item: any) => (
+              <AnimeCard key={item.mal_id} anime={wlToCard(item)} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* ── New Release / New Added / Just Completed — bento layout ── */}
+      <section>
+        <div className="grid grid-cols-1 md:grid-cols-4 md:grid-rows-2 gap-3">
+          <div className="md:col-span-2 md:row-span-2 bg-[var(--card)] border border-[var(--border)] rounded-2xl overflow-hidden">
+            <div className="flex items-center justify-between px-3 py-2 border-b border-[var(--border)]">
+              <h3 className="text-[12px] font-heading font-black uppercase tracking-wide">🔥 New Release</h3>
+              <Link href="/category/new-release" className="text-[10px] text-[var(--text3)] hover:text-[var(--pink)] transition-colors font-bold">See All →</Link>
+            </div>
+            <div className="p-1">
+              {(newRelease || []).map((a: any) => <AnimeListCard key={a.mal_id} anime={a} badge="AIRING" />)}
+            </div>
+          </div>
+          <div className="md:col-span-2 bg-[var(--card)] border border-[var(--border)] rounded-2xl overflow-hidden">
+            <div className="flex items-center justify-between px-3 py-2 border-b border-[var(--border)]">
+              <h3 className="text-[12px] font-heading font-black uppercase tracking-wide">⚡ New Added</h3>
+              <Link href="/category/new-added" className="text-[10px] text-[var(--text3)] hover:text-[var(--pink)] transition-colors font-bold">See All →</Link>
+            </div>
+            <div className="p-1">
+              {(recentlyUpdated || []).slice(0, 5).map((a: any) => (
+                <AnimeListCard key={a.mal_id} anime={a} badge={a.latestEp ? `EP ${a.latestEp}` : undefined} badgeColor="var(--green)" />
+              ))}
+            </div>
+          </div>
+          <div className="md:col-span-2 bg-[var(--card)] border border-[var(--border)] rounded-2xl overflow-hidden">
+            <div className="flex items-center justify-between px-3 py-2 border-b border-[var(--border)]">
+              <h3 className="text-[12px] font-heading font-black uppercase tracking-wide">✅ Just Completed</h3>
+              <Link href="/category/just-completed" className="text-[10px] text-[var(--text3)] hover:text-[var(--pink)] transition-colors font-bold">See All →</Link>
+            </div>
+            <div className="p-1">
+              {(justCompleted || []).map((a: any) => <AnimeListCard key={a.mal_id} anime={a} />)}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Trending Now ── */}
+      <section>
+        <SectionHeader icon={<Flame className="w-3.5 h-3.5" />} title="Trending Now" color="#f97316" href="/category/trending" />
+        {trendingLoading ? <GridSkeleton /> : (
+          <div className="grid grid-cols-5 sm:grid-cols-6 md:grid-cols-7 lg:grid-cols-9 xl:grid-cols-11 gap-2">
+            {dedupeByMalId(trending?.data ?? []).map((anime: any) => <AnimeCard key={anime.mal_id} anime={anime} />)}
+          </div>
+        )}
+      </section>
+
+      {/* ── Top Rated ── */}
+      <section>
+        <SectionHeader icon={<Star className="w-3.5 h-3.5" />} title="Top Rated" color="var(--gold)" href="/category/top-rated" />
+        {topRatedLoading ? <GridSkeleton /> : (
+          <div className="grid grid-cols-5 sm:grid-cols-6 md:grid-cols-7 lg:grid-cols-9 xl:grid-cols-11 gap-2">
+            {dedupeByMalId(topRated?.data ?? []).map((anime: any) => <AnimeCard key={anime.mal_id} anime={anime} />)}
+          </div>
+        )}
+      </section>
+
+      {/* ── This Season ── */}
+      <section>
+        <SectionHeader icon={<Sparkles className="w-3.5 h-3.5" />} title="This Season" color="var(--purple)" href="/category/this-season" />
+        {seasonalLoading ? <GridSkeleton /> : (
+          <div className="grid grid-cols-5 sm:grid-cols-6 md:grid-cols-7 lg:grid-cols-9 xl:grid-cols-11 gap-2">
+            {dedupeByMalId(seasonal?.data ?? []).map((anime: any) => <AnimeCard key={anime.mal_id} anime={anime} />)}
+          </div>
+        )}
+      </section>
+
+      {/* ── Upcoming Anime ── */}
+      {upcoming && upcoming.length > 0 && (
+        <section>
+          <div className="flex items-center justify-between mb-3">
+            <SectionHeader icon={<Rocket className="w-3.5 h-3.5" />} title="Coming Soon" color="var(--pink)" href="/category/upcoming" />
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+            {upcoming.map((anime: any) => (
+              <Link key={anime.mal_id} href={`/anime/${anime.mal_id}`}>
+                <div className="group cursor-pointer">
+                  <div className="relative aspect-[2/3] rounded-xl overflow-hidden bg-[var(--card)] mb-2">
+                    <img
+                      src={anime.images?.webp?.large_image_url}
+                      alt={anime.title}
+                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
+
+                    {/* Coming Soon badge */}
+                    <div className="absolute top-2 left-2 bg-[var(--pink)] text-white text-[8px] font-black px-1.5 py-0.5 rounded-md uppercase tracking-wide">
+                      Coming Soon
+                    </div>
+
+                    {/* Air date */}
+                    {anime.aired?.from && (
+                      <div className="absolute bottom-2 left-2 right-2">
+                        <p className="text-[9px] font-bold text-white/80 bg-black/60 backdrop-blur-sm px-1.5 py-0.5 rounded-md inline-block">
+                          {new Date(anime.aired.from).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                  <p className="text-[11px] font-bold text-white line-clamp-2 leading-snug">{anime.title}</p>
+                  {anime.genres?.length > 0 && (
+                    <p className="text-[9px] text-[var(--text3)] mt-0.5 truncate">
+                      {anime.genres.slice(0, 2).map((g: any) => g.name).join(' · ')}
+                    </p>
+                  )}
+                </div>
+              </Link>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* ── Top Anime (Day / Week / Month) ── */}
+      <section>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-[15px] font-heading font-black text-white flex items-center gap-2">
+            <span className="w-1 h-4 rounded-full" style={{ background: "var(--gold)" }} />
+            <Trophy className="w-4 h-4" style={{ color: "var(--gold)" }} /> Top Anime
+          </h2>
+          <div className="flex bg-[var(--card)] border border-[var(--border)] rounded-xl overflow-hidden text-[11px] font-black">
+            {(['day', 'week', 'month'] as const).map(p => (
+              <button key={p} onClick={() => setTopPeriod(p)}
+                className={`px-3 py-1.5 uppercase tracking-wide transition-colors ${topPeriod === p ? 'bg-gradient-to-r from-[var(--pink)] to-[var(--purple)] text-white' : 'text-[var(--text3)] hover:text-white'}`}>
+                {p}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2 gap-2">
+          {topAnimeLoading
+            ? Array.from({ length: 10 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-3 p-2 animate-pulse">
+                  <div className="w-7 text-center shrink-0"><div className="h-4 w-5 bg-[var(--card)] rounded mx-auto" /></div>
+                  <div className="w-11 h-14 bg-[var(--card)] rounded-lg shrink-0" />
+                  <div className="flex-1 space-y-1.5"><div className="h-3 bg-[var(--card)] rounded w-3/4" /><div className="h-2.5 bg-[var(--card)] rounded w-1/2" /></div>
+                </div>
+              ))
+            : (topAnimeData?.data || []).map((anime: any, i: number) => (
+                <Link key={anime.mal_id} href={`/anime/${anime.mal_id}`}>
+                  <div className="kami-card flex items-center gap-3 p-2.5 rounded-xl hover:bg-[var(--bg3)] transition-colors group cursor-pointer">
+                    <div className={`w-7 shrink-0 text-center font-black text-[14px] leading-none ${i === 0 ? 'text-[var(--gold)]' : i === 1 ? 'text-[#C0C0C0]' : i === 2 ? 'text-[#cd7f32]' : 'text-[var(--text3)]'}`}>
+                      {i + 1}
+                    </div>
+                    <img
+                      src={anime.images?.webp?.small_image_url || anime.images?.jpg?.small_image_url}
+                      alt={anime.title}
+                      className="w-11 h-14 object-cover rounded-lg shrink-0 group-hover:scale-105 transition-transform duration-200"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[12px] font-bold text-white line-clamp-2 leading-snug group-hover:text-[var(--pink)] transition-colors">{anime.title}</p>
+                      <div className="flex items-center gap-2 mt-1">
+                        {anime.score && <span className="text-[10px] font-bold text-[var(--gold)] flex items-center gap-0.5"><Star className="w-2.5 h-2.5 fill-current" />{anime.score}</span>}
+                        {anime.type && <span className="text-[9px] text-[var(--text3)] font-bold">{anime.type}</span>}
+                        {anime.episodes && <span className="text-[9px] text-[var(--text3)]">{anime.episodes} ep</span>}
+                      </div>
+                    </div>
+                  </div>
+                </Link>
+              ))
+          }
+        </div>
+      </section>
+
+      <div id="home-ad" className="min-h-[1px]"
+        ref={el => { if (el && (window as any).KamiAds) (window as any).KamiAds.loadInPagePush('home-ad'); }}
+      />
+    </div>
+  );
+}
+
+// ── Section header — accent bar + icon + View All link ──────────────────────
+function SectionHeader({
+  icon, title, color, href, big,
+}: {
+  icon: React.ReactNode;
+  title: string;
+  color: string;
+  href?: string;
+  big?: boolean;
+}) {
+  return (
+    <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center gap-2.5">
+        <span className="w-1 h-4 rounded-full shrink-0" style={{ background: color }} />
+        <h2 className={`font-heading font-black text-white flex items-center gap-2 ${big ? 'text-[18px]' : 'text-[15px]'}`}>
+          <span style={{ color }}>{icon}</span> {title}
+        </h2>
+      </div>
+      {href && (
+        <Link href={href} className="text-[11px] font-bold text-[var(--text3)] hover:text-[var(--pink)] transition-colors">
+          View All →
+        </Link>
+      )}
+    </div>
+  );
+}
