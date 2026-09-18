@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useRoute, Link } from "wouter";
 import { useInfiniteQuery } from "@tanstack/react-query";
 import { AnimeCard } from "@/components/AnimeCard";
@@ -72,11 +72,13 @@ const GENRES: Record<string, string> = {
   "95": "Yuri",
 };
 
-// Only show popular ones in the quick-switch bar
-const POPULAR_IDS = [
-  "1","2","4","7","8","10","13","14","18","19","22","23","24",
-  "25","27","30","36","37","40","41","42","43","66","79","85","86",
-];
+// Show EVERY genre in the quick-switch bar (sorted alphabetically) so any
+// /genre/:id route always has its chip visible and highlighted — previously
+// only 26 "popular" ids were shown, so landing on e.g. /genre/89 (Vampire)
+// displayed a bar where the selected genre was completely missing.
+const ALL_GENRE_IDS = Object.keys(GENRES).sort((a, b) =>
+  GENRES[a].localeCompare(GENRES[b])
+);
 
 const SORT_OPTIONS = [
   { v: "popularity", l: "Most Popular" },
@@ -100,6 +102,12 @@ export default function Genre() {
   const genreId   = params?.id || "";
   const genreName = GENRES[genreId] || "Genre";
   const [sort, setSort] = useState("popularity");
+  const activeChip = useRef<HTMLSpanElement | null>(null);
+
+  // Keep the selected genre chip in view when switching genres
+  useEffect(() => {
+    activeChip.current?.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
+  }, [genreId]);
 
   useSEO({
     title:       `${genreName} Anime`,
@@ -151,15 +159,18 @@ export default function Genre() {
         </select>
       </div>
 
-      {/* Popular genre quick-switch */}
+      {/* All-genre quick-switch — current genre highlighted */}
       <div className="flex flex-wrap gap-1.5 mb-6">
-        {POPULAR_IDS.map(id => (
+        {ALL_GENRE_IDS.map(id => (
           <Link key={id} href={`/genre/${id}`}>
-            <span className={`px-3 py-1 rounded-full text-[11px] font-bold cursor-pointer transition-all ${
+            <span
+              ref={id === genreId ? activeChip : undefined}
+              className={`px-3 py-1 rounded-full text-[11px] font-bold cursor-pointer transition-all ${
               id === genreId
                 ? "bg-gradient-to-r from-[var(--pink)] to-[var(--purple)] text-white"
                 : "bg-[var(--card)] text-[var(--text2)] border border-[var(--border)] hover:border-[var(--purple)] hover:text-white"
-            }`}>
+            }`}
+            >
               {GENRES[id]}
             </span>
           </Link>
