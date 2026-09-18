@@ -1,5 +1,6 @@
 import React from "react";
 import { Link } from "wouter";
+import { motion } from "framer-motion";
 import {
   LayoutGrid, TrendingUp, Flame, Zap, CheckCircle2,
   Star, Sparkles, Trophy, Rocket,
@@ -25,18 +26,26 @@ export function CategoryPills({ active }: { active?: string }) {
           <LayoutGrid className="w-3 h-3" /> All Anime
         </span>
       </Link>
-      {PILLS.map(p => {
+      {PILLS.map((p, i) => {
         const isActive = p.key === active;
         return (
-          <Link key={p.key} href={`/category/${p.key}`} className="shrink-0">
-            <span
+          <Link
+            key={p.key}
+            href={`/category/${p.key}`}
+            className="shrink-0 kami-rise"
+            style={{ animationDelay: `${Math.min(i * 45, 400)}ms` }}
+          >
+            <motion.span
+              whileHover={{ scale: 1.06 }}
+              whileTap={{ scale: 0.92 }}
+              transition={{ type: "spring", stiffness: 500, damping: 22 }}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-bold transition-colors"
               style={isActive
                 ? { background: `color-mix(in srgb, ${p.color} 22%, transparent)`, color: p.color, border: `1px solid color-mix(in srgb, ${p.color} 45%, transparent)` }
                 : { background: "rgba(0,0,0,0.3)", color: "var(--text3)", border: "1px solid var(--border)" }}
             >
               {p.icon} {p.label}
-            </span>
+            </motion.span>
           </Link>
         );
       })}

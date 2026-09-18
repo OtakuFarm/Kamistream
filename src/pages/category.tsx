@@ -7,6 +7,7 @@ import {
   Home, Rocket, RefreshCw, LayoutGrid,
 } from "lucide-react";
 import { AnimeCard } from "@/components/AnimeCard";
+import { CountUp } from "@/components/motionBits";
 import { useSEO } from "@/hooks/useSEO";
 import { jikanFetch } from "@/lib/jikanFetch";
 import { dedupeByMalId } from "@/lib/dedupeAnime";
@@ -310,14 +311,18 @@ export default function Category() {
             {items.map((anime: any, i: number) => {
               const rank = cat.ranked ? (page - 1) * PAGE_SIZE + i + 1 : null;
               return (
-                <div key={anime.mal_id} className="relative">
+                <div
+                  key={anime.mal_id}
+                  className="relative kami-rise"
+                  style={{ animationDelay: `${Math.min(i * 45, 600)}ms` }}
+                >
                   <AnimeCard anime={anime} />
                   {rank !== null && (
                     <div
                       className="absolute top-1.5 left-1.5 z-20 min-w-7 h-7 px-1 rounded-lg bg-black/75 backdrop-blur-sm border border-white/10 flex items-center justify-center text-[11px] font-black pointer-events-none"
                       style={{ color: rankColor(rank) }}
                     >
-                      #{rank}
+                      <CountUp value={rank} prefix="#" duration={600} />
                     </div>
                   )}
                 </div>

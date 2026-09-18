@@ -11,6 +11,7 @@ import { ChevronRight, ChevronLeft, Star, Flame, Sparkles, BookMarked, Clock, Ra
 import { useQuery } from '@tanstack/react-query';
 import { getAiringSchedule, getRecentlyAired } from '@/lib/anilist';
 import { Link, useLocation } from 'wouter';
+import { motion } from 'framer-motion';
 import { useSEO } from '@/hooks/useSEO';
 import { supabase } from '@/lib/supabase';
 import { dedupeByMalId } from '@/lib/dedupeAnime';
@@ -252,7 +253,13 @@ export default function Home() {
           <div className="absolute inset-0 bg-gradient-to-r from-black/90 via-black/60 to-transparent" />
           <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
 
-          <div className="absolute bottom-0 left-0 p-6 md:p-10 max-w-2xl">
+          <motion.div
+            key={activeHero.mal_id}
+            initial={{ opacity: 0, x: -24 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+            className="absolute bottom-0 left-0 p-6 md:p-10 max-w-2xl"
+          >
             <div className="text-[10px] font-black text-[var(--pink)] tracking-[2px] uppercase mb-2">
               #{heroIndex + 1} Trending This Week
             </div>
@@ -277,7 +284,7 @@ export default function Home() {
                 </div>
               )}
             </div>
-          </div>
+          </motion.div>
 
           <div className="absolute bottom-4 right-6 flex gap-2">
             {heroAnimes.map((_: any, i: number) => (
@@ -305,8 +312,8 @@ export default function Home() {
         <section>
           <SectionHeader icon={<Radio className="w-4 h-4" />} title="Recently Updated" color="var(--green)" href="/browse" big />
           <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-7 lg:grid-cols-9 xl:grid-cols-11 gap-2">
-            {recentlyUpdated.map((anime: any) => (
-              <div key={anime.mal_id} className="relative">
+            {recentlyUpdated.map((anime: any, i: number) => (
+              <div key={anime.mal_id} className="relative kami-rise" style={{ animationDelay: `${Math.min(i * 40, 500)}ms` }}>
                 <AnimeCard anime={anime} />
                 {anime.latestEp && (
                   <div className="absolute top-2 left-2 bg-[var(--green)] text-black text-[9px] font-black px-1.5 py-0.5 rounded-md z-10">
@@ -477,8 +484,8 @@ export default function Home() {
             </h2>
           </div>
           <div className="grid grid-cols-5 sm:grid-cols-7 md:grid-cols-9 lg:grid-cols-11 xl:grid-cols-13 gap-2">
-            {recentHistory.map((item: any) => (
-              <AnimeCard key={item.mal_id} anime={histToCard(item)} />
+            {recentHistory.map((item: any, i: number) => (
+              <AnimeCard key={item.mal_id} anime={histToCard(item)} index={i} />
             ))}
           </div>
         </section>
@@ -496,8 +503,8 @@ export default function Home() {
             </Link>
           </div>
           <div className="grid grid-cols-5 sm:grid-cols-7 md:grid-cols-9 lg:grid-cols-11 xl:grid-cols-13 gap-2">
-            {watchlist.slice(0, 12).map((item: any) => (
-              <AnimeCard key={item.mal_id} anime={wlToCard(item)} />
+            {watchlist.slice(0, 12).map((item: any, i: number) => (
+              <AnimeCard key={item.mal_id} anime={wlToCard(item)} index={i} />
             ))}
           </div>
         </section>
@@ -543,7 +550,7 @@ export default function Home() {
         <SectionHeader icon={<Flame className="w-3.5 h-3.5" />} title="Trending Now" color="#f97316" href="/category/trending" />
         {trendingLoading ? <GridSkeleton /> : (
           <div className="grid grid-cols-5 sm:grid-cols-6 md:grid-cols-7 lg:grid-cols-9 xl:grid-cols-11 gap-2">
-            {dedupeByMalId(trending?.data ?? []).map((anime: any) => <AnimeCard key={anime.mal_id} anime={anime} />)}
+            {dedupeByMalId(trending?.data ?? []).map((anime: any, i: number) => <AnimeCard key={anime.mal_id} anime={anime} index={i} />)}
           </div>
         )}
       </section>
@@ -553,7 +560,7 @@ export default function Home() {
         <SectionHeader icon={<Star className="w-3.5 h-3.5" />} title="Top Rated" color="var(--gold)" href="/category/top-rated" />
         {topRatedLoading ? <GridSkeleton /> : (
           <div className="grid grid-cols-5 sm:grid-cols-6 md:grid-cols-7 lg:grid-cols-9 xl:grid-cols-11 gap-2">
-            {dedupeByMalId(topRated?.data ?? []).map((anime: any) => <AnimeCard key={anime.mal_id} anime={anime} />)}
+            {dedupeByMalId(topRated?.data ?? []).map((anime: any, i: number) => <AnimeCard key={anime.mal_id} anime={anime} index={i} />)}
           </div>
         )}
       </section>
@@ -563,7 +570,7 @@ export default function Home() {
         <SectionHeader icon={<Sparkles className="w-3.5 h-3.5" />} title="This Season" color="var(--purple)" href="/category/this-season" />
         {seasonalLoading ? <GridSkeleton /> : (
           <div className="grid grid-cols-5 sm:grid-cols-6 md:grid-cols-7 lg:grid-cols-9 xl:grid-cols-11 gap-2">
-            {dedupeByMalId(seasonal?.data ?? []).map((anime: any) => <AnimeCard key={anime.mal_id} anime={anime} />)}
+            {dedupeByMalId(seasonal?.data ?? []).map((anime: any, i: number) => <AnimeCard key={anime.mal_id} anime={anime} index={i} />)}
           </div>
         )}
       </section>

@@ -6,11 +6,13 @@ import { useWatchHistory } from "@/hooks/useWatchHistory";
 
 interface AnimeCardProps {
   anime: any;
+  /** Position in the parent grid — enables staggered entrance animation. */
+  index?: number;
 }
 
 const LONG_PRESS_MS = 500;
 
-export function AnimeCard({ anime }: AnimeCardProps) {
+export function AnimeCard({ anime, index }: AnimeCardProps) {
   const { toggleWatchlist, isInWatchlist } = useWatchlist();
   const { getRecentAnime }                 = useWatchHistory();
   const [, setLocation]                    = useLocation();
@@ -165,7 +167,7 @@ export function AnimeCard({ anime }: AnimeCardProps) {
   return (
     <div
       ref={cardRef}
-      className={`kami-card group relative bg-[var(--card)] rounded-2xl overflow-visible cursor-pointer transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_0_0_1px_var(--border),0_16px_40px_-12px_var(--pink)] select-none ${pressing ? "scale-[0.97]" : ""}`}
+      className={`kami-card group relative bg-[var(--card)] rounded-2xl overflow-visible cursor-pointer transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_0_0_1px_var(--border),0_16px_40px_-12px_var(--pink)] select-none ${pressing ? "scale-[0.97]" : ""} ${index !== undefined ? "kami-rise" : ""}`}
       onClick={onClick}
       onMouseDown={onMouseDown}
       onMouseUp={onMouseUp}
@@ -174,7 +176,11 @@ export function AnimeCard({ anime }: AnimeCardProps) {
       onTouchEnd={onTouchEnd}
       onTouchMove={onTouchMove}
       onContextMenu={onContextMenu}
-      style={{ WebkitUserSelect: "none", userSelect: "none" }}
+      style={{
+        WebkitUserSelect: "none",
+        userSelect: "none",
+        ...(index !== undefined ? { animationDelay: `${Math.min(index * 45, 600)}ms` } : {}),
+      }}
     >
       {/* ── Poster ── */}
       <div className="relative aspect-[2/3] overflow-hidden rounded-2xl bg-[var(--bg3)]">
@@ -185,7 +191,7 @@ export function AnimeCard({ anime }: AnimeCardProps) {
             loading="lazy"
             decoding="async"
             onError={() => setImgError(true)}
-            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+            className="w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-110"
             draggable={false}
           />
         ) : (

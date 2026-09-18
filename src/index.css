@@ -210,3 +210,33 @@
   --text3:  #8f8571;
   color-scheme: light;
 }
+
+/* ── Entrance animations (Tier 1 polish) ─────────────────────────────────── */
+@keyframes kami-rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.kami-rise {
+  animation: kami-rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) backwards;
+}
+
+/* Hover glow ring on anime cards */
+.kami-card:hover {
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--pink) 45%, transparent),
+    0 16px 40px -12px color-mix(in srgb, var(--pink) 35%, transparent);
+}
+
+/* Respect users who prefer reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .kami-rise {
+    animation: none;
+  }
+}
