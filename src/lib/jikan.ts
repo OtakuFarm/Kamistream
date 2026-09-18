@@ -169,7 +169,7 @@ async function alPage(query: string, vars: Record<string,any>) {
 }
 
 // withALFallback — runs jikanFn first; on failure runs anilistFn
-async function withALFallback<T>(jikanFn: () => Promise<T>, anilistFn: () => Promise<T>): Promise<T> {
+export async function withALFallback<T>(jikanFn: () => Promise<T>, anilistFn: () => Promise<T>): Promise<T> {
   try {
     return await jikanFn();
   } catch (err) {

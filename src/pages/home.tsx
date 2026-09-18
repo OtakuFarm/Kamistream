@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react';
-import { useTrendingAnime, useTopRatedAnime, useSeasonalAnime, fetchJikan } from '@/lib/jikan';
+import { useTrendingAnime, useTopRatedAnime, useSeasonalAnime, fetchJikan, withALFallback } from '@/lib/jikan';
+import { jikanToAL } from '@/lib/jikanFetch';
 import { AnimeCard } from '@/components/AnimeCard';
 import { AnimeListCard } from '@/components/AnimeListCard';
 import { ContinueWatching } from '@/components/ContinueWatching';
@@ -139,7 +140,15 @@ export default function Home() {
       }
 
       // Sort by most recently aired first
-      return results.sort((a, b) => (b._airingAt ?? 0) - (a._airingAt ?? 0));
+      const sorted = results.sort((a, b) => (b._airingAt ?? 0) - (a._airingAt ?? 0));
+      if (sorted.length > 0) return sorted;
+
+      // Fallback: Supabase has no embed sources configured (or none active),
+      // so "New Added" would render as an empty box. Serve recently-started
+      // airing anime instead so the section is never blank.
+      const ep = '/anime?status=airing&order_by=start_date&sort=desc&limit=5&sfw=true';
+      const j = await withALFallback<any>(() => fetchJikan<any>(ep), () => jikanToAL(ep));
+      return (j.data || []).map((a: any) => ({ ...a, _fallback: true }));
     },
     staleTime: 10 * 60 * 1000, // refresh every 10 min — schedule changes frequently
   });
@@ -158,7 +167,12 @@ export default function Home() {
   const { data: newRelease } = useQuery({
     queryKey: ['home', 'new-release'],
     queryFn: async () => {
-      const j = await fetchJikan<any>('/anime?status=airing&order_by=members&sort=desc&limit=8&sfw=true');
+      // Jikan 504s/429s on this heavy query — fall back to AniList (RELEASING)
+      const ep = '/anime?status=airing&order_by=members&sort=desc&limit=8&sfw=true';
+      const j = await withALFallback<any>(
+        () => fetchJikan<any>(ep),
+        () => jikanToAL(ep)
+      );
       return j.data || [];
     },
     staleTime: 15 * 60 * 1000,
@@ -168,7 +182,14 @@ export default function Home() {
   const { data: justCompleted } = useQuery({
     queryKey: ['home', 'just-completed'],
     queryFn: async () => {
-      const j = await fetchJikan<any>('/anime?status=complete&order_by=end_date&sort=desc&limit=5&sfw=true');
+      // NOTE: this Jikan query regularly 504s (status=complete + end_date sort
+      // is extremely slow on their side) — the AniList fallback (FINISHED,
+      // END_DATE_DESC) is what usually serves this section.
+      const ep = '/anime?status=complete&order_by=end_date&sort=desc&limit=5&sfw=true';
+      const j = await withALFallback<any>(
+        () => fetchJikan<any>(ep),
+        () => jikanToAL(ep)
+      );
       return j.data || [];
     },
     staleTime: 15 * 60 * 1000,
@@ -178,7 +199,11 @@ export default function Home() {
   const { data: upcoming } = useQuery({
     queryKey: ['home', 'upcoming'],
     queryFn: async () => {
-      const j = await fetchJikan<any>('/anime?status=upcoming&order_by=members&sort=desc&limit=12&sfw=true');
+      const ep = '/anime?status=upcoming&order_by=members&sort=desc&limit=12&sfw=true';
+      const j = await withALFallback<any>(
+        () => fetchJikan<any>(ep),
+        () => jikanToAL(ep)
+      );
       return j.data || [];
     },
     staleTime: 30 * 60 * 1000,

@@ -208,7 +208,13 @@ export async function jikanToAL(endpoint: string): Promise<any> {
   }
   if (q)        filters.push(`,search:"${q.replace(/"/g, "")}"`);
   if (letter)   filters.push(`,search:"${letter}"`);
-  if (genres)   { const g = GENRE_MAP[genres]; if (g) filters.push(`,genre:"${g}"`); }
+  // Support comma-separated genre ids (e.g. "1,2") — map each id and use
+  // genre_in so multi-genre moods survive the AniList fallback too.
+  if (genres) {
+    const names = genres.split(",").map(s => GENRE_MAP[s.trim()]).filter(Boolean);
+    if (names.length === 1)      filters.push(`,genre:"${names[0]}"`);
+    else if (names.length > 1)   filters.push(`,genre_in:[${names.map(n => `"${n}"`).join(",")}]`);
+  }
   if (type)     { const f = FORMAT_MAP[type.toLowerCase()]; if (f) filters.push(`,format:${f}`); }
   if (status)   { const s = STATUS_MAP[status]; if (s) filters.push(`,status:${s}`); }
   if (filter === "airing") filters.push(",status:RELEASING");
