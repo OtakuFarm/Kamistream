@@ -323,77 +323,95 @@ export default function AnimeDetail() {
   return (
     <div className="pb-20">
 
-      {/* ══ HERO BANNER ══════════════════════════════════════════════ */}
-      <div className="relative h-[260px] md:h-[340px] w-full overflow-hidden">
-        <img
-          src={anime.trailer?.images?.maximum_image_url || anime.images?.webp?.large_image_url}
-          alt="" className="absolute inset-0 w-full h-full object-cover blur-sm opacity-30"
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-[var(--bg)] via-[var(--bg)]/70 to-transparent" />
-        {/* Subtle grain overlay */}
-        <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 256 256\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'n\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.9\' numOctaves=\'4\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23n)\'/%3E%3C/svg%3E")' }} />
-
-        <div className="absolute bottom-0 left-0 right-0 px-4 md:px-8 pb-4 flex gap-5 md:gap-7 items-end max-w-7xl mx-auto">
-          {/* Cover art */}
+      {/* ══ HERO BANNER — cinematic, layered ═════════════════════════ */}
+      <div className="relative h-[340px] md:h-[440px] w-full overflow-hidden">
+        {/* Full-bleed banner image */}
+        <div className="absolute inset-0 scale-110">
           <img
-            src={anime.images?.webp?.large_image_url}
-            alt={anime.title}
-            className="w-28 md:w-40 rounded-xl shadow-2xl shrink-0 -mb-8 md:-mb-12 z-10 border border-white/10"
+            src={anime.trailer?.images?.maximum_image_url || anime.images?.webp?.large_image_url}
+            alt="" className="w-full h-full object-cover opacity-45"
+            onError={(e) => { (e.currentTarget as HTMLElement).style.opacity = '0'; }}
           />
-          <div className="flex-1 z-10 pb-3 min-w-0">
-            <div className="flex flex-wrap items-center gap-2 mb-2">
-              {anime.type && <span className="text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-md bg-white/10 text-white/60">{anime.type}</span>}
+        </div>
+        {/* Layered gradients: dark base + pink/purple tint + bottom fade */}
+        <div className="absolute inset-0 bg-gradient-to-t from-[var(--bg)] via-[var(--bg)]/60 to-[var(--bg)]/10" />
+        <div className="absolute inset-0" style={{ background: 'linear-gradient(100deg, rgba(255,0,110,0.10) 0%, transparent 40%, rgba(130,0,255,0.10) 100%)' }} />
+        {/* Grain */}
+        <div className="absolute inset-0 opacity-[0.04]" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 256 256\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'n\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.9\' numOctaves=\'4\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23n)\'/%3E%3C/svg%3E")' }} />
+
+        <div className="absolute bottom-0 left-0 right-0 px-4 md:px-8 pb-6 md:pb-8 flex gap-5 md:gap-8 items-end max-w-7xl mx-auto">
+          {/* Cover art — floating glass frame */}
+          <div className="relative shrink-0 z-10 -mb-2 md:-mb-4">
+            <div className="absolute -inset-1.5 rounded-2xl bg-gradient-to-br from-[var(--pink)]/50 via-transparent to-[var(--purple)]/50 blur-[6px] opacity-70" />
+            <img
+              src={anime.images?.webp?.large_image_url}
+              alt={anime.title}
+              className="relative w-32 md:w-48 rounded-xl shadow-2xl z-10 border border-white/15"
+            />
+          </div>
+
+          {/* Glass info card */}
+          <div className="flex-1 z-10 min-w-0 backdrop-blur-md bg-white/[0.05] border border-white/10 rounded-2xl px-4 md:px-6 py-4 md:py-5 shadow-2xl shadow-black/40">
+            <div className="flex flex-wrap items-center gap-2 mb-2.5">
+              {anime.type && <span className="text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full backdrop-blur-sm bg-white/10 border border-white/15 text-white/70">{anime.type}</span>}
               {anime.status === 'Currently Airing' && (
-                <span className="text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-md bg-[var(--pink)]/20 text-[var(--pink)] flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[var(--pink)] animate-pulse inline-block" /> Live
+                <span className="text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full bg-[var(--pink)]/20 border border-[var(--pink)]/30 text-[var(--pink)] flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[var(--pink)] animate-pulse inline-block" /> Airing Now
                 </span>
               )}
               {anime.score && (
-                <span className="text-[9px] font-black px-2 py-1 rounded-md bg-[var(--gold)]/15 text-[var(--gold)] flex items-center gap-1">
+                <span className="text-[9px] font-black px-2.5 py-1 rounded-full bg-[var(--gold)]/15 border border-[var(--gold)]/30 text-[var(--gold)] flex items-center gap-1">
                   <Star className="w-2.5 h-2.5 fill-current" /> {anime.score}
+                  {anime.scored_by && <span className="font-normal opacity-60">({(anime.scored_by / 1000).toFixed(0)}k)</span>}
                 </span>
               )}
+              {anime.rank && <span className="text-[9px] font-black px-2.5 py-1 rounded-full bg-white/10 border border-white/15 text-white/70 hidden sm:inline-block">#{anime.rank}</span>}
+              {anime.members && <span className="text-[9px] font-black px-2.5 py-1 rounded-full bg-white/10 border border-white/15 text-white/70 hidden md:inline-block">{(anime.members / 1000).toFixed(0)}k watchers</span>}
             </div>
-            <h1 className="text-xl md:text-3xl font-heading font-black text-white leading-tight mb-1 truncate">{anime.title}</h1>
+            <h1 className="text-2xl md:text-4xl font-heading font-black text-white leading-tight mb-1 drop-shadow-lg">{anime.title}</h1>
             {anime.title_english && anime.title_english !== anime.title && (
-              <p className="text-[11px] text-[var(--text3)] font-mono mb-2 truncate">{anime.title_english}</p>
+              <p className="text-[11px] md:text-xs text-white/50 font-mono mb-3 truncate">{anime.title_english}</p>
             )}
-            <div className="flex flex-wrap gap-1.5 mb-3">
-              {anime.genres?.slice(0, 4).map((g: any) => (
+            <div className="flex flex-wrap gap-1.5 mb-4">
+              {anime.genres?.slice(0, 5).map((g: any) => (
                 <Link key={g.mal_id} href={`/genre/${g.mal_id}`}>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border border-white/15 text-[var(--text2)] hover:border-[var(--pink)]/50 hover:text-[var(--pink)] transition-colors cursor-pointer">
+                  <span className="text-[10px] font-bold px-2.5 py-1 rounded-full backdrop-blur-sm bg-white/[0.07] border border-white/15 text-white/80 hover:bg-[var(--pink)]/25 hover:border-[var(--pink)]/50 hover:text-white transition-all cursor-pointer">
                     {g.name}
                   </span>
                 </Link>
               ))}
             </div>
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2.5">
               <button
                 onClick={() => loadEpisode(String(resumeEp || 1))}
-                className="bg-gradient-to-r from-[var(--pink)] to-[var(--purple)] text-white px-5 py-2 rounded-xl text-[12px] font-black hover:brightness-110 transition-all flex items-center gap-2 shadow-lg shadow-[var(--pink)]/20"
+                className="bg-gradient-to-r from-[var(--pink)] to-[var(--purple)] text-white px-6 py-2.5 rounded-xl text-[13px] font-black hover:brightness-110 hover:scale-[1.03] active:scale-95 transition-all flex items-center gap-2 shadow-lg shadow-[var(--pink)]/30"
               >
-                <Play className="w-3.5 h-3.5 fill-current" />
+                <Play className="w-4 h-4 fill-current" />
                 {resumeEp ? `Resume EP ${resumeEp}` : 'Watch Now'}
               </button>
               <button
                 onClick={() => toggleWatchlist({ mal_id: anime.mal_id, title: anime.title, image_url: anime.images?.webp?.large_image_url || '', episodes: anime.episodes, score: anime.score })}
-                className={`px-4 py-2 rounded-xl text-[12px] font-bold border transition-all flex items-center gap-2 ${isSaved ? 'bg-[var(--green)]/15 border-[var(--green)]/40 text-[var(--green)]' : 'bg-white/5 border-white/15 text-white hover:bg-white/10'}`}
+                className={`px-5 py-2.5 rounded-xl text-[13px] font-bold backdrop-blur-sm border transition-all flex items-center gap-2 ${isSaved ? 'bg-[var(--green)]/15 border-[var(--green)]/40 text-[var(--green)]' : 'bg-white/[0.07] border-white/15 text-white hover:bg-white/15'}`}
               >
-                {isSaved ? <><Check className="w-3.5 h-3.5" /> Saved</> : <><Plus className="w-3.5 h-3.5" /> Watchlist</>}
+                {isSaved ? <><Check className="w-4 h-4" /> Saved</> : <><Plus className="w-4 h-4" /> Watchlist</>}
               </button>
               {anime.trailer?.youtube_id && (
                 <button onClick={() => setShowTrailer(true)}
-                  className="px-4 py-2 rounded-xl text-[12px] font-bold border border-white/15 text-white bg-white/5 hover:bg-white/10 transition-all">
+                  className="px-5 py-2.5 rounded-xl text-[13px] font-bold backdrop-blur-sm bg-white/[0.07] border border-white/15 text-white hover:bg-white/15 transition-all">
                   ▶ Trailer
                 </button>
               )}
+              <button onClick={() => navigator.clipboard.writeText(pageUrl)}
+                className="w-10 h-10 rounded-xl backdrop-blur-sm bg-white/[0.07] border border-white/15 text-white/70 hover:text-white hover:bg-white/15 transition-all flex items-center justify-center shrink-0">
+                <Share2 className="w-4 h-4" />
+              </button>
             </div>
           </div>
         </div>
       </div>
 
       {/* ══ MAIN BODY ════════════════════════════════════════════════ */}
-      <div className="max-w-7xl mx-auto px-4 md:px-8 mt-12 md:mt-16">
+      <div className="max-w-7xl mx-auto px-4 md:px-8 mt-6 md:mt-8">
 
         {/* ── Countdown banner ─────────────────────────────────────── */}
         {nextAiring && countdown && (
@@ -509,7 +527,7 @@ export default function AnimeDetail() {
                 </div>
               ) : (
                 <div
-                  className="relative rounded-2xl overflow-hidden border border-[var(--border)] cursor-pointer group"
+                  className="relative rounded-2xl overflow-hidden border border-white/10 cursor-pointer group shadow-lg shadow-black/30"
                   style={{ paddingTop: '42%' }}
                   onClick={() => loadEpisode(String(resumeEp || 1))}
                 >
@@ -518,9 +536,9 @@ export default function AnimeDetail() {
                     alt=""
                     className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-60"
                   />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/35 to-transparent" />
                   <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
-                    <div className="w-14 h-14 bg-[var(--pink)] rounded-full flex items-center justify-center shadow-2xl shadow-[var(--pink)]/40 group-hover:scale-110 transition-transform">
+                    <div className="w-16 h-16 bg-gradient-to-br from-[var(--pink)] to-[var(--purple)] rounded-full flex items-center justify-center shadow-2xl shadow-[var(--pink)]/40 ring-2 ring-white/20 group-hover:scale-110 transition-transform">
                       <Play className="w-6 h-6 fill-white text-white ml-0.5" />
                     </div>
                     <span className="text-white font-black text-[13px]">
@@ -533,11 +551,12 @@ export default function AnimeDetail() {
             </div>
 
             {/* ── Episode List — directly under player ───────────────── */}
-            <div ref={epListRef} className="bg-[var(--card)] border border-[var(--border)] rounded-2xl overflow-hidden">
-              <div className="px-4 py-3 border-b border-[var(--border)] flex items-center justify-between">
-                <h3 className="font-heading font-black text-[13px] text-white">
+            <div ref={epListRef} className="backdrop-blur-md bg-white/[0.03] border border-white/10 rounded-2xl overflow-hidden shadow-lg shadow-black/20">
+              <div className="px-4 py-3.5 border-b border-white/10 flex items-center justify-between bg-gradient-to-r from-[var(--pink)]/[0.06] to-transparent">
+                <h3 className="font-heading font-black text-[13px] text-white flex items-center gap-2">
+                  <span className="w-1 h-4 rounded-full bg-gradient-to-b from-[var(--pink)] to-[var(--purple)]" />
                   Episodes
-                  {totalEps > 0 && <span className="ml-1.5 text-[11px] font-normal text-[var(--text3)]">({totalEps})</span>}
+                  {totalEps > 0 && <span className="ml-1 text-[11px] font-normal text-white/40">({totalEps})</span>}
                 </h3>
                 <div className="flex items-center gap-3">
                   {watchedCount > 0 && (
@@ -566,17 +585,20 @@ export default function AnimeDetail() {
                             key={ep.mal_id}
                             onClick={() => loadEpisode(String(ep.mal_id))}
                             title={ep.title || `Episode ${ep.mal_id}`}
-                            className={`aspect-square flex items-center justify-center rounded-lg text-[11px] font-bold transition-all cursor-pointer select-none relative group
+                            className={`aspect-square flex items-center justify-center rounded-lg text-[11px] font-bold transition-all cursor-pointer select-none relative group hover:-translate-y-0.5
                               ${isPlaying
-                                ? 'bg-[var(--pink)] text-white shadow-lg shadow-[var(--pink)]/30'
+                                ? 'bg-gradient-to-br from-[var(--pink)] to-[var(--purple)] text-white shadow-lg shadow-[var(--pink)]/40 ring-1 ring-white/20'
                                 : isLast && !watched
                                   ? 'bg-[var(--purple)]/20 text-[var(--purple)] border border-[var(--purple)]/40 hover:bg-[var(--pink)]/20 hover:text-[var(--pink)]'
                                   : watched
-                                    ? 'bg-[#06d6a0]/20 text-[#06d6a0] border border-[#06d6a0]/30 hover:bg-[var(--pink)]/20 hover:text-[var(--pink)]'
-                                    : 'bg-[var(--bg3)] text-[var(--text3)] hover:bg-[var(--pink)]/20 hover:text-[var(--pink)] border border-transparent hover:border-[var(--pink)]/30'
+                                    ? 'bg-[#06d6a0]/15 text-[#06d6a0] border border-[#06d6a0]/30 hover:bg-[var(--pink)]/20 hover:text-[var(--pink)]'
+                                    : 'bg-white/[0.05] text-white/50 hover:bg-[var(--pink)]/20 hover:text-white border border-white/[0.06] hover:border-[var(--pink)]/40'
                               }`}
                           >
                             {isPlaying ? <Play className="w-3 h-3 fill-current" /> : ep.mal_id}
+                            {watched && !isPlaying && (
+                              <CheckCircle2 className="absolute top-0.5 right-0.5 w-2 h-2 text-[#06d6a0] opacity-70" />
+                            )}
                           </button>
                         );
                       })}
@@ -587,7 +609,7 @@ export default function AnimeDetail() {
                     <div className="flex items-center justify-center gap-1.5 px-3 pb-3 flex-wrap">
                       {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
                         <button key={p} onClick={() => setEpPage(p)}
-                          className={`w-8 h-8 rounded-lg text-[11px] font-bold transition-all ${p === epPage ? 'bg-gradient-to-r from-[var(--pink)] to-[var(--purple)] text-white' : 'bg-[var(--bg3)] text-[var(--text2)] hover:text-white'}`}>
+                          className={`w-8 h-8 rounded-lg text-[11px] font-bold transition-all ${p === epPage ? 'bg-gradient-to-r from-[var(--pink)] to-[var(--purple)] text-white shadow-md shadow-[var(--pink)]/30' : 'bg-white/[0.05] text-white/60 hover:text-white hover:bg-white/10 border border-white/[0.06]'}`}>
                           {p}
                         </button>
                       ))}
@@ -599,16 +621,22 @@ export default function AnimeDetail() {
               )}
             </div>
 
-            {/* ── Synopsis ───────────────────────────────────────────── */}
-            <section>
-              <h2 className="text-[13px] font-black text-[var(--text3)] uppercase tracking-widest mb-2">Synopsis</h2>
-              <p className="text-[13px] text-[var(--text2)] leading-relaxed">{anime.synopsis}</p>
+            {/* ── Synopsis — glass card ───────────────────────────────── */}
+            <section className="backdrop-blur-md bg-white/[0.03] border border-white/10 rounded-2xl p-4 shadow-lg shadow-black/20">
+              <h2 className="text-[13px] font-black text-white uppercase tracking-widest mb-2 flex items-center gap-2">
+                <span className="w-1 h-4 rounded-full bg-gradient-to-b from-[var(--pink)] to-[var(--purple)]" />
+                Synopsis
+              </h2>
+              <p className="text-[13px] text-white/70 leading-relaxed">{anime.synopsis}</p>
             </section>
 
             {/* ── Relations ─────────────────────────────────────────── */}
             {relationsFiltered.length > 0 && (
               <section>
-                <h2 className="text-[13px] font-black text-[var(--text3)] uppercase tracking-widest mb-3">Related Anime</h2>
+                <h2 className="text-[13px] font-black text-white uppercase tracking-widest mb-3 flex items-center gap-2">
+                  <span className="w-1 h-4 rounded-full bg-gradient-to-b from-[var(--pink)] to-[var(--purple)]" />
+                  Related Anime
+                </h2>
                 <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-thin">
                   {relationsFiltered.map((edge: any) => {
                     const node = edge.node;
@@ -640,7 +668,10 @@ export default function AnimeDetail() {
             {/* ── Characters ────────────────────────────────────────── */}
             {characters.length > 0 && (
               <section>
-                <h2 className="text-[13px] font-black text-[var(--text3)] uppercase tracking-widest mb-3">Characters</h2>
+                <h2 className="text-[13px] font-black text-white uppercase tracking-widest mb-3 flex items-center gap-2">
+                  <span className="w-1 h-4 rounded-full bg-gradient-to-b from-[var(--pink)] to-[var(--purple)]" />
+                  Characters
+                </h2>
                 <div className="grid grid-cols-5 sm:grid-cols-7 md:grid-cols-9 gap-2">
                   {characters.slice(0, 18).map((c: any) => (
                     <div key={c.character.mal_id} className="text-center group">
@@ -661,7 +692,10 @@ export default function AnimeDetail() {
             {/* ── Recommendations ───────────────────────────────────── */}
             {recommendations.length > 0 && (
               <section>
-                <h2 className="text-[13px] font-black text-[var(--text3)] uppercase tracking-widest mb-3">You Might Also Like</h2>
+                <h2 className="text-[13px] font-black text-white uppercase tracking-widest mb-3 flex items-center gap-2">
+                  <span className="w-1 h-4 rounded-full bg-gradient-to-b from-[var(--pink)] to-[var(--purple)]" />
+                  You Might Also Like
+                </h2>
                 <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 gap-3">
                   {recommendations.map((rec: any) => {
                     const a = rec.entry;
@@ -685,9 +719,12 @@ export default function AnimeDetail() {
           {/* RIGHT — Details sidebar ─────────────────────────────────── */}
           <div className="w-full lg:w-[280px] xl:w-[300px] shrink-0 space-y-4">
 
-            {/* Details card */}
-            <div className="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-4">
-              <h3 className="font-heading font-black text-[13px] text-white mb-3 uppercase tracking-wide">Details</h3>
+            {/* Details card — glass */}
+            <div className="backdrop-blur-md bg-white/[0.03] border border-white/10 rounded-2xl p-4 shadow-lg shadow-black/20">
+              <h3 className="font-heading font-black text-[13px] text-white mb-3 uppercase tracking-wide flex items-center gap-2">
+                <span className="w-1 h-4 rounded-full bg-gradient-to-b from-[var(--pink)] to-[var(--purple)]" />
+                Details
+              </h3>
               <div className="space-y-2.5 text-[12px]">
                 {[
                   ['Format', anime.type],
@@ -700,7 +737,7 @@ export default function AnimeDetail() {
                   ['Rating', anime.rating],
                 ].filter(([, v]) => v).map(([label, val]) => (
                   <div key={label} className="flex justify-between gap-2">
-                    <span className="text-[var(--text3)] shrink-0">{label}</span>
+                    <span className="text-white/40 shrink-0">{label}</span>
                     <span className="font-bold text-white text-right truncate">{val}</span>
                   </div>
                 ))}
