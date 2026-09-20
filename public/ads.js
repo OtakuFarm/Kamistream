@@ -1,5 +1,5 @@
 /* ════════════════════════════════════════════════════════════════════════
- * KamiStream — Ads Manager (v15 — RESET, simplified)
+ * KamiStream — Ads Manager (v16 — revenue optimization)
  * ────────────────────────────────────────────────────────────────────────
  * Design principle: every ad format runs the way its network actually
  * intends it to run. No custom click-cooldown reinvention, no reinjecting
@@ -58,14 +58,26 @@
 
   /* ── Popunder zones ────────────────────────────────────────────────
    * Monetag zones need `zone` (rendered as data-zone). Adsterra's tag is
-   * self-contained — no zone attribute needed. */
+   * self-contained — no zone attribute needed.
+   * `weight` controls selection odds (revenue weighting per network). */
   var POP_ZONES = [
-    { network: 'monetag',  zone: '11482508', src: 'https://quge5.com/88/tag.min.js' },
-    { network: 'monetag',  zone: '10944552', src: 'https://al5sm.com/tag.min.js' },
-    { network: 'monetag',  zone: '10937465', src: 'https://quge5.com/88/tag.min.js' },
-    { network: 'monetag',  zone: '10936606', src: 'https://al5sm.com/tag.min.js' },
-    { network: 'adsterra', src: 'https://pl30707075.effectivecpmnetwork.com/0a/5d/1f/0a5d1f029a04ceee852996a15e2a9c3d.js' }
+    { network: 'monetag',  zone: '11482508', src: 'https://quge5.com/88/tag.min.js', weight: 3 },
+    { network: 'monetag',  zone: '10944552', src: 'https://al5sm.com/tag.min.js', weight: 2 },
+    { network: 'monetag',  zone: '10937465', src: 'https://quge5.com/88/tag.min.js', weight: 2 },
+    { network: 'monetag',  zone: '10936606', src: 'https://al5sm.com/tag.min.js', weight: 2 },
+    { network: 'adsterra', src: 'https://pl30707075.effectivecpmnetwork.com/0a/5d/1f/0a5d1f029a04ceee852996a15e2a9c3d.js', weight: 2 }
   ];
+
+  function _pickWeightedZone() {
+    var total = 0, i;
+    for (i = 0; i < POP_ZONES.length; i++) total += POP_ZONES[i].weight || 1;
+    var r = Math.random() * total;
+    for (i = 0; i < POP_ZONES.length; i++) {
+      r -= (POP_ZONES[i].weight || 1);
+      if (r <= 0) return POP_ZONES[i];
+    }
+    return POP_ZONES[POP_ZONES.length - 1];
+  }
 
   /* ── In-Page Push zones (Monetag) — one per slot ─────────────────── */
   var INPAGE = {
@@ -107,24 +119,45 @@
   /* ── State ─────────────────────────────────────────────────────── */
   var _s = {
     armed:            false,
+    popArmed:         false,
     popInjected:      false,
+    popListenersArmed: false,
+    popFallbackTimer: 0,
     lastVignette:     0,
+    vignetteCount:    0,
     inpageLoaded:     {},
     nativeLoaded:     {},
     bannerLoaded:     {}
   };
 
-  /* ── Popunder: inject exactly one script, once, ever, per session ── */
+  /* ── Popunder: inject exactly one script, once, ever, per session ──
+   * Injected on FIRST USER INTERACTION (click/touch/scroll/key), with a
+   * short fallback timer so passive users still see it. Interaction-gated
+   * injection is how the networks prefer it: popunder tags need a user
+   * gesture anyway, and engaging traffic scores higher with the networks'
+   * quality algorithms. */
   var SESSION_POP_KEY = 'kami_pop_v15';
+  var POP_FALLBACK_MS = 5 * 1000;
+
   function _initPopunder() {
     if (_disabled()) return;
     if (_s.popInjected) return;
     try {
       if (sessionStorage.getItem(SESSION_POP_KEY)) { _s.popInjected = true; return; }
     } catch(e) {}
+    _s.popArmed = true;
+    _log('[KamiAds] Popunder armed — waiting for first interaction');
+  }
+
+  function _injectPopunder() {
+    if (_disabled() || _s.popInjected || !_s.popArmed) return;
     _s.popInjected = true;
+    try { global.removeEventListener('pointerdown', _onFirstGesture, true); } catch(e) {}
+    try { global.removeEventListener('keydown', _onFirstGesture, true); } catch(e) {}
+    try { global.removeEventListener('scroll', _onFirstGesture, true); } catch(e) {}
+    try { global.clearTimeout(_s.popFallbackTimer); } catch(e) {}
     try {
-      var pick = POP_ZONES[Math.floor(Math.random() * POP_ZONES.length)];
+      var pick = _pickWeightedZone();
       var s = document.createElement('script');
       s.async = true;
       if (pick.zone) {
@@ -136,6 +169,26 @@
       try { sessionStorage.setItem(SESSION_POP_KEY, '1'); } catch(e) {}
       _log('[KamiAds] Popunder injected:', pick.network, pick.zone || '(self-contained)');
     } catch(e) {}
+  }
+
+  function _onFirstGesture() { _injectPopunder(); }
+
+  function _armPopListeners() {
+    if (_disabled() || !_s.popArmed || _s.popListenersArmed) return;
+    _s.popListenersArmed = true;
+    try {
+      global.addEventListener('pointerdown', _onFirstGesture, { capture: true, once: true, passive: true });
+      global.addEventListener('keydown', _onFirstGesture, { capture: true, once: true });
+      global.addEventListener('scroll', _onFirstGesture, { capture: true, once: true, passive: true });
+    } catch(e) {
+      try {
+        global.addEventListener('pointerdown', _onFirstGesture, true);
+        global.addEventListener('keydown', _onFirstGesture, true);
+        global.addEventListener('scroll', _onFirstGesture, true);
+      } catch(e2) {}
+    }
+    // Fallback: even fully passive users get the pop (networks decide when it fires).
+    _s.popFallbackTimer = global.setTimeout(_injectPopunder, POP_FALLBACK_MS);
   }
 
   /* ── In-Page Push: load a slot once its container is visible ─────── */
@@ -173,16 +226,27 @@
     }
   }
 
-  /* ── Vignette: fire on episode navigation, simple cooldown ────────── */
+  /* ── Vignette: fire on episode navigation, simple cooldown ──────────
+   * Cooldown persists across full page reloads via sessionStorage so
+   * binge sessions (watch → detail → next episode) stay throttled while
+   * still allowing one per episode-navigation window. */
+  var SESSION_VIGN_KEY = 'kami_vign_v15';
   function _fireVignette() {
     if (_disabled()) return;
-    if ((_now() - _s.lastVignette) < VIGNETTE_COOLDOWN_MS) return;
+    var last = _s.lastVignette;
+    try {
+      var stored = parseInt(sessionStorage.getItem(SESSION_VIGN_KEY), 10);
+      if (stored > last) last = stored;
+    } catch(e) {}
+    if ((_now() - last) < VIGNETTE_COOLDOWN_MS) return;
     try {
       var s = document.createElement('script');
       s.dataset.zone = VIGNETTE_ZONE;
       s.src = VIGNETTE_SRC;
       (document.body || document.documentElement).appendChild(s);
       _s.lastVignette = _now();
+      _s.vignetteCount++;
+      try { sessionStorage.setItem(SESSION_VIGN_KEY, String(_s.lastVignette)); } catch(e) {}
       _log('[KamiAds] Vignette fired:', VIGNETTE_ZONE);
     } catch(e) {}
   }
@@ -278,13 +342,16 @@
     if (_s.armed) return;
     _s.armed = true;
     _initPopunder();
+    _armPopListeners();
   }
 
   function _diag() {
     return {
       prod:         _isProd(),
       disabled:     _disabled(),
+      popArmed:     _s.popArmed,
       popInjected:  _s.popInjected,
+      vignetteCount: _s.vignetteCount,
       lastVignetteAgo: Math.round((_now() - _s.lastVignette) / 1000) + 's',
       inpageLoaded: Object.keys(_s.inpageLoaded),
       nativeLoaded: Object.keys(_s.nativeLoaded),
@@ -295,6 +362,7 @@
   global.KamiAds = {
     init:              initAds,
     onEpisodeClick:    onEpisodeClick,
+    onEpisodeChange:   onEpisodeClick, // alias — watch.tsx fires this on ep change
     loadInPagePush:    _loadInPagePush,
     loadNativeBanner:  _loadNativeBanner,
     loadBannerAd:      _loadBannerAd,

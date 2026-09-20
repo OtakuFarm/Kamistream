@@ -705,6 +705,10 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Adsterra 468x60 banner */}
+      <div id="banner-468x60" className="flex justify-center my-4 min-h-[1px]"
+        ref={el => { if (el && (window as any).KamiAds) (window as any).KamiAds.loadBannerAd('banner-468x60'); }} />
+
       <div id="home-ad" className="min-h-[1px]"
         ref={el => { if (el && (window as any).KamiAds) (window as any).KamiAds.loadInPagePush('home-ad'); }}
       />

@@ -771,6 +771,10 @@ export default function Watch() {
         <div id="sidebar-ad" className="min-h-[1px] px-4 pt-2"
           ref={el => { if (el && (window as any).KamiAds) (window as any).KamiAds.loadInPagePush('sidebar-ad'); }} />
 
+        {/* Sticky 160x600 sidebar banner (Adsterra) — desktop only */}
+        <div id="banner-160x600" className="hidden lg:flex justify-center pt-4"
+          ref={el => { if (el && (window as any).KamiAds) (window as any).KamiAds.loadBannerAd('banner-160x600'); }} />
+
         <div className="p-4 md:px-6 md:py-4">
           <div className="grid grid-cols-5 sm:grid-cols-8 md:grid-cols-14 lg:grid-cols-16 xl:grid-cols-20 gap-1.5">
             {filteredEps.map((ep: any) => {
