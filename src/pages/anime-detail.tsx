@@ -790,17 +790,17 @@ export default function AnimeDetail() {
               </div>
             </div>
 
-            <div id="detail-ad" className="min-h-[1px]"
+            <div id="detail-ad" className="min-h-[1px] overflow-hidden"
               ref={el => { if (el && (window as any).KamiAds) (window as any).KamiAds.loadInPagePush('detail-ad'); }} />
 
             {/* Adsterra Native Banner — ID is fixed by their script, don't rename */}
             <div id="container-246d201d05be7eb163a939228e4f4e1c" className="mt-3 min-h-[1px]"
               ref={el => { if (el && (window as any).KamiAds) (window as any).KamiAds.loadNativeBanner('anime-native'); }} />
 
-            <div id="banner-300x250-detail" className="mt-3 min-h-[1px] flex justify-center"
+            <div id="banner-300x250-detail" className="mt-3 min-h-[1px] flex justify-center overflow-hidden"
               ref={el => { if (el && (window as any).KamiAds) (window as any).KamiAds.loadBannerAd('banner-300x250-detail'); }} />
 
-            <div id="banner-160x300" className="mt-3 min-h-[1px] flex justify-center"
+            <div id="banner-160x300" className="mt-3 min-h-[1px] flex justify-center overflow-hidden"
               ref={el => { if (el && (window as any).KamiAds) (window as any).KamiAds.loadBannerAd('banner-160x300'); }} />
 
           </div>

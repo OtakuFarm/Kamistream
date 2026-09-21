@@ -711,10 +711,10 @@ export default function Watch() {
             );
           })()}
 
-          <div id="player-ad" className="mt-4 min-h-[1px]"
+          <div id="player-ad" className="mt-4 min-h-[1px] overflow-hidden"
             ref={el => { if (el && (window as any).KamiAds) (window as any).KamiAds.loadInPagePush('player-ad'); }} />
 
-          <div id="banner-300x250-watch" className="mt-4 min-h-[1px] flex justify-center"
+          <div id="banner-300x250-watch" className="mt-4 min-h-[1px] flex justify-center overflow-hidden"
             ref={el => { if (el && (window as any).KamiAds) (window as any).KamiAds.loadBannerAd('banner-300x250-watch'); }} />
           <EpisodeSocial malId={malId} epId={epId} />
           <EpisodeRating malId={malId} epId={epId} epTitle={currentEp?.title} />
@@ -768,7 +768,7 @@ export default function Watch() {
           </div>
         </div>
 
-        <div id="sidebar-ad" className="min-h-[1px] px-4 pt-2"
+        <div id="sidebar-ad" className="min-h-[1px] px-4 pt-2 overflow-hidden"
           ref={el => { if (el && (window as any).KamiAds) (window as any).KamiAds.loadInPagePush('sidebar-ad'); }} />
 
         {/* Sticky 160x600 sidebar banner (Adsterra) — desktop only */}
