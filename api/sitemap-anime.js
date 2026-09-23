@@ -4,7 +4,7 @@
  * Cached by Cloudflare for 24h — zero cost to run
  * ═══════════════════════════════════════════════════ */
 const JIKAN = 'https://api.jikan.moe/v4';
-const BASE  = 'https://kamistream.fun';
+const BASE  = 'https://www.kamistream.fun';
 
 async function fetchPage(page) {
   const r = await fetch(`${JIKAN}/top/anime?limit=25&page=${page}`);

@@ -4,7 +4,7 @@
  * Search Console; it discovers the three child sitemaps from here.
  * Cached by CDN for 24h — zero cost to run.
  * ═══════════════════════════════════════════════════════════════════ */
-const BASE = 'https://kamistream.fun';
+const BASE = 'https://www.kamistream.fun';
 
 export default async function handler(req, res) {
   const xml = `<?xml version="1.0" encoding="UTF-8"?>

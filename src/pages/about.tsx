@@ -110,7 +110,7 @@ export default function About() {
   const { value: v2, ref: r2 } = useCountUp(50000);
   const { value: v3, ref: r3 } = useCountUp(99);
 
-  const pageUrl  = typeof window !== 'undefined' ? window.location.origin : 'https://kamistream.fun';
+  const pageUrl  = typeof window !== 'undefined' ? window.location.origin : 'https://www.kamistream.fun';
   const shareText = encodeURIComponent('Watch anime free on KamiStream!');
   const shareUrl  = encodeURIComponent(pageUrl);
 

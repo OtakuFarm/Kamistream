@@ -14,10 +14,10 @@ Disallow: /creator/
 Disallow: /*?q=
 
 # Sitemaps — submit the index in Search Console; it points to the three below
-Sitemap: https://kamistream.fun/sitemap-index.xml
-Sitemap: https://kamistream.fun/sitemap.xml
-Sitemap: https://kamistream.fun/sitemap-pages.xml
-Sitemap: https://kamistream.fun/sitemap-anime.xml
+Sitemap: https://www.kamistream.fun/sitemap-index.xml
+Sitemap: https://www.kamistream.fun/sitemap.xml
+Sitemap: https://www.kamistream.fun/sitemap-pages.xml
+Sitemap: https://www.kamistream.fun/sitemap-anime.xml
 
 # Block AI scrapers (optional — protects your content)
 User-agent: GPTBot

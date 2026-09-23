@@ -52,6 +52,14 @@
       "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }]
     }
   ],
+  "redirects": [
+    {
+      "source": "/(.*)",
+      "has": [{ "type": "host", "value": "kamistream.fun" }],
+      "destination": "https://www.kamistream.fun/$1",
+      "permanent": true
+    }
+  ],
   "rewrites": [
     { "source": "/sitemap-anime.xml",  "destination": "/api/sitemap-anime" },
     { "source": "/sitemap-pages.xml",  "destination": "/api/sitemap-pages" },

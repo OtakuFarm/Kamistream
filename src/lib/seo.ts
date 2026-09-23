@@ -4,7 +4,7 @@
  * internal links never drift apart.
  * ═══════════════════════════════════════════════════════════════════ */
 
-export const SITE_URL = 'https://kamistream.fun';
+export const SITE_URL = 'https://www.kamistream.fun';
 
 /**
  * Turn an anime title into a short, URL-safe slug.

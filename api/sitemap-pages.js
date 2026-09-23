@@ -5,7 +5,7 @@
  * page. Complements /sitemap-anime.xml (top anime pages).
  * Cached by CDN for 24h — zero cost to run.
  * ═══════════════════════════════════════════════════════════════════ */
-const BASE = 'https://kamistream.fun';
+const BASE = 'https://www.kamistream.fun';
 
 // Genre IDs + names — must mirror GENRES in src/pages/genre.tsx (Jikan MAL IDs)
 const GENRES = {
