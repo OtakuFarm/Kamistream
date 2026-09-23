@@ -30,9 +30,20 @@
  * ── HOW IT'S SERVED ────────────────────────────────────────────────
  * Vercel's CDN evaluates routing in this order: … → Headers+Redirects →
  * Middleware → File System Routes → Rewrites. The filesystem is checked
- * BEFORE rewrites, so dist/<route>/index.html wins and the existing
- * `"/(.*)" → "/index.html"` SPA fallback still handles every other path
- * (client-only routes, anime outside the prerendered set, etc.).
+ * BEFORE rewrites, so dist/<route>.html (and dist/<route>/index.html) wins
+ * and the existing `"/(.*)" → "/index.html"` SPA fallback keeps handling
+ * every other path (client-only routes, anime outside the prerendered set,
+ * /watch/... pages). Both file shapes are written because that resolution
+ * order is the one thing we cannot test locally — whichever shape Vercel
+ * prefers, it finds a file, and both carry the same canonical.
+ *
+ * ⚠ DO NOT add `"cleanUrls": true` to vercel.json. This was tried and it
+ * BREAKS the site: with clean URLs on, the SPA fallback destination
+ * `/index.html` stops resolving, so the catch-all rewrite dies and every
+ * non-prerendered route (/profile, /anime/<id-not-in-pool>, /watch/...) 
+ * returns 404 instead of 200. Verified live before being reverted.
+ * cleanUrls also buys nothing here: /browse already resolves to the static
+ * file dist/browse.html during the filesystem step.
  *
  * ── DATA SOURCE ────────────────────────────────────────────────────
  * Jikan v4 — the same API the app and the sitemaps already use. Jikan
