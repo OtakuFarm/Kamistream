@@ -6,6 +6,7 @@ import { useWatchlist } from '@/hooks/useWatchlist';
 import { useWatchHistory } from '@/hooks/useWatchHistory';
 import { useEpisodeProgress } from '@/hooks/useEpisodeProgress';
 import { useSEO } from '@/hooks/useSEO';
+import { animePath } from '@/lib/seo';
 import { getNextAiring, getAnimeRelations } from '@/lib/anilist';
 import {
   Play, Plus, Check, Star, Timer, CheckCircle2, Share2,
@@ -110,7 +111,8 @@ interface ServerEntry { id: string; name: string; url: string; badge?: string; }
 
 // ── Component ─────────────────────────────────────────────────────────
 export default function AnimeDetail() {
-  const [, params]   = useRoute('/anime/:id');
+  // Supports both /anime/:id and /anime/:id/:slug (descriptive URLs)
+  const [, params]   = useRoute('/anime/:id/:slug?');
   const [, navigate] = useLocation();
   const id = params?.id || '';
 
@@ -166,6 +168,9 @@ export default function AnimeDetail() {
     description: anime.synopsis?.slice(0, 160),
     image:       anime.images?.webp?.large_image_url,
     type:        'video.other',
+    // Canonical = descriptive URL. Old bare /anime/:id links (and any
+    // wrong-slug variants) all consolidate onto this one URL.
+    url:         animePath(id, anime.title),
     jsonLd: {
       animeName: anime.title,
       score:     anime.score,

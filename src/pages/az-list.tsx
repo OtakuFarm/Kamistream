@@ -55,7 +55,7 @@ async function fetchByLetter(letter: string, sort: string, type: string, page: n
 }
 
 export default function AZList() {
-  useSEO({ title: 'A-Z List', description: 'Browse all anime alphabetically on KamiStream.' });
+  useSEO({ title: 'A-Z List', description: 'Browse all anime alphabetically on KamiStream — from #1 hits to hidden classics, sub & dub.', url: '/az-list' });
 
   const [activeLetter, setActiveLetter] = useState('A');
   const [sort, setSort] = useState('title_asc');

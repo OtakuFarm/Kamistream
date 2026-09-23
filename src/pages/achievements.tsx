@@ -5,7 +5,7 @@ import { SakuraTrail } from '@/components/motionBits';
 import { Trophy, Lock, Zap } from 'lucide-react';
 
 export default function Achievements() {
-  useSEO({ title: 'Achievements' });
+  useSEO({ title: 'Achievements', noindex: true });
   <SakuraTrail />
   const { getStats, checkAndUnlockAchievements } = useGamification();
   const stats    = getStats();

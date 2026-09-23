@@ -17,7 +17,7 @@ const TABS: { id: 'all' | WatchStatus; label: string; color: string }[] = [
 const STATUS_OPTIONS: WatchStatus[] = ['watching', 'plan_to_watch', 'completed', 'on_hold', 'dropped'];
 
 export default function Watchlist() {
-  useSEO({ title: 'My Watchlist', description: 'Your personal anime watchlist on KamiStream.' });
+  useSEO({ title: 'My Watchlist', description: 'Your personal anime watchlist on KamiStream.', noindex: true });
   const { watchlist, loading, toggleWatchlist, setWatchStatus, getWatchStatus, exportCSV, statuses } = useWatchlist();
   const { getWatchedCount } = useEpisodeProgress();
   const [tab,      setTab]      = useState<'all' | WatchStatus>('all');

@@ -1,11 +1,15 @@
 import { useEffect } from 'react';
+import { SITE_URL } from '@/lib/seo';
 
 interface SEOProps {
   title?:       string;
   description?: string;
   image?:       string;
+  /** Canonical URL path for this page, e.g. "/anime/52991/sousou-no-frieren" */
   url?:         string;
   type?:        'website' | 'video.other';
+  /** Set true on utility pages (search results, watch pages, auth, 404…) */
+  noindex?:     boolean;
   // Structured data extras (anime detail page)
   jsonLd?: {
     animeName?:    string;
@@ -21,10 +25,9 @@ interface SEOProps {
   };
 }
 
-const SITE            = 'https://kamistream.fun';
 const DEFAULT_TITLE   = 'KamiStream — Watch Anime Free in HD';
 const DEFAULT_DESC    = 'Stream thousands of anime episodes free on KamiStream. Sub & dub, trending, seasonal and classic anime all in one place.';
-const DEFAULT_IMAGE   = `${SITE}/opengraph.jpg`;
+const DEFAULT_IMAGE   = `${SITE_URL}/opengraph.jpg`;
 
 function setMeta(property: string, content: string, isName = false) {
   const attr = isName ? 'name' : 'property';
@@ -35,6 +38,16 @@ function setMeta(property: string, content: string, isName = false) {
     document.head.appendChild(el);
   }
   el.content = content;
+}
+
+function setLink(rel: string, href: string) {
+  let el = document.querySelector(`link[rel="${rel}"]`) as HTMLLinkElement;
+  if (!el) {
+    el = document.createElement('link');
+    el.setAttribute('rel', rel);
+    document.head.appendChild(el);
+  }
+  el.href = href;
 }
 
 function setJsonLd(id: string, data: object) {
@@ -52,15 +65,23 @@ function removeJsonLd(id: string) {
   document.getElementById(id)?.remove();
 }
 
-export function useSEO({ title, description, image, url, type = 'website', jsonLd }: SEOProps = {}) {
+export function useSEO({ title, description, image, url, type = 'website', noindex, jsonLd }: SEOProps = {}) {
   const fullTitle = title ? `${title} | KamiStream` : DEFAULT_TITLE;
   const desc      = description || DEFAULT_DESC;
   const img       = image || DEFAULT_IMAGE;
-  const pageUrl   = url || (typeof window !== 'undefined' ? window.location.href : SITE);
+  // Canonical: prefer the explicit per-page path, otherwise the current
+  // path. (Homepage fallback only when location is unavailable.)
+  const pageUrl   = url
+    ? `${SITE_URL}${url}`
+    : (typeof window !== 'undefined'
+        ? `${SITE_URL}${window.location.pathname}`
+        : SITE_URL);
 
   useEffect(() => {
     document.title = fullTitle;
     setMeta('description',         desc,      true);
+    setMeta('robots',              noindex ? 'noindex, follow' : 'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1', true);
+    setLink('canonical',           pageUrl);
     setMeta('og:type',             type);
     setMeta('og:title',            fullTitle);
     setMeta('og:description',      desc);
@@ -72,6 +93,10 @@ export function useSEO({ title, description, image, url, type = 'website', jsonL
     setMeta('twitter:description', desc,                  true);
     setMeta('twitter:image',       img,                   true);
 
+    // Tell any prerender crawler (which reads the server response, not the
+    // mutated DOM) that the title/meta just changed.
+    window.dispatchEvent(new CustomEvent('kami-seo-update'));
+
     // ── JSON-LD structured data ─────────────────────────────────────
     if (jsonLd?.animeName) {
       // TVSeries schema for anime detail pages
@@ -82,8 +107,11 @@ export function useSEO({ title, description, image, url, type = 'website', jsonL
         'url':         pageUrl,
         'image':       img,
         'description': desc,
+        // Off-site profile links help Google's Knowledge Graph
+        'sameAs':      jsonLd.malId ? [`https://myanimelist.net/anime/${jsonLd.malId}`] : [],
       };
-      if (jsonLd.score)    tvSeries.aggregateRating = { '@type': 'AggregateRating', ratingValue: jsonLd.score, bestRating: 10, ratingCount: 1000 };
+      // NOTE: no aggregateRating — we don't have a real vote count, and a
+      // fabricated one violates Google's structured data guidelines.
       if (jsonLd.episodes) tvSeries.numberOfEpisodes = jsonLd.episodes;
       if (jsonLd.genres?.length)  tvSeries.genre  = jsonLd.genres;
       if (jsonLd.studios?.length) tvSeries.productionCompany = jsonLd.studios.map(s => ({ '@type': 'Organization', name: s }));
@@ -97,8 +125,8 @@ export function useSEO({ title, description, image, url, type = 'website', jsonL
         '@context': 'https://schema.org',
         '@type':    'BreadcrumbList',
         itemListElement: [
-          { '@type': 'ListItem', position: 1, name: 'Home',  item: SITE },
-          { '@type': 'ListItem', position: 2, name: 'Browse', item: `${SITE}/browse` },
+          { '@type': 'ListItem', position: 1, name: 'Home',    item: `${SITE_URL}/` },
+          { '@type': 'ListItem', position: 2, name: 'Browse',  item: `${SITE_URL}/browse` },
           { '@type': 'ListItem', position: 3, name: jsonLd.animeName, item: pageUrl },
         ],
       });
@@ -111,7 +139,8 @@ export function useSEO({ title, description, image, url, type = 'website', jsonL
           'name':        jsonLd.episodeName || `${jsonLd.animeName} Episode ${jsonLd.episodeNum}`,
           'description': desc,
           'thumbnailUrl': img,
-          'uploadDate':  new Date().toISOString(),
+          // No uploadDate: the episode's real publish date isn't known here
+          // and a fake "today" on every render is worse than omitting it.
           'embedUrl':    pageUrl,
         });
       } else {
@@ -126,5 +155,5 @@ export function useSEO({ title, description, image, url, type = 'website', jsonL
     return () => {
       document.title = DEFAULT_TITLE;
     };
-  }, [fullTitle, desc, img, pageUrl, type, JSON.stringify(jsonLd)]);
+  }, [fullTitle, desc, img, pageUrl, type, noindex, JSON.stringify(jsonLd)]);
 }

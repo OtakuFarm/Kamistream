@@ -1,7 +1,9 @@
 import React from 'react';
 import { Link } from 'wouter';
+import { useSEO } from '@/hooks/useSEO';
 
 export default function NotFound() {
+  useSEO({ title: 'Page Not Found', noindex: true });
   return (
     <div className="min-h-[calc(100vh-60px)] flex flex-col items-center justify-center p-4 text-center">
       <div className="relative mb-8">

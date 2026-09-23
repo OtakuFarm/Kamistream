@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useRoute, Link } from 'wouter';
 import { Heart, Trophy, Calendar, Video } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { useSEO } from '@/hooks/useSEO';
 
 interface CreatorSubmission {
   id: string;
@@ -29,6 +30,7 @@ function timeAgo(iso: string) {
 }
 
 export default function Creator() {
+  useSEO({ title: 'Creator', noindex: true });
   const [, params] = useRoute('/creator/:username');
   const handle = decodeURIComponent(params?.username || '');
   const [subs, setSubs] = useState<CreatorSubmission[]>([]);

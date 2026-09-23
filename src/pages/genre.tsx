@@ -110,8 +110,9 @@ export default function Genre() {
   }, [genreId]);
 
   useSEO({
-    title:       `${genreName} Anime`,
-    description: `Browse the best ${genreName} anime on KamiStream.`,
+    title:       `${genreName} Anime — Watch Free Online`,
+    description: `Browse the best ${genreName} anime on KamiStream — top-rated series streaming free in HD, sub & dub.`,
+    url:         `/genre/${genreId}`,
   });
 
   const {

@@ -483,6 +483,7 @@ export default function Watch() {
     description: detail.data.synopsis?.slice(0, 160),
     image:       detail.data.images?.webp?.large_image_url,
     type:        'video.other',
+    noindex:     true, // canonical lives on the anime detail page
     jsonLd: {
       animeName:   detail.data.title,
       score:       detail.data.score,

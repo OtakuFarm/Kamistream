@@ -1,10 +1,11 @@
 import React, { useState, useRef, useCallback, useEffect } from "react";
-import { useLocation } from "wouter";
+import { useLocation, Link } from "wouter";
 import { motion } from "framer-motion";
 import { Plus, Check, Play, ExternalLink, Bookmark, BookmarkCheck, Share2, X, Copy, Info } from "lucide-react";
 import { useWatchlist } from "@/hooks/useWatchlist";
 import { useWatchHistory } from "@/hooks/useWatchHistory";
 import { fireWatchlistConfetti } from "@/components/motionBits";
+import { animePath } from "@/lib/seo";
 
 interface AnimeCardProps {
   anime: any;
@@ -39,7 +40,7 @@ export function AnimeCard({ anime, index }: AnimeCardProps) {
        anime.images?.webp?.image_url       || "")
     : "";
 
-  const animeUrl  = `/anime/${anime.mal_id}`;
+  const animeUrl  = animePath(anime.mal_id, anime.title);
   const fullUrl   = `${window.location.origin}${animeUrl}`;
   const malUrl    = `https://myanimelist.net/anime/${anime.mal_id}`;
 
@@ -108,7 +109,9 @@ export function AnimeCard({ anime, index }: AnimeCardProps) {
              e.clientY - (cardRef.current?.getBoundingClientRect().top  ?? 0));
   };
 
-  // Click — only navigate if it wasn't a long press
+  // Click — only navigate if it wasn't a long press.
+  // onClick is still used so long-press / context menu behaviour stays
+  // identical; the title <a> below gives crawlers a real href.
   const onClick = () => {
     if (didLongPress.current) return;
     setLocation(animeUrl);
@@ -273,7 +276,18 @@ export function AnimeCard({ anime, index }: AnimeCardProps) {
       {/* ── Title ── */}
       <div className="p-1.5 pt-2">
         <h3 className="text-[11px] font-bold text-[var(--text2)] line-clamp-2 leading-tight group-hover:text-white transition-colors">
-          {anime.title}
+          <a
+            href={animeUrl}
+            onClick={(e) => {
+              // Same long-press guard as the card body
+              if (didLongPress.current) { e.preventDefault(); return; }
+              e.preventDefault();
+              setLocation(animeUrl);
+            }}
+            className="text-inherit no-underline"
+          >
+            {anime.title}
+          </a>
         </h3>
         {anime.episodes && (
           <p className="text-[9px] text-[var(--text3)] mt-0.5">{anime.episodes} eps</p>

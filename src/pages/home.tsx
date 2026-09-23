@@ -220,7 +220,11 @@ export default function Home() {
 
   const recentHistory = useMemo(() => getRecentAnime().slice(0, 12), [getRecentAnime]);
 
-  useSEO({ title: 'Home', description: 'Stream anime free on KamiStream — trending, seasonal and top rated all in one place.' });
+  useSEO({
+    title: undefined, // default homepage title
+    description: 'Stream thousands of anime episodes free on KamiStream. Sub & dub, trending, seasonal and top rated anime all in one place — no account needed.',
+    url: '/',
+  });
 
   const { data: airingSchedule } = useQuery({
     queryKey: ['anilist', 'airing-schedule'],
@@ -267,6 +271,10 @@ export default function Home() {
   return (
     <div className="p-4 md:p-6 space-y-10 pb-20">
 
+      {/* Semantic H1 for the homepage — visually hidden, since the hero
+          already shows the trending anime title as a decorative heading */}
+      <h1 className="sr-only">KamiStream — Watch Anime Free Online in HD, Sub &amp; Dub</h1>
+
       {/* ── Hero ── */}
       {activeHero ? (
         <div
@@ -296,9 +304,9 @@ export default function Home() {
             <div className="text-[10px] font-black text-[var(--pink)] tracking-[2px] uppercase mb-2">
               #{heroIndex + 1} Trending This Week
             </div>
-            <h1 className="text-3xl md:text-5xl font-heading font-black text-white leading-tight mb-3 line-clamp-2">
+            <p className="text-3xl md:text-5xl font-heading font-black text-white leading-tight mb-3 line-clamp-2">
               {activeHero.title}
-            </h1>
+            </p>
             <p className="text-[13px] md:text-[14px] text-[var(--text2)] line-clamp-2 md:line-clamp-3 mb-6 max-w-xl">
               {activeHero.synopsis}
             </p>

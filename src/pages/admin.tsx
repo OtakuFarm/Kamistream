@@ -3,6 +3,7 @@ import { useLocation } from 'wouter';
 import { useAuth } from '@/lib/auth';
 import { isAdminEmail } from '@/lib/admin';
 import { supabase } from '@/lib/supabase';
+import { useSEO } from '@/hooks/useSEO';
 import {
   LayoutDashboard, Film, Play, MessageSquare, Users, Trophy,
   Calendar, Settings, Plus, Trash2, Edit3, Save, X, Search,
@@ -54,6 +55,7 @@ const inputCls = "w-full bg-[var(--bg3)] border border-[var(--border)] rounded-x
 
 // ── Main Admin Component ──────────────────────────────────────────
 export default function Admin() {
+  useSEO({ title: 'Admin', noindex: true });
   const [, navigate] = useLocation();
   const { user, loading } = useAuth();
   const [tab, setTab]     = useState<Tab>('dashboard');

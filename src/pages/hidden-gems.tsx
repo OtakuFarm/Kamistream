@@ -15,7 +15,7 @@ const FILTERS = [
 ];
 
 export default function HiddenGems() {
-  useSEO({ title: 'Hidden Gems' });
+  useSEO({ title: 'Hidden Gems', description: 'Discover underrated, overlooked and criminally under-watched anime — hidden gems streaming free on KamiStream.', url: '/hidden-gems' });
   const [filter, setFilter] = useState('underrated');
   const active = FILTERS.find(f => f.id === filter) || FILTERS[0];
 

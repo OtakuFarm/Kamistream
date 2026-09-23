@@ -8,7 +8,7 @@ import { toast } from 'sonner';
 const TOTAL_QUESTIONS = 10;
 
 export default function Quiz() {
-  useSEO({ title: 'Anime Quiz' });
+  useSEO({ title: 'Anime Quiz', noindex: true });
   const { addXP, incrementStat } = useGamification();
 
   const [phase, setPhase]         = useState<'start' | 'quiz' | 'result'>('start');

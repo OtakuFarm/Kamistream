@@ -4,8 +4,10 @@ import { supabase } from '@/lib/supabase';
 import { Logo } from '@/components/Logo';
 import { toast } from 'sonner';
 import { Mail } from 'lucide-react';
+import { useSEO } from '@/hooks/useSEO';
 
 export default function Login() {
+  useSEO({ title: 'Login', noindex: true });
   const [email,       setEmail]       = useState('');
   const [password,    setPassword]    = useState('');
   const [loading,     setLoading]     = useState(false);

@@ -28,7 +28,7 @@ const MOODS = [
 ];
 
 export default function Mood() {
-  useSEO({ title: 'Mood Picker' });
+  useSEO({ title: 'Mood Picker', description: 'Not sure what to watch? Pick your mood and we\'ll find the perfect anime for you.', url: '/mood' });
   const [selected, setSelected] = useState<string[]>([]);
   const [retry, setRetry] = useState(0);
   const [shuffleSeed, setShuffleSeed] = useState(0);

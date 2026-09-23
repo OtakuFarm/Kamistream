@@ -16,6 +16,7 @@ export default function SearchPage() {
   useSEO({
     title: q ? `Search: "${q}"` : 'Search',
     description: q ? `Anime search results for "${q}" on KamiStream` : 'Search for anime on KamiStream',
+    noindex: true, // parameterised results pages must stay out of the index
   });
 
   return (

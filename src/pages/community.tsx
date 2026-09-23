@@ -38,7 +38,7 @@ export default function Community() {
   const [sending,    setSending]    = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  useSEO({ title: 'Community Chat', description: 'Chat with the KamiStream anime community in real time.' });
+  useSEO({ title: 'Community Chat', description: 'Chat with the KamiStream anime community in real time.', noindex: true });
 
   // Load initial messages
   useEffect(() => {

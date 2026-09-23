@@ -97,6 +97,7 @@ function Router() {
         <Route path="/home"               component={HomeRoute} />
         <Route path="/browse"             component={BrowseRoute} />
         <Route path="/anime/:id"          component={AnimeRoute} />
+        <Route path="/anime/:id/:slug"    component={AnimeRoute} />
         <Route path="/watch/:id/:ep"      component={WatchRoute} />
         <Route path="/login"              component={LoginRoute} />
         <Route path="/signup"             component={SignupRoute} />

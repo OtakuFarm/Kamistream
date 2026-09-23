@@ -50,12 +50,16 @@
     <link rel="apple-touch-icon" href="/icons/icon-192.png" />
 
     <!-- Sitemap hint -->
-    <link rel="sitemap" type="application/xml" href="/sitemap.xml" />
+    <link rel="sitemap" type="application/xml" href="/sitemap-index.xml" />
 
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+
+    <!-- API preconnects — data that paints the page content -->
+    <link rel="preconnect" href="https://api.jikan.moe" crossorigin="anonymous" />
+    <link rel="dns-prefetch" href="https://graphql.anilist.co" />
 
     <!-- JSON-LD: Site identity -->
     <script type="application/ld+json">
@@ -65,6 +69,7 @@
       "name": "KamiStream",
       "url": "https://kamistream.fun",
       "description": "Free anime streaming — sub & dub, HD quality",
+      "publisher": { "@id": "https://kamistream.fun/#organization" },
       "potentialAction": {
         "@type": "SearchAction",
         "target": {
@@ -73,6 +78,29 @@
         },
         "query-input": "required name=search_term_string"
       }
+    }
+    </script>
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      "@id": "https://kamistream.fun/#organization",
+      "name": "KamiStream",
+      "url": "https://kamistream.fun",
+      "logo": {
+        "@type": "ImageObject",
+        "url": "https://kamistream.fun/icons/icon-512.png"
+      }
+    }
+    </script>
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "ImageObject",
+      "url": "https://kamistream.fun/opengraph.jpg",
+      "contentUrl": "https://kamistream.fun/opengraph.jpg",
+      "width": 1200,
+      "height": 630
     }
     </script>
   </head>

@@ -9,7 +9,7 @@ const DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Satur
 const SHORT = ['SUN','MON','TUE','WED','THU','FRI','SAT'];
 
 export default function Schedule() {
-  useSEO({ title: 'Estimated Schedule', description: 'Weekly anime airing schedule on KamiStream.' });
+  useSEO({ title: 'Estimated Schedule', description: 'Weekly anime airing schedule on KamiStream.', url: '/schedule' });
 
   const today   = new Date();
   const todayIdx = today.getDay();

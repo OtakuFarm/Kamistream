@@ -67,7 +67,7 @@ const YEARS = ['', ...Array.from({ length: 35 }, (_, i) => String(THIS_YEAR - i)
 type Tab = 'top' | 'search';
 
 export default function Browse() {
-  useSEO({ title: 'Browse Anime', description: 'Browse thousands of anime — search by genre, type, year and score on KamiStream.' });
+  useSEO({ title: 'Browse Anime', description: 'Browse thousands of anime — search by genre, type, year and score on KamiStream.', url: '/browse' });
 
   const searchString = useSearch();
   const urlParams    = new URLSearchParams(searchString);

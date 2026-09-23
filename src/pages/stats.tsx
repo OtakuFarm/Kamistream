@@ -8,7 +8,7 @@ import { useSEO } from '@/hooks/useSEO';
 import { BarChart3, Clock, Tv2, BookMarked, Flame, Zap, Trophy, TrendingUp, Star } from 'lucide-react';
 
 export default function Stats() {
-  useSEO({ title: 'My Stats' });
+  useSEO({ title: 'My Stats', noindex: true });
   const { getHistory, getRecentAnime } = useWatchHistory();
   const { watchlist } = useWatchlist();
   const { getStats, checkAndUnlockAchievements } = useGamification();

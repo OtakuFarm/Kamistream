@@ -65,7 +65,7 @@ export default function Profile() {
   const [totalLikes,  setTotalLikes]  = useState(0);
   const [pushRequesting, setPushRequesting] = useState(false);
 
-  useSEO({ title: 'My Profile' });
+  useSEO({ title: 'My Profile', noindex: true });
   <SakuraTrail />
 
   useEffect(() => {

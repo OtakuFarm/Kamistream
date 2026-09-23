@@ -26,6 +26,20 @@
       ]
     },
     {
+      "source": "/sitemap-pages.xml",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=86400, s-maxage=86400" },
+        { "key": "Content-Type", "value": "application/xml; charset=utf-8" }
+      ]
+    },
+    {
+      "source": "/sitemap-index.xml",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=86400, s-maxage=86400" },
+        { "key": "Content-Type", "value": "application/xml; charset=utf-8" }
+      ]
+    },
+    {
       "source": "/robots.txt",
       "headers": [{ "key": "Cache-Control", "value": "public, max-age=86400" }]
     },
@@ -39,7 +53,9 @@
     }
   ],
   "rewrites": [
-    { "source": "/sitemap-anime.xml", "destination": "/api/sitemap-anime" },
+    { "source": "/sitemap-anime.xml",  "destination": "/api/sitemap-anime" },
+    { "source": "/sitemap-pages.xml",  "destination": "/api/sitemap-pages" },
+    { "source": "/sitemap-index.xml",  "destination": "/api/sitemap-index" },
     { "source": "/sitemap.xml",       "destination": "/sitemap.xml" },
     { "source": "/robots.txt",        "destination": "/robots.txt" },
     { "source": "/manifest.json",     "destination": "/manifest.json" },

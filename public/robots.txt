@@ -3,13 +3,21 @@ Allow: /
 Disallow: /admin
 Disallow: /admin/
 Disallow: /api/
+Disallow: /watch/
+Disallow: /login
+Disallow: /signup
+Disallow: /profile
+Disallow: /stats
+Disallow: /watchlist
+Disallow: /achievements
+Disallow: /creator/
+Disallow: /*?q=
 
-# Sitemaps
+# Sitemaps — submit the index in Search Console; it points to the three below
+Sitemap: https://kamistream.fun/sitemap-index.xml
 Sitemap: https://kamistream.fun/sitemap.xml
+Sitemap: https://kamistream.fun/sitemap-pages.xml
 Sitemap: https://kamistream.fun/sitemap-anime.xml
-
-# Crawl delay for bots
-Crawl-delay: 1
 
 # Block AI scrapers (optional — protects your content)
 User-agent: GPTBot

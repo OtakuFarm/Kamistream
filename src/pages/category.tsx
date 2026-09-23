@@ -154,8 +154,9 @@ export default function Category() {
   const cat = CATEGORIES[slug ?? ""];
 
   useSEO({
-    title:       cat ? cat.label : "Category",
-    description: cat?.description ?? "Browse anime by category on KamiStream.",
+    title:       cat ? `${cat.label} Anime` : "Category",
+    description: cat ? `${cat.description} — streaming free in HD on KamiStream.` : "Browse anime by category on KamiStream.",
+    url:         slug ? `/category/${slug}` : undefined,
   });
 
   const { data, isLoading, isFetching, error, refetch } = useQuery({

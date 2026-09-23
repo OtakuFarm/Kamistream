@@ -9,14 +9,20 @@ import { AnimatePresence, motion } from 'framer-motion';
 function Footer() {
   const year = new Date().getFullYear();
   const navLinks = [
-    { label: 'Home',     href: '/home' },
-    { label: 'Browse',   href: '/browse' },
-    { label: 'A-Z List', href: '/az-list' },
-    { label: 'Schedule', href: '/schedule' },
-    { label: 'About',    href: '/about' },
-    { label: 'DMCA',     href: '/dmca' },
-    { label: 'Terms',    href: '/terms' },
-    { label: 'Contact',  href: '/contact' },
+    { label: 'Home',          href: '/home' },
+    { label: 'Browse',        href: '/browse' },
+    { label: 'A-Z List',      href: '/az-list' },
+    { label: 'Schedule',      href: '/schedule' },
+    // Crawlable keyword links — Google follows these into the listing pages
+    { label: 'Trending Now',  href: '/category/trending' },
+    { label: 'Top Rated',     href: '/category/top-rated' },
+    { label: 'Action Anime',  href: '/genre/1' },
+    { label: 'Romance Anime', href: '/genre/22' },
+    { label: 'Isekai Anime',  href: '/genre/66' },
+    { label: 'About',         href: '/about' },
+    { label: 'DMCA',          href: '/dmca' },
+    { label: 'Terms',         href: '/terms' },
+    { label: 'Contact',       href: '/contact' },
   ];
 
   return (
