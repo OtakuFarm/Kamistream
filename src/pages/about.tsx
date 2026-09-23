@@ -102,7 +102,7 @@ function CellIcon({ val }: { val: boolean | string }) {
 // ── Page ──────────────────────────────────────────────────────────
 export default function About() {
   useSEO({
-    title: 'About KamiStream',
+    title: 'About Us',
     description: 'KamiStream is a free anime streaming site built by fans, for fans. Sub & dub, HD quality, no sign-up needed. The next generation anime experience.',
   });
 

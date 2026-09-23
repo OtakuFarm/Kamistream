@@ -164,9 +164,14 @@ export default function AnimeDetail() {
 
   // ── SEO ──────────────────────────────────────────────────────────
   useSEO(anime ? {
-    title:       anime.title,
+    // Title/description here are mirrored VERBATIM by scripts/prerender.mjs
+    // (animeDoc) — the crawler-facing HTML and the hydrated React state must
+    // agree, so change both together or the prerendered pages drift.
+    title:       `${anime.title} — Watch Online Free (Sub & Dub)`,
     description: anime.synopsis?.slice(0, 160),
-    image:       anime.images?.webp?.large_image_url,
+    // A 16:9 YouTube trailer frame previews far better than a portrait
+    // poster on Discord / X / Facebook cards; fall back to the poster art.
+    image:       anime.trailer?.images?.maximum_image_url || anime.images?.webp?.large_image_url,
     type:        'video.other',
     // Canonical = descriptive URL. Old bare /anime/:id links (and any
     // wrong-slug variants) all consolidate onto this one URL.
