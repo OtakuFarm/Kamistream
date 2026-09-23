@@ -22,6 +22,10 @@
  * out once React has painted, so humans get instant content instead of a
  * blank white screen (this also fixes LCP / Core Web Vitals).
  *
+ * It also emits /sitemap-anime.xml from the very same pool of titles (see
+ * writeSitemapAnime), replacing a runtime API function that listed only 50 of
+ * the 199 pages and could fail mid-crawl.
+ *
  * IMPORTANT — no cloaking: every fact in the shell (title, synopsis,
  * score, episodes, status, studios, genres, related-anime links) is also
  * rendered by the React page itself. We deliberately do NOT invent copy
@@ -600,6 +604,46 @@ function writeRoute(routePath, doc) {
   written++;
 }
 
+// ── Sitemap ──────────────────────────────────────────────────────────
+// /sitemap-anime.xml is written HERE, at build time, from the same pool and
+// the same animePath() that just wrote the detail pages — so the sitemap can
+// never list a URL that was not prerendered, nor omit one that was.
+//
+// Previously this file came from api/sitemap-anime.js, which had two real
+// problems:
+//   • It listed only 50 URLs. It walked Jikan pages 1-4 and let a single
+//     failed page drop 25 titles, so a partial Jikan outage silently shrank
+//     the sitemap that Search Console was reading.
+//   • It was a runtime function, so every single fetch could 500 or serve a
+//     stale-to-24h list, and it burned a serverless invocation per crawl.
+// A static file is also served INSTEAD of the rewrite, because Vercel checks
+// the filesystem before applying rewrites (same reason the prerendered HTML
+// wins over the SPA fallback). The `/api/sitemap-anime` rewrite is left in
+// place as a fallback for the "no anime written" case below.
+function writeSitemapAnime(anime) {
+  const today = new Date().toISOString().slice(0, 10);
+
+  const entries = anime
+    .filter(a => a?.mal_id)
+    .map(a => {
+      // aired.to is the last air date we hold, which is the honest lastmod
+      // for a finished show. Jikan can also return null or a malformed value.
+      const airedTo = a.aired?.to ? String(a.aired.to).slice(0, 10) : '';
+      const lastmod = /^\d{4}-\d{2}-\d{2}$/.test(airedTo) ? airedTo : today;
+      const loc     = esc(BASE + animePath(a.mal_id, a.title));
+      return `  <url>\n    <loc>${loc}</loc>\n    <lastmod>${lastmod}</lastmod>\n` +
+             `    <changefreq>weekly</changefreq>\n    <priority>0.8</priority>\n  </url>`;
+    })
+    .join('\n');
+
+  const xml = '<?xml version="1.0" encoding="UTF-8"?>\n' +
+    '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' +
+    `${entries}\n</urlset>\n`;
+
+  writeFileSync(path.join(DIST, 'sitemap-anime.xml'), xml, 'utf8');
+  console.log(`  ✓ sitemap-anime.xml: ${anime.length} URLs`);
+}
+
 
 // ── Route tables ─────────────────────────────────────────────────────
 // Titles/descriptions below are copied EXACTLY from each page's useSEO()
@@ -961,16 +1005,25 @@ async function main() {
   console.log(`  ✓ genre pages: ${genreLists.size} (${genresWithGrid} with a listing grid)`);
 
   // 4. Anime detail pages — the pages that actually need ranking
-  let animeWritten = 0;
+  const animeWritten = [];
   for (const a of pool) {
     try {
       writeRoute(animePath(a.mal_id, a.title), animeDoc(a, pool));
-      animeWritten++;
+      animeWritten.push(a);
     } catch (err) {
       warn(`  ! anime ${a.mal_id} (${a.title}): ${err.message}`);
     }
   }
-  console.log(`  ✓ anime pages: ${animeWritten}`);
+  console.log(`  ✓ anime pages: ${animeWritten.length}`);
+
+  // 5. Sitemap — covers exactly the pages written in step 4. Skipped when the
+  //    pool came back empty so a dead API cannot replace a working sitemap
+  //    with an empty one; the /api/sitemap-anime rewrite still answers then.
+  if (animeWritten.length) {
+    writeSitemapAnime(animeWritten);
+  } else {
+    warn('  ! no anime pages written — /sitemap-anime.xml left to the /api/sitemap-anime fallback');
+  }
 
   const secs = ((Date.now() - BUILD_START) / 1000).toFixed(1);
   console.log(`✔ prerender: ${written} HTML documents written in ${secs}s` +

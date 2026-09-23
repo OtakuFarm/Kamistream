@@ -8,8 +8,9 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "vite build && node scripts/prerender.mjs",
+    "build": "vite build && node scripts/generate-icons.mjs && node scripts/prerender.mjs",
     "build:spa": "vite build",
+    "icons": "node scripts/generate-icons.mjs",
     "prerender": "node scripts/prerender.mjs",
     "preview": "vite preview"
   },

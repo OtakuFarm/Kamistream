@@ -1,6 +1,7 @@
 import { createRoot } from "react-dom/client";
 import App from "./App";
 import "./index.css";
+import { initAnalytics } from "./lib/analytics";
 
 createRoot(document.getElementById("root")!).render(<App />);
 
@@ -45,3 +46,8 @@ if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/sw.js').catch(() => {});
   });
 }
+
+/* Traffic measurement. Inert until VITE_ANALYTICS_PROVIDER + VITE_ANALYTICS_ID
+ * are set in the Vercel env — see src/lib/analytics.ts. Called last and
+ * guarded internally so it can never delay paint or break the app. */
+initAnalytics();

@@ -1,7 +1,12 @@
 /* ═══════════════════════════════════════════════════
  * Vercel serverless function: /api/sitemap-anime
- * Generates a sitemap of top anime pages from Jikan
- * Cached by Cloudflare for 24h — zero cost to run
+ * FALLBACK sitemap of top anime pages from Jikan.
+ *
+ * The build now emits a static /sitemap-anime.xml (scripts/prerender.mjs,
+ * writeSitemapAnime) covering every prerendered anime page, and Vercel serves
+ * the filesystem before rewrites — so the static file is what crawlers get.
+ * This handler only runs if a build produced no anime pages at all.
+ * Cached by CDN for 24h — zero cost to run.
  * ═══════════════════════════════════════════════════ */
 const JIKAN = 'https://api.jikan.moe/v4';
 const BASE  = 'https://www.kamistream.fun';
@@ -13,16 +18,28 @@ async function fetchPage(page) {
   return json?.data || [];
 }
 
-// Jikan allows ~3 req/sec — 4 parallel requests intermittently trip 429s,
-// so fetch sequentially with a small gap and tolerate partial failures
-// (a 3-page sitemap beats an empty one).
+// Top 8 pages = 200 titles, matching TOP_PAGES in scripts/prerender.mjs and
+// therefore the set of anime detail pages that actually ship prerendered HTML.
+// This used to be 4 pages / 100 titles, and each failed page silently dropped
+// 25 more — which is how the live sitemap ended up listing only 50 URLs.
+//
+// NOTE: as of the prerender change this handler is a FALLBACK. The build now
+// writes a static /sitemap-anime.xml, and Vercel serves the filesystem before
+// rewrites, so the static file wins. This only answers if a build produced no
+// anime pages at all (total API outage).
+//
+// Jikan allows ~3 req/sec — parallel requests trip 429s, so fetch sequentially
+// with a small gap and tolerate partial failures (a partial sitemap beats an
+// empty one).
+const TOP_PAGES = 8;
+
 async function fetchAllPages() {
   const out = [];
-  for (const page of [1, 2, 3, 4]) {
+  for (let page = 1; page <= TOP_PAGES; page++) {
     try {
       out.push(...await fetchPage(page));
-    } catch { /* skip failed page */ }
-    if (page < 4) await new Promise(r => setTimeout(r, 400));
+    } catch { /* skip failed page, keep what we already have */ }
+    if (page < TOP_PAGES) await new Promise(r => setTimeout(r, 400));
   }
   return out;
 }
@@ -41,11 +58,17 @@ function slugifyTitle(title) {
 
 export default async function handler(req, res) {
   try {
-    // Fetch top 4 pages = 100 anime (enough for a strong sitemap start)
+    // Same top-8 pages the prerenderer uses; de-duplicated because Jikan can
+    // repeat titles across page boundaries.
     const anime = await fetchAllPages();
 
+    const seen = new Set();
     const urls = anime
-      .filter(a => a?.mal_id)
+      .filter(a => {
+        if (!a?.mal_id || seen.has(a.mal_id)) return false;
+        seen.add(a.mal_id);
+        return true;
+      })
       .map(a => {
         const lastmod = a.aired?.to
           ? new Date(a.aired.to).toISOString().split('T')[0]

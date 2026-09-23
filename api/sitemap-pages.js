@@ -1,8 +1,9 @@
 /* ═══════════════════════════════════════════════════════════════════
  * Vercel serverless function: /api/sitemap-pages
  * Sitemap for all static + curated listing pages: home, browse, category
- * pages, A–Z list, schedule, mood, hidden gems, about and EVERY genre
- * page. Complements /sitemap-anime.xml (top anime pages).
+ * pages, A–Z list, schedule, mood, hidden gems, about, the legal pages
+ * (DMCA / terms / contact) and EVERY genre page. Complements
+ * /sitemap-anime.xml (top anime pages).
  * Cached by CDN for 24h — zero cost to run.
  * ═══════════════════════════════════════════════════════════════════ */
 const BASE = 'https://www.kamistream.fun';
@@ -86,6 +87,15 @@ export default async function handler(req, res) {
     { path: '/mood',        freq: 'weekly',  pri: '0.6' },
     { path: '/hidden-gems', freq: 'weekly',  pri: '0.6' },
     { path: '/about',       freq: 'monthly', pri: '0.4' },
+    // The legal / contact pages were missing from every sitemap even though
+    // they are real, prerendered, indexable pages with unique titles. They are
+    // low priority, not zero: Google explicitly looks for a reachable
+    // Home / About / Contact / Terms set (and a DMCA policy) when judging
+    // whether a site is trustworthy — which matters most for streaming sites.
+    // These paths must stay identical to STATIC_PAGES in scripts/prerender.mjs.
+    { path: '/dmca',        freq: 'yearly',  pri: '0.3' },
+    { path: '/terms',       freq: 'yearly',  pri: '0.3' },
+    { path: '/contact',     freq: 'yearly',  pri: '0.3' },
   ];
 
   const pages = [

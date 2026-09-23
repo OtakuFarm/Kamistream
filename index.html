@@ -37,7 +37,15 @@
 
     <!-- PWA -->
     <link rel="manifest" href="/manifest.json" />
+    <!-- Icons. favicon.svg is the vector source; the PNG/ICO rasters are the
+         same design, generated at build time by scripts/generate-icons.mjs.
+         Clients that cannot use SVG need the rasters — before they existed
+         these URLs fell through the SPA rewrite and returned HTML, so the
+         PWA had no usable icon and iOS showed a blank grey tile. -->
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
+    <link rel="icon" type="image/png" sizes="512x512" href="/icons/icon-512.png" />
+    <link rel="icon" href="/favicon.ico" sizes="32x32" />
 
     <!-- Ad CDN preconnect — faster tag loads = better viewability & fill -->
     <link rel="preconnect" href="https://quge5.com" crossorigin="anonymous" />
@@ -47,7 +55,7 @@
     <link rel="preconnect" href="https://www.highperformanceformat.com" crossorigin="anonymous" />
     <link rel="preconnect" href="https://pl30707076.effectivecpmnetwork.com" crossorigin="anonymous" />
     <link rel="dns-prefetch" href="https://pl30707075.effectivecpmnetwork.com" />
-    <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png" />
 
     <!-- Sitemap hint -->
     <link rel="sitemap" type="application/xml" href="/sitemap-index.xml" />
@@ -89,7 +97,10 @@
       "url": "https://www.kamistream.fun",
       "logo": {
         "@type": "ImageObject",
-        "url": "https://www.kamistream.fun/icons/icon-512.png"
+        "url": "https://www.kamistream.fun/icons/icon-512.png",
+        "width": 512,
+        "height": 512,
+        "caption": "KamiStream"
       }
     }
     </script>
