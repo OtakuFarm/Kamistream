@@ -13,6 +13,7 @@ function Footer() {
     { label: 'Browse',        href: '/browse' },
     { label: 'A-Z List',      href: '/az-list' },
     { label: 'Schedule',      href: '/schedule' },
+    { label: 'Latest Episodes', href: '/latest-episodes' },
     // Crawlable keyword links — Google follows these into the listing pages
     { label: 'Trending Now',  href: '/category/trending' },
     { label: 'Top Rated',     href: '/category/top-rated' },

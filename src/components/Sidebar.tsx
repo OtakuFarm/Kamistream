@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useLocation } from 'wouter';
-import { Home, Compass, Bookmark, Trophy, BarChart3, Users, User, Settings, Calendar, List, Gem, Smile, HelpCircle, Star, Flame, Tag, ChevronDown, ChevronUp, Info, Award } from 'lucide-react';
+import { Home, Compass, Bookmark, Trophy, BarChart3, Users, User, Settings, Calendar, List, Gem, Smile, HelpCircle, Star, Flame, Tag, ChevronDown, ChevronUp, Info, Award, Radio } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { isAdminEmail } from '@/lib/admin';
 import { useGamification, calculateLevel } from '@/hooks/useGamification';
@@ -71,6 +71,7 @@ export function Sidebar({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
           <NavItem href="/browse"      icon={Compass}     label="Browse" />
           <NavItem href="/az-list"     icon={List}        label="A-Z List" />
           <NavItem href="/schedule"    icon={Calendar}    label="Schedule" />
+          <NavItem href="/latest-episodes" icon={Radio}   label="Latest Episodes" />
           <NavItem href="/mood"        icon={Smile}       label="Mood Picker" />
           <NavItem href="/hidden-gems" icon={Gem}         label="Hidden Gems" />
           <NavItem href="/category/top-rated" icon={Star} label="Top Rated" />

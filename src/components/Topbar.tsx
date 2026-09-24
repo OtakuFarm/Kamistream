@@ -10,6 +10,7 @@ import { useTheme, THEMES } from '@/hooks/useTheme';
 /** Links shown in the sticky topbar. Mirrors NAV_LINKS in scripts/prerender.mjs
  *  so the crawlable #seo-shell header and the React header stay in sync. */
 const TOP_NAV = [
+  { label: 'Latest Episodes', href: '/latest-episodes' },
   { label: 'Top Rated',     href: '/category/top-rated' },
   { label: 'Action Anime',  href: '/genre/1' },
   { label: 'Romance Anime', href: '/genre/22' },

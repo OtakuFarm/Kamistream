@@ -29,6 +29,7 @@ const NotFound     = lazy(() => import("@/pages/not-found"));
 const Genre        = lazy(() => import("@/pages/genre"));
 const Search       = lazy(() => import("@/pages/search"));
 const Schedule     = lazy(() => import("@/pages/schedule"));
+const LatestEpisodes = lazy(() => import("@/pages/latest-episodes"));
 const AZList       = lazy(() => import("@/pages/az-list"));
 const Stats        = lazy(() => import("@/pages/stats"));
 const Achievements = lazy(() => import("@/pages/achievements"));
@@ -77,6 +78,7 @@ function CreatorRoute()      { return <Layout><Creator /></Layout>; }
 function GenreRoute()        { return <Layout><Genre /></Layout>; }
 function SearchRoute()       { return <Layout><Search /></Layout>; }
 function ScheduleRoute()     { return <Layout><Schedule /></Layout>; }
+function LatestEpisodesRoute() { return <Layout><LatestEpisodes /></Layout>; }
 function AZListRoute()       { return <Layout><AZList /></Layout>; }
 function StatsRoute()        { return <Layout><Stats /></Layout>; }
 function AchievementsRoute() { return <Layout><Achievements /></Layout>; }
@@ -118,6 +120,7 @@ function Router() {
         <Route path="/genre/:id"          component={GenreRoute} />
         <Route path="/search"             component={SearchRoute} />
         <Route path="/schedule"           component={ScheduleRoute} />
+        <Route path="/latest-episodes"    component={LatestEpisodesRoute} />
         <Route path="/az-list"            component={AZListRoute} />
         <Route path="/stats"              component={StatsRoute} />
         <Route path="/achievements"       component={AchievementsRoute} />

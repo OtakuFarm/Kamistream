@@ -8,6 +8,13 @@
       "headers": [{ "key": "Cache-Control", "value": "public, max-age=3600" }]
     },
     {
+      "source": "/latest-episodes",
+      "headers": [
+        { "key": "Cache-Control", "value": "public, max-age=0, s-maxage=1800, stale-while-revalidate=3600" },
+        { "key": "Content-Type", "value": "text/html; charset=utf-8" }
+      ]
+    },
+    {
       "source": "/sw.js",
       "headers": [{ "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }]
     },
@@ -81,6 +88,9 @@
     { "source": "/manifest.json",     "destination": "/manifest.json" },
     { "source": "/ads.js",            "destination": "/ads.js" },
     { "source": "/sw.js",             "destination": "/sw.js" },
+    { "source": "/latest-episodes",   "destination": "/api/latest" },
+    { "source": "/latest-episodes/",  "destination": "/api/latest" },
+    { "source": "/assets/(.*)",       "destination": "/api/asset-404" },
     { "source": "/(.*)",              "destination": "/index.html" }
   ]
 }

@@ -16,6 +16,11 @@
     <priority>0.8</priority>
   </url>
   <url>
+    <loc>https://www.kamistream.fun/latest-episodes</loc>
+    <changefreq>daily</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
     <loc>https://www.kamistream.fun/az-list</loc>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>

@@ -538,7 +538,7 @@ const SHELL_CSS = [
 
 const NAV_LINKS = [
   ['/browse', 'Browse'], ['/category/top-rated', 'Top Rated'], ['/category/trending', 'Trending'],
-  ['/schedule', 'Schedule'], ['/az-list', 'A–Z List'], ['/hidden-gems', 'Hidden Gems'],
+  ['/schedule', 'Schedule'], ['/latest-episodes', 'Latest Episodes'], ['/az-list', 'A–Z List'], ['/hidden-gems', 'Hidden Gems'],
   // Keyword links, mirrored from the React topbar — see TOP_NAV in
   // src/components/Topbar.tsx. Crawlable sitewide header nav.
   ['/genre/1', 'Action Anime'], ['/genre/22', 'Romance Anime'],
@@ -546,7 +546,7 @@ const NAV_LINKS = [
 ];
 
 const FOOTER_LINKS = [
-  ['/browse', 'All Anime'], ['/category/top-anime', 'Top Anime'], ['/category/this-season', 'This Season'],
+  ['/browse', 'All Anime'], ['/latest-episodes', 'Latest Episodes'], ['/category/top-anime', 'Top Anime'], ['/category/this-season', 'This Season'],
   ['/category/upcoming', 'Upcoming'], ['/genre/1', 'Action Anime'], ['/genre/22', 'Romance Anime'],
   ['/genre/4', 'Comedy Anime'], ['/genre/10', 'Fantasy Anime'], ['/genre/37', 'Supernatural Anime'],
   ['/genre/66', 'Isekai Anime'], ['/best-anime', 'Best Anime by Year'], ['/mood', 'Anime by Mood'],

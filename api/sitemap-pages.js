@@ -83,6 +83,10 @@ export default async function handler(req, res) {
     { path: '/',            freq: 'daily',   pri: '1.0' },
     { path: '/browse',      freq: 'daily',   pri: '0.9' },
     { path: '/schedule',    freq: 'daily',   pri: '0.8' },
+    // Served by api/latest.js via the /latest-episodes rewrite — NOT
+    // prerendered (a static file there would shadow the rewrite, since
+    // Vercel checks the filesystem before applying rewrites).
+    { path: '/latest-episodes', freq: 'daily', pri: '0.8' },
     { path: '/az-list',     freq: 'weekly',  pri: '0.7' },
     { path: '/mood',        freq: 'weekly',  pri: '0.6' },
     { path: '/hidden-gems', freq: 'weekly',  pri: '0.6' },
