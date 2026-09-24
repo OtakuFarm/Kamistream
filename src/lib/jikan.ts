@@ -263,21 +263,48 @@ export const useAnimeDetail = (malId: number | string) =>
           }
         );
       }
-      // Title-only public URL: resolve the slug to a Jikan result first.
-      const title = String(malId).replace(/-/g, ' ');
-      const result = await withALFallback(
-        () => fetchJikan<JikanPaginatedResponse<JikanAnime>>(`/anime?q=${encodeURIComponent(title)}&limit=10&sfw=true`),
-        () => alPage(
-          `query($p:Int,$q:String){Page(page:$p,perPage:10){pageInfo{currentPage lastPage hasNextPage}media(type:ANIME,search:$q,sort:POPULARITY_DESC,isAdult:false){${AL_FIELDS}}}}`,
-          { p: 1, q: title }
-        )
-      );
-      const match = (result?.data || []).find((a: JikanAnime) => {
-        const candidates = [a.title, (a as any).title_english, (a as any).title_romanji]
-          .filter(Boolean)
-          .map((value: string) => slugifyTitle(value));
-        return candidates.includes(String(malId));
-      }) || result?.data?.[0];
+      // Title-only public URL: resolve the slug through progressively broader
+      // searches. A descriptive slug may contain a season label that the
+      // upstream title omits (for example, "Mushoku Tensei ... Season 3"),
+      // so relying on one exact full-title query can incorrectly return no
+      // match.
+      const rawTitle = String(malId).replace(/-/g, ' ');
+      const queries = Array.from(new Set([
+        rawTitle,
+        rawTitle.replace(/\s+season\s+\d+/gi, '').trim(),
+        rawTitle.split(':')[0].trim(),
+      ].filter(Boolean)));
+
+      let candidates: JikanAnime[] = [];
+      for (const query of queries) {
+        const result = await withALFallback(
+          () => fetchJikan<JikanPaginatedResponse<JikanAnime>>(`/anime?q=${encodeURIComponent(query)}&limit=10&sfw=true`),
+          () => alPage(
+            `query($p:Int,$q:String){Page(page:$p,perPage:10){pageInfo{currentPage lastPage hasNextPage}media(type:ANIME,search:$q,sort:POPULARITY_DESC,isAdult:false){${AL_FIELDS}}}}`,
+            { p: 1, q: query }
+          )
+        );
+        candidates = candidates.concat(result?.data || []);
+        if (candidates.some(a => [a.title, (a as any).title_english, (a as any).title_romanji]
+          .filter(Boolean).some(value => slugifyTitle(value) === String(malId)))) break;
+      }
+
+      const requested = String(malId);
+      const requestWords = new Set(requested.split('-'));
+      const match = candidates.find((a: JikanAnime) => {
+        const names = [a.title, (a as any).title_english, (a as any).title_romanji].filter(Boolean);
+        return names.some(value => slugifyTitle(value) === requested);
+      }) || candidates.sort((a, b) => {
+        const score = (anime: JikanAnime) => {
+          const names = [anime.title, (anime as any).title_english, (anime as any).title_romanji]
+            .filter(Boolean).map(slugifyTitle).join(' ');
+          const words = new Set(names.split('-'));
+          const overlap = [...requestWords].filter(word => words.has(word)).length;
+          const season = /\bseason\s+3\b/i.test(rawTitle) && /\bseason\s+3\b/i.test(names) ? 100 : 0;
+          return season + overlap;
+        };
+        return score(b) - score(a);
+      })[0];
       if (!match?.mal_id) throw new Error('Anime not found');
       return useAnimeDetailFallback(match.mal_id);
     },
