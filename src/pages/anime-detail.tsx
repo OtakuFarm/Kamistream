@@ -188,13 +188,13 @@ export default function AnimeDetail() {
     },
   } : {});
 
-  useEffect(() => { setEpPage(1); setActiveEp(null); }, [id]);
+  useEffect(() => { setEpPage(1); setActiveEp(null); }, [resolvedId]);
 
   // ── Airing countdown ─────────────────────────────────────────────
   useEffect(() => {
-    if (!anime || anime.status !== 'Currently Airing') return;
-    getNextAiring(id).then(setNextAiring).catch(() => {});
-  }, [id, anime?.status]);
+    if (!anime || !resolvedId || anime.status !== 'Currently Airing') return;
+    getNextAiring(resolvedId).then(setNextAiring).catch(() => {});
+  }, [resolvedId, anime?.status]);
 
   useEffect(() => {
     if (!nextAiring?.airingAt) return;
@@ -220,16 +220,16 @@ export default function AnimeDetail() {
     const lang = dub ? 'dub' : 'sub';
 
     // Start with MAL immediately
-    setActiveSource(mpMal(id, epNum, lang));
+    setActiveSource(mpMal(resolvedId, epNum, lang));
     setLoadingPlayer(false);
 
     // Resolve AniList in background for Alt server
     if (!alId) {
-      resolveAnilistId(id).then(al => { if (al) setAlId(al); });
+      resolveAnilistId(resolvedId).then(al => { if (al) setAlId(al); });
     }
 
     // Resolve Anikoto (OniChan S-2) in background
-    resolveAnikotoEmbedId(id, epNum).then(embedId => { if (embedId) setAnikotoEmbedId(embedId); });
+    resolveAnikotoEmbedId(resolvedId, epNum).then(embedId => { if (embedId) setAnikotoEmbedId(embedId); });
 
     // Scroll player into view
     setTimeout(() => { playerRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 100);
@@ -237,7 +237,7 @@ export default function AnimeDetail() {
     // Error timer
     if (errorTimerRef.current) clearTimeout(errorTimerRef.current);
     errorTimerRef.current = setTimeout(() => setPlayerError(true), 12000);
-  }, [id, dub, alId]);
+  }, [resolvedId, dub, alId]);
 
   const onIframeLoad = useCallback(() => {
     if (errorTimerRef.current) clearTimeout(errorTimerRef.current);
@@ -528,7 +528,7 @@ export default function AnimeDetail() {
                       {theaterMode ? <Minimize2 className="w-2.5 h-2.5" /> : <Maximize2 className="w-2.5 h-2.5" />}
                       Theater
                     </button>
-                    <Link href={`/watch/${id}/${activeEp}`} className="ml-auto">
+                    <Link href={`/watch/${resolvedId}/${activeEp}`} className="ml-auto">
                       <button className="px-3 py-1.5 rounded-lg text-[11px] font-bold bg-[var(--card)] border border-[var(--border)] text-[var(--text2)] hover:text-white transition-colors flex items-center gap-1">
                         <Maximize2 className="w-2.5 h-2.5" /> Full Page
                       </button>
