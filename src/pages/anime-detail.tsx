@@ -669,7 +669,7 @@ export default function AnimeDetail() {
                         <p className="text-[10px] font-bold text-white line-clamp-2 leading-snug">{node?.title?.english || node?.title?.romaji}</p>
                       </div>
                     );
-                    return malId ? <Link key={node?.id} href={`/anime/${malId}`}>{card}</Link> : <div key={node?.id}>{card}</div>;
+                    return malId ? <Link key={node?.id} href={animePath(malId, node?.title?.english || node?.title?.romaji || '')}>{card}</Link> : <div key={node?.id}>{card}</div>;
                   })}
                 </div>
               </section>
@@ -710,7 +710,7 @@ export default function AnimeDetail() {
                   {recommendations.map((rec: any) => {
                     const a = rec.entry;
                     return (
-                      <Link key={a.mal_id} href={`/anime/${a.mal_id}`}>
+                      <Link key={a.mal_id} href={animePath(a.mal_id, a.title)}>
                         <div className="group cursor-pointer">
                           <div className="aspect-[2/3] rounded-xl overflow-hidden bg-[var(--card)]">
                             <img src={a.images?.webp?.large_image_url} alt={a.title}

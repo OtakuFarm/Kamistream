@@ -6,6 +6,7 @@ import { useAuth } from '@/lib/auth';
 import { useAnimeSearch, useTrendingAnime } from '@/lib/jikan';
 import { useDebounce } from '@/hooks/use-debounce';
 import { useTheme, THEMES } from '@/hooks/useTheme';
+import { animePath } from '@/lib/seo';
 
 /** Links shown in the sticky topbar. Mirrors NAV_LINKS in scripts/prerender.mjs
  *  so the crawlable #seo-shell header and the React header stay in sync. */
@@ -62,12 +63,12 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
     if (spinning) return;
     const pick = pool[Math.floor(Math.random() * pool.length)];
     const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-    if (reduced) { setLocation(`/anime/${pick.mal_id}`); return; }
+    if (reduced) { setLocation(animePath(pick.mal_id, pick.title)); return; }
     // Roulette spin — cycle titles briefly, then land
     setSpinning(true);
     window.setTimeout(() => {
       setSpinning(false);
-      setLocation(`/anime/${pick.mal_id}`);
+      setLocation(animePath(pick.mal_id, pick.title));
     }, 1200);
   }
 
@@ -144,7 +145,7 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
             ) : (searchResults?.data?.length ?? 0) > 0 ? (
               <div className="flex flex-col">
                 {(searchResults?.data ?? []).slice(0, 5).map((anime: any) => (
-                  <Link key={anime.mal_id} href={`/anime/${anime.mal_id}`} onClick={() => setShowDropdown(false)}
+                  <Link key={anime.mal_id} href={animePath(anime.mal_id, anime.title)} onClick={() => setShowDropdown(false)}
                     className="flex items-center gap-3 p-3 hover:bg-[var(--bg3)] transition-colors border-b border-[var(--border)] last:border-0">
                     <img src={anime.images.webp.small_image_url} alt="" className="w-10 h-14 object-cover rounded-md" />
                     <div className="flex-1 min-w-0">

@@ -3,6 +3,7 @@ import { useWatchlist, WatchStatus, WATCH_STATUS_LABELS } from '@/hooks/useWatch
 import { useEpisodeProgress } from '@/hooks/useEpisodeProgress';
 import { Link } from 'wouter';
 import { useSEO } from '@/hooks/useSEO';
+import { animePath } from '@/lib/seo';
 import { Download, ChevronDown, BarChart2, Star, CheckCircle2, Clock, Trash2 } from 'lucide-react';
 
 const TABS: { id: 'all' | WatchStatus; label: string; color: string }[] = [
@@ -142,7 +143,7 @@ export default function Watchlist() {
             return (
               <div key={anime.mal_id} className="group relative bg-[var(--card)] rounded-xl overflow-hidden border border-[var(--border)] hover:border-[var(--pink)]/40 transition-all">
                 {/* Cover */}
-                <Link href={`/anime/${anime.mal_id}`}>
+                <Link href={animePath(anime.mal_id, anime.title)}>
                   <div className="relative aspect-[2/3] overflow-hidden cursor-pointer">
                     <img src={anime.image_url} alt={anime.title}
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />

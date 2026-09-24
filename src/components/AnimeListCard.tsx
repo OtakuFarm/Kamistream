@@ -1,6 +1,7 @@
 import React from 'react';
 import { useLocation } from 'wouter';
 import { useWatchlist } from '@/hooks/useWatchlist';
+import { animePath } from '@/lib/seo';
 
 interface AnimeListCardProps {
   anime: any;
@@ -16,7 +17,7 @@ export function AnimeListCard({ anime, badge, badgeColor = 'var(--pink)' }: Anim
   return (
     <div
       className="flex items-center gap-2.5 p-2 rounded-lg hover:bg-[var(--bg3)] cursor-pointer transition-colors group"
-      onClick={() => setLocation(`/anime/${anime.mal_id}`)}
+      onClick={() => setLocation(animePath(anime.mal_id, anime.title))}
     >
       {/* Poster thumbnail */}
       <div className="relative w-10 h-14 rounded shrink-0 overflow-hidden bg-[var(--bg3)]">

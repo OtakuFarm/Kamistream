@@ -9,6 +9,7 @@ import { usePushNotifications } from '@/hooks/usePushNotifications';
 import { useSEO } from '@/hooks/useSEO';
 import { SakuraTrail } from '@/components/motionBits';
 import { supabase } from '@/lib/supabase';
+import { animePath } from '@/lib/seo';
 import {
   Play, Film, Heart, Trophy, Trash2, BookMarked, CheckCircle2,
   Star, Bell, BellOff, Activity, Settings, Clock, Plus,
@@ -223,7 +224,7 @@ export default function Profile() {
             ) : (
               <div className="space-y-2">
                 {watchlist.slice(0, 8).map((item: any) => (
-                  <Link key={item.mal_id} href={`/anime/${item.mal_id}`}>
+                  <Link key={item.mal_id} href={animePath(item.mal_id, item.title)}>
                     <div className="flex items-center gap-3 p-3 bg-[var(--card)] border border-[var(--border)] rounded-xl hover:border-[var(--pink)] transition-colors group cursor-pointer">
                       <img src={item.image_url} alt={item.title} className="w-10 h-14 object-cover rounded-lg shrink-0" />
                       <div className="flex-1 min-w-0">
@@ -282,7 +283,7 @@ export default function Profile() {
               {activity.map(item => {
                 const { emoji, color } = ACTIVITY_ICONS[item.type] || { emoji: '·', color: 'var(--text3)' };
                 return (
-                  <Link key={item.id} href={`/anime/${item.mal_id}`}>
+                  <Link key={item.id} href={animePath(item.mal_id, item.title)}>
                     <div className="flex items-center gap-3 px-5 py-3 hover:bg-[var(--bg3)] transition-colors cursor-pointer group">
                       <img src={item.image_url} alt={item.title} className="w-10 h-14 object-cover rounded-lg shrink-0" />
                       <div className="flex-1 min-w-0">
@@ -372,3 +373,4 @@ export default function Profile() {
     </div>
   );
 }
+

@@ -5,6 +5,7 @@ import { useEpisodeProgress } from '@/hooks/useEpisodeProgress';
 import { useGamification, calculateLevel, xpForLevel, xpForNextLevel, ACHIEVEMENTS } from '@/hooks/useGamification';
 import { Link } from 'wouter';
 import { useSEO } from '@/hooks/useSEO';
+import { animePath } from '@/lib/seo';
 import { BarChart3, Clock, Tv2, BookMarked, Flame, Zap, Trophy, TrendingUp, Star } from 'lucide-react';
 
 export default function Stats() {
@@ -125,7 +126,7 @@ export default function Stats() {
           </div>
           <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-6 gap-3">
             {recentAnime.slice(0, 12).map((anime: any) => (
-              <Link key={anime.mal_id} href={`/anime/${anime.mal_id}`}>
+              <Link key={anime.mal_id} href={animePath(anime.mal_id, anime.title)}>
                 <div className="group cursor-pointer">
                   <img src={anime.image_url} alt={anime.title}
                     className="w-full aspect-[2/3] object-cover rounded-lg group-hover:scale-105 transition-transform duration-200" />

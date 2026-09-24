@@ -10,6 +10,7 @@ import { useEpisodeProgress } from '@/hooks/useEpisodeProgress';
 import { EpisodeSocial } from '@/components/EpisodeSocial';
 import { EpisodeRating } from '@/components/EpisodeRating';
 import { useViewerCount } from '@/hooks/useViewerCount';
+import { animePath } from '@/lib/seo';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // AniList ID resolver  (unchanged — cached in memory + sessionStorage)
@@ -591,7 +592,7 @@ export default function Watch() {
         <div className="p-4 md:p-6 bg-[var(--bg2)]">
           <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
             <div>
-              <Link href={`/anime/${malId}`} className="text-[var(--pink)] font-bold text-[12px] hover:underline mb-1 inline-block">
+              <Link href={animePath(anime.mal_id, anime.title)} className="text-[var(--pink)] font-bold text-[12px] hover:underline mb-1 inline-block">
                 {anime.title}
               </Link>
               <h1 className="text-xl font-heading font-black text-white">

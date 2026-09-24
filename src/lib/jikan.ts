@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { slugifyTitle } from '@/lib/seo';
 import type {
   JikanAnime,
   JikanEpisode,
@@ -271,9 +272,12 @@ export const useAnimeDetail = (malId: number | string) =>
           { p: 1, q: title }
         )
       );
-      const match = (result?.data || []).find((a: JikanAnime) =>
-        a.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') === String(malId)
-      ) || result?.data?.[0];
+      const match = (result?.data || []).find((a: JikanAnime) => {
+        const candidates = [a.title, (a as any).title_english, (a as any).title_romanji]
+          .filter(Boolean)
+          .map((value: string) => slugifyTitle(value));
+        return candidates.includes(String(malId));
+      }) || result?.data?.[0];
       if (!match?.mal_id) throw new Error('Anime not found');
       return useAnimeDetailFallback(match.mal_id);
     },

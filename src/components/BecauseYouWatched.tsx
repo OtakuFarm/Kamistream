@@ -5,6 +5,7 @@ import { useWatchHistory } from '@/hooks/useWatchHistory';
 import { Sparkles } from 'lucide-react';
 import { AnimeCard } from '@/components/AnimeCard';
 import { GridSkeleton } from '@/components/LoadingSkeleton';
+import { animePath } from '@/lib/seo';
 
 // Fetches anime recommendations from Jikan based on a MAL ID
 async function fetchRecs(malId: number): Promise<any[]> {
@@ -56,7 +57,7 @@ export function BecauseYouWatched() {
             {seed.title}
           </span>
         </h2>
-        <Link href={`/anime/${seed.mal_id}`}>
+        <Link href={animePath(seed.mal_id, seed.title)}>
           <span className="text-[11px] font-bold text-[var(--text3)] hover:text-[var(--pink)] transition-colors cursor-pointer">
             View Anime →
           </span>

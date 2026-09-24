@@ -18,6 +18,7 @@ import { useRecentlyUpdated } from '@/hooks/useRecentlyUpdated';
 import { dedupeByMalId } from '@/lib/dedupeAnime';
 import { CategoryPills } from '@/components/CategoryPills';
 import { FloatingPetals } from '@/components/motionBits';
+import { animePath } from '@/lib/seo';
 
 export default function Home() {
   const { data: trending,  isLoading: trendingLoading  } = useTrendingAnime();
@@ -88,7 +89,7 @@ export default function Home() {
     const pool = trending?.data;
     if (!pool?.length) return;
     const pick = pool[Math.floor(Math.random() * pool.length)];
-    setLocation(`/anime/${pick.mal_id}`);
+    setLocation(animePath(pick.mal_id, pick.title));
   }
 
   // New Release (currently airing, sorted by members/popularity)
@@ -235,7 +236,7 @@ export default function Home() {
               {activeHero.synopsis}
             </p>
             <div className="flex gap-3 flex-wrap">
-              <Link href={`/anime/${activeHero.mal_id}`}>
+              <Link href={animePath(activeHero.mal_id, activeHero.title)}>
                 <button className="bg-gradient-to-r from-[var(--pink)] to-[var(--purple)] text-white px-6 py-2.5 rounded-xl text-[13px] font-bold hover:opacity-90 flex items-center gap-2">
                   <ChevronRight className="w-4 h-4" /> Watch Now
                 </button>
@@ -383,7 +384,7 @@ export default function Home() {
                         {/* Title */}
                         <div className="flex-1 min-w-0">
                           {malId ? (
-                            <Link href={`/anime/${malId}`}>
+                            <Link href={animePath(malId, title)}>
                               <span className="text-[13px] font-bold text-white hover:text-[var(--pink)] transition-colors line-clamp-1 cursor-pointer">
                                 {title}
                               </span>
@@ -396,7 +397,7 @@ export default function Home() {
                         {/* Episode button */}
                         <div className="shrink-0">
                           {malId ? (
-                            <Link href={`/anime/${malId}`}>
+                            <Link href={animePath(malId, title)}>
                               <button className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all ${
                                 isOut
                                   ? 'bg-[var(--pink)]/15 border border-[var(--pink)]/40 text-[var(--pink)] hover:bg-[var(--pink)]/30'
@@ -548,7 +549,7 @@ export default function Home() {
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
             {upcoming.map((anime: any) => (
-              <Link key={anime.mal_id} href={`/anime/${anime.mal_id}`}>
+              <Link key={anime.mal_id} href={animePath(anime.mal_id, anime.title)}>
                 <div className="group cursor-pointer">
                   <div className="relative aspect-[2/3] rounded-xl overflow-hidden bg-[var(--card)] mb-2">
                     <img
@@ -612,7 +613,7 @@ export default function Home() {
                 </div>
               ))
             : (topAnimeData || []).map((anime: any, i: number) => (
-                <Link key={anime.mal_id} href={`/anime/${anime.mal_id}`}>
+                <Link key={anime.mal_id} href={animePath(anime.mal_id, anime.title)}>
                   <div className="kami-card flex items-center gap-3 p-2.5 rounded-xl hover:bg-[var(--bg3)] transition-colors group cursor-pointer">
                     <div className={`w-7 shrink-0 text-center font-black text-[14px] leading-none ${i === 0 ? 'text-[var(--gold)]' : i === 1 ? 'text-[#C0C0C0]' : i === 2 ? 'text-[#cd7f32]' : 'text-[var(--text3)]'}`}>
                       {i + 1}
@@ -674,3 +675,4 @@ function SectionHeader({
     </div>
   );
 }
+
