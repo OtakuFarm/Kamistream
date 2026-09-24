@@ -31,3 +31,17 @@ export function animePath(malId: number | string, title?: string): string {
   const s = title ? slugifyTitle(title) : '';
   return s ? `/anime/${malId}/${s}` : `/anime/${malId}`;
 }
+
+/**
+ * "Anime like X" URL — answers the "anime like <title>" / "anime similar to
+ * <title>" queries, which nothing on the site used to target.
+ *
+ * Same slug rules as animePath(), and the wouter route accepts the slug-less
+ * shape too, so /anime-like/:id keeps working if a title ever changes.
+ * Mirrored by animeLikeDoc() in scripts/prerender.mjs.
+ */
+export function animeLikePath(malId: number | string, title?: string): string {
+  if (!malId) return '/browse';
+  const s = title ? slugifyTitle(title) : '';
+  return s ? `/anime-like/${malId}/${s}` : `/anime-like/${malId}`;
+}

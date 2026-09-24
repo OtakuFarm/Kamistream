@@ -26,6 +26,30 @@
  * writeSitemapAnime), replacing a runtime API function that listed only 50 of
  * the 199 pages and could fail mid-crawl.
  *
+ * ── ROUTES WRITTEN ─────────────────────────────────────────────────
+ *   9   hub / static pages      (/browse, /schedule, /az-list, /mood,
+ *                                /hidden-gems, /about, /dmca, /terms, /contact)
+ *   8   category listings       (/category/:slug)
+ *   58  genre hubs              (/genre/:id)
+ *   199 anime detail pages      (/anime/:id/:slug)
+ *   199 "anime like X" pages    (/anime-like/:id/:slug)
+ *   ---
+ *   473 documents (each written in both file shapes)
+ *
+ * ── "ANIME LIKE X" PAGES ───────────────────────────────────────────
+ * "anime like <title>" is a high-intent query nothing on the site used to
+ * answer, and these pages are deliberately built from facts rather than
+ * filler: src/lib/animeLike.js scores every candidate on the genres, studio,
+ * format, era and score band it genuinely shares with the source, and
+ * whySimilar() then states those facts in words. That is what makes each
+ * page's text unique instead of another copy of the same MAL synopsis.
+ *
+ * The engine is imported straight out of src/ (it is plain .js for exactly
+ * this reason) and is the same code src/pages/anime-like.tsx runs, so the
+ * crawlable HTML and the React page cannot drift apart. Titles with fewer
+ * than MIN_MATCHES_FOR_PAGE real matches get no page at all — a thin page
+ * published only to add a URL is worse than no page.
+ *
  * IMPORTANT — no cloaking: every fact in the shell (title, synopsis,
  * score, episodes, status, studios, genres, related-anime links) is also
  * rendered by the React page itself. We deliberately do NOT invent copy
@@ -57,6 +81,16 @@
 
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import path from 'node:path';
+
+// ── "Anime like X" similarity engine ─────────────────────────────────
+// Imported from src/ rather than reimplemented here: src/pages/anime-like.tsx
+// imports the very same file, so the crawlable shell and the React page can
+// never disagree about which titles are similar or why. That is the whole
+// reason the engine is plain .js instead of .ts.
+import {
+  similarAnime, likeIntro, likeTitle, likeDescription, likeHeading,
+  comparisonRows, topSharedGenres, titleOf, scoreOf, MIN_MATCHES_FOR_PAGE,
+} from '../src/lib/animeLike.js';
 
 const BASE      = 'https://www.kamistream.fun';
 const JIKAN     = 'https://api.jikan.moe/v4';
@@ -122,6 +156,12 @@ function slugifyTitle(title) {
 function animePath(malId, title) {
   const s = slugifyTitle(title);
   return s ? `/anime/${malId}/${s}` : `/anime/${malId}`;
+}
+
+/** Same URL shape as animeLikePath() in src/lib/seo.ts. */
+function animeLikePath(malId, title) {
+  const s = slugifyTitle(title);
+  return s ? `/anime-like/${malId}/${s}` : `/anime-like/${malId}`;
 }
 
 /** Trim to `max` chars on a word boundary (for meta descriptions). */
@@ -456,6 +496,18 @@ const SHELL_CSS = [
   '.ks-grid b{display:-webkit-box;font-size:12px;font-weight:700;margin-top:6px;line-height:1.35;',
   'overflow:hidden;-webkit-line-clamp:2;-webkit-box-orient:vertical}',
   '.ks-grid i{display:block;font-size:10.5px;color:#7a7a8c;font-style:normal;margin-top:2px}',
+  // "Anime like X" additions: a reasons line under each tile, the reasons
+  // list, and the side-by-side comparison table.
+  '.ks-grid em{display:block;font-size:10.5px;color:#9d8fb8;font-style:normal;margin-top:3px;line-height:1.35}',
+  '.ks-why{list-style:none;padding:0;margin:10px 0 0;font-size:13.5px;color:#c8c8d8}',
+  '.ks-why li{margin-bottom:5px;padding-left:16px;position:relative}',
+  '.ks-why li:before{content:"\\2022";color:#a742ff;font-weight:900;position:absolute;left:0}',
+  '.ks-table{width:100%;border-collapse:collapse;font-size:13px;margin:8px 0 6px;background:#0f0f12;',
+  'border:1px solid rgba(255,255,255,.08);border-radius:10px;overflow:hidden}',
+  '.ks-table th,.ks-table td{text-align:left;padding:8px 11px;border-top:1px solid rgba(255,255,255,.07)}',
+  '.ks-table thead th{border-top:0;color:#7a7a8c;font-size:10.5px;text-transform:uppercase;letter-spacing:.05em}',
+  '.ks-table tbody th{color:#7a7a8c;font-weight:700;white-space:nowrap}',
+  '.ks-table td{color:#c8c8d8}',
   '.ks-foot{margin-top:36px;padding-top:18px;border-top:1px solid rgba(255,255,255,.08);font-size:12.5px;color:#7a7a8c}',
   '.ks-foot a{color:#c8c8d8;text-decoration:none;margin-right:14px;display:inline-block;margin-bottom:6px}',
   '.ks-foot a:hover{color:#fff}',
@@ -620,28 +672,36 @@ function writeRoute(routePath, doc) {
 // the filesystem before applying rewrites (same reason the prerendered HTML
 // wins over the SPA fallback). The `/api/sitemap-anime` rewrite is left in
 // place as a fallback for the "no anime written" case below.
-function writeSitemapAnime(anime) {
+function writeSitemapAnime(anime, likeAnime = []) {
   const today = new Date().toISOString().slice(0, 10);
 
-  const entries = anime
+  // aired.to is the last air date we hold, which is the honest lastmod for a
+  // finished show. Jikan can also return null or a malformed value.
+  const lastmodOf = a => {
+    const airedTo = a?.aired?.to ? String(a.aired.to).slice(0, 10) : '';
+    return /^\d{4}-\d{2}-\d{2}$/.test(airedTo) ? airedTo : today;
+  };
+
+  const entry = (loc, lastmod, priority) =>
+    `  <url>\n    <loc>${esc(loc)}</loc>\n    <lastmod>${lastmod}</lastmod>\n` +
+    `    <changefreq>weekly</changefreq>\n    <priority>${priority}</priority>\n  </url>`;
+
+  const detail = anime
     .filter(a => a?.mal_id)
-    .map(a => {
-      // aired.to is the last air date we hold, which is the honest lastmod
-      // for a finished show. Jikan can also return null or a malformed value.
-      const airedTo = a.aired?.to ? String(a.aired.to).slice(0, 10) : '';
-      const lastmod = /^\d{4}-\d{2}-\d{2}$/.test(airedTo) ? airedTo : today;
-      const loc     = esc(BASE + animePath(a.mal_id, a.title));
-      return `  <url>\n    <loc>${loc}</loc>\n    <lastmod>${lastmod}</lastmod>\n` +
-             `    <changefreq>weekly</changefreq>\n    <priority>0.8</priority>\n  </url>`;
-    })
-    .join('\n');
+    .map(a => entry(BASE + animePath(a.mal_id, a.title), lastmodOf(a), '0.8'));
+
+  // "Anime like X" pages rank below the title's own page (0.6): they are
+  // supporting pages that answer a follow-up question, not the destination.
+  const like = likeAnime
+    .filter(a => a?.mal_id)
+    .map(a => entry(BASE + animeLikePath(a.mal_id, a.title), lastmodOf(a), '0.6'));
 
   const xml = '<?xml version="1.0" encoding="UTF-8"?>\n' +
     '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' +
-    `${entries}\n</urlset>\n`;
+    `${[...detail, ...like].join('\n')}\n</urlset>\n`;
 
   writeFileSync(path.join(DIST, 'sitemap-anime.xml'), xml, 'utf8');
-  console.log(`  ✓ sitemap-anime.xml: ${anime.length} URLs`);
+  console.log(`  ✓ sitemap-anime.xml: ${detail.length} anime + ${like.length} "anime like" = ${detail.length + like.length} URLs`);
 }
 
 
@@ -778,7 +838,7 @@ function animeSchemas(a, canonical) {
 }
 
 // ── Anime detail ─────────────────────────────────────────────────────
-function animeDoc(a, pool) {
+function animeDoc(a, pool, likeMatches) {
   const route     = animePath(a.mal_id, a.title);
   const canonical = `${BASE}${route}`;
   const year      = a.year || (a.aired?.from ? Number(a.aired.from.slice(0, 4)) : null);
@@ -824,6 +884,14 @@ function animeDoc(a, pool) {
       '</div>',
     '</div>',
     renderGrid(related, `More anime like ${a.title}`),
+    // Link to the dedicated "anime like X" page. This is the primary
+    // discovery path for those pages: without an inbound link from a page
+    // that already ranks they would be orphans, and orphaned pages get
+    // crawled slowly or not at all.
+    likeMatches?.length
+      ? `<p class="ks-p"><a href="${esc(animeLikePath(a.mal_id, a.title))}">`
+        + `See all ${likeMatches.length} anime like ${esc(a.title)} &rsaquo;</a></p>`
+      : '',
     shellClose(),
   ].join('');
 
@@ -839,6 +907,119 @@ function animeDoc(a, pool) {
   });
 }
 
+// ── "Anime like X" ───────────────────────────────────────────────────
+// Mirrors src/pages/anime-like.tsx section for section, using the SAME
+// engine the React page imports. Titles with too few genuine matches are
+// skipped entirely (MIN_MATCHES_FOR_PAGE) rather than published as a thin
+// page that exists only to add a URL.
+
+/** Grid tile that also carries the reason this title was picked. */
+function renderMatchGrid(matches) {
+  const items = matches.map(({ anime: x, reasons }) => {
+    const img  = x.images?.jpg?.image_url || x.images?.webp?.image_url || '';
+    const bits = [x.type, x.episodes ? `${x.episodes} ep` : null, scoreOf(x) ? `★ ${scoreOf(x)}` : null]
+      .filter(Boolean).join(' · ');
+    return `<li><a href="${esc(animePath(x.mal_id, x.title))}">`
+      + (img ? `<img src="${esc(img)}" alt="${esc(x.title)} poster" loading="lazy" width="225" height="318">` : '')
+      + `<b>${esc(x.title)}</b><i>${esc(bits)}</i>`
+      + (reasons[0] ? `<em>${esc(reasons[0])}</em>` : '')
+      + '</a></li>';
+  }).join('');
+  return `<ul class="ks-grid">${items}</ul>`;
+}
+
+function animeLikeDoc(a, matches) {
+  const route     = animeLikePath(a.mal_id, a.title);
+  const canonical = `${BASE}${route}`;
+  const animeUrl  = animePath(a.mal_id, a.title);
+  const name      = a.title;
+  const best      = matches[0];
+
+  // NOTE: keep in sync with the useSEO() call in src/pages/anime-like.tsx
+  const title = `${likeTitle(a)} | KamiStream`;
+  const desc  = likeDescription(a, matches);
+
+  const table = best ? [
+    '<table class="ks-table"><thead><tr><th>&nbsp;</th>',
+    `<th>${esc(name)}</th><th>${esc(titleOf(best.anime))}</th>`,
+    '</tr></thead><tbody>',
+    comparisonRows(a, best.anime)
+      .map(r => `<tr><th>${esc(r.label)}</th><td>${esc(r.source)}</td><td>${esc(r.candidate)}</td></tr>`)
+      .join(''),
+    '</tbody></table>',
+  ].join('') : '';
+
+  const bestReasons = best?.reasons?.length
+    ? `<ul class="ks-why">${best.reasons.map(r => `<li>${esc(r)}</li>`).join('')}</ul>`
+    : '';
+
+  // Chips link into the genre hubs — another crawlable path inward.
+  const genreChips = (() => {
+    const top = topSharedGenres(a, matches, 4);
+    if (!top.length) return '';
+    const items = top.map(g => {
+      const gid = (a.genres ?? []).find(x => x.name === g.name)?.mal_id;
+      return gid ? `<li><a href="/genre/${gid}">${esc(g.name)} · ${g.count}</a></li>` : '';
+    }).filter(Boolean).join('');
+    return items ? `<ul class="ks-chips">${items}</ul>` : '';
+  })();
+
+  const hero    = best ? heroImage(best.anime) : heroImage(a);
+  const is16x9  = Boolean(best?.anime?.trailer?.images?.maximum_image_url
+                       || a.trailer?.images?.maximum_image_url);
+
+  const shell = [
+    shellOpen(),
+    renderCrumbs([['Home', '/'], ['Browse', '/browse'], [name, animeUrl], [`Anime like ${name}`, null]]),
+    `<h1 class="ks-h1">${esc(likeHeading(a))}</h1>`,
+    `<p class="ks-p">${esc(likeIntro(a, matches))}</p>`,
+    best ? `<h2 class="ks-h2">${esc(titleOf(best.anime))} vs ${esc(name)}</h2>` : '',
+    table,
+    bestReasons,
+    genreChips,
+    `<h2 class="ks-h2">${matches.length} anime like ${esc(name)}</h2>`,
+    renderMatchGrid(matches),
+    `<p class="ks-p"><a href="${esc(animeUrl)}">Watch ${esc(name)} online free</a> on KamiStream.</p>`,
+    shellClose(),
+  ].join('');
+
+  return buildDocument(shell, {
+    title, description: desc, canonical,
+    keywords: [
+      `anime like ${name}`, `anime similar to ${name}`,
+      `what to watch after ${name}`, `${name} recommendations`, 'KamiStream',
+    ].join(', '),
+    ogType: 'website', image: hero,
+    imageWidth:  is16x9 ? 1280 : undefined,
+    imageHeight: is16x9 ? 720  : undefined,
+    jsonLd: [
+      {
+        '@context': 'https://schema.org', '@type': 'CollectionPage',
+        name: likeHeading(a), url: canonical, description: desc,
+        isPartOf: { '@type': 'WebSite', name: 'KamiStream', url: `${BASE}/` },
+      },
+      {
+        // An ordered list of the recommendations, so the set is machine-readable.
+        '@context': 'https://schema.org', '@type': 'ItemList',
+        name: `Anime like ${name}`,
+        itemListElement: matches.slice(0, 12).map((m, i) => ({
+          '@type': 'ListItem', position: i + 1,
+          name: titleOf(m.anime),
+          url: `${BASE}${animePath(m.anime.mal_id, m.anime.title)}`,
+        })),
+      },
+      {
+        '@context': 'https://schema.org', '@type': 'BreadcrumbList',
+        itemListElement: [
+          { '@type': 'ListItem', position: 1, name: 'Home',   item: `${BASE}/` },
+          { '@type': 'ListItem', position: 2, name: 'Browse', item: `${BASE}/browse` },
+          { '@type': 'ListItem', position: 3, name, item: `${BASE}${animeUrl}` },
+          { '@type': 'ListItem', position: 4, name: `Anime like ${name}`, item: canonical },
+        ],
+      },
+    ],
+  });
+}
 
 // ── Genre hub ────────────────────────────────────────────────────────
 function genreDoc(genreId, list) {
@@ -1004,11 +1185,17 @@ async function main() {
   const genresWithGrid = [...genreLists.values()].filter(l => l.length).length;
   console.log(`  ✓ genre pages: ${genreLists.size} (${genresWithGrid} with a listing grid)`);
 
-  // 4. Anime detail pages — the pages that actually need ranking
+  // 4. Similarity for every title. Computed ONCE and reused by the anime
+  //    detail pages (which link to their "anime like" page) and by the
+  //    "anime like" pages themselves, so the two can never disagree.
+  const likeMatches = new Map();
+  for (const a of pool) likeMatches.set(a.mal_id, similarAnime(a, pool));
+
+  // 5. Anime detail pages — the pages that actually need ranking
   const animeWritten = [];
   for (const a of pool) {
     try {
-      writeRoute(animePath(a.mal_id, a.title), animeDoc(a, pool));
+      writeRoute(animePath(a.mal_id, a.title), animeDoc(a, pool, likeMatches.get(a.mal_id)));
       animeWritten.push(a);
     } catch (err) {
       warn(`  ! anime ${a.mal_id} (${a.title}): ${err.message}`);
@@ -1016,11 +1203,29 @@ async function main() {
   }
   console.log(`  ✓ anime pages: ${animeWritten.length}`);
 
-  // 5. Sitemap — covers exactly the pages written in step 4. Skipped when the
-  //    pool came back empty so a dead API cannot replace a working sitemap
-  //    with an empty one; the /api/sitemap-anime rewrite still answers then.
+  // 6. "Anime like X" pages — the follow-up query nothing used to answer.
+  //    Only titles with enough genuine matches get a page: publishing a page
+  //    with two thin suggestions would be worse than not publishing it.
+  const likeWritten = [];
+  for (const a of pool) {
+    const matches = likeMatches.get(a.mal_id) ?? [];
+    if (matches.length < MIN_MATCHES_FOR_PAGE) continue;
+    try {
+      writeRoute(animeLikePath(a.mal_id, a.title), animeLikeDoc(a, matches));
+      likeWritten.push(a);
+    } catch (err) {
+      warn(`  ! anime-like ${a.mal_id} (${a.title}): ${err.message}`);
+    }
+  }
+  const skipped = pool.length - likeWritten.length;
+  console.log(`  ✓ "anime like" pages: ${likeWritten.length}`
+    + (skipped ? ` (${skipped} skipped — under ${MIN_MATCHES_FOR_PAGE} matches)` : ''));
+
+  // 7. Sitemap — covers exactly what was written above. Skipped when the pool
+  //    came back empty so a dead API cannot replace a working sitemap with an
+  //    empty one; the /api/sitemap-anime rewrite still answers then.
   if (animeWritten.length) {
-    writeSitemapAnime(animeWritten);
+    writeSitemapAnime(animeWritten, likeWritten);
   } else {
     warn('  ! no anime pages written — /sitemap-anime.xml left to the /api/sitemap-anime fallback');
   }
