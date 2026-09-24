@@ -171,6 +171,24 @@ interface ServerEntry {
   badge?: string;   // optional label shown next to server name
 }
 
+function validEmbedUrl(value: unknown): value is string {
+  if (typeof value !== 'string' || !value.trim()) return false;
+  try {
+    const parsed = new URL(value.trim());
+    return (parsed.protocol === 'https:' || parsed.protocol === 'http:') && parsed.hostname.length > 0;
+  } catch { return false; }
+}
+
+function adminSourceUrl(source: any, preferredLang: 'sub' | 'dub'): string {
+  const value = source?.embed_url;
+  if (validEmbedUrl(value)) return value.trim();
+  if (value && typeof value === 'object') {
+    const candidate = value[preferredLang] || value.sub || value.dub;
+    if (validEmbedUrl(candidate)) return candidate.trim();
+  }
+  return '';
+}
+
 function fireEpAd(type: string) {
   try { (window as any).KamiAds?.onEpisodeClick(type); } catch {}
 }
@@ -218,6 +236,7 @@ export default function Watch() {
   const elapsedTimer   = useRef<ReturnType<typeof setInterval> | null>(null);
   const playerClickRef = useRef(false);
   const iframeRef      = useRef<HTMLIFrameElement>(null);
+  const failedSources  = useRef<Set<string>>(new Set());
 
   const { data: detail,   isLoading: detailLoading } = useAnimeDetail(malId);
   const { data: episodes }                            = useAnimeEpisodes(malId);
@@ -248,7 +267,8 @@ export default function Watch() {
       const langSources = adminSources.filter((s: any) => s.language === lang);
       const usableSources = langSources.length > 0 ? langSources : adminSources;
       usableSources.forEach((s: any) => {
-        servers.push({ id: `admin-${s.source_name}`, name: s.source_name, url: s.embed_url, badge: 'HD' });
+        const url = adminSourceUrl(s, lang);
+        if (url) servers.push({ id: `admin-${s.source_name}`, name: s.source_name, url, badge: 'HD' });
       });
     }
 
@@ -320,6 +340,7 @@ export default function Watch() {
     setElapsedSecs(0);
     setShowSkipIntro(false);
     playerClickRef.current = false;
+    failedSources.current.clear();
     clearAutoplay();
     if (errorTimer) clearTimeout(errorTimer);
 
@@ -357,8 +378,11 @@ export default function Watch() {
 
       if (sources.length > 0) {
         const preferred = sources.find((s: any) => s.language === initialLang) || sources[0];
-        setActiveSource(preferred.embed_url);
-        setSelectedServerId(`admin-${preferred.source_name}`);
+        const url = adminSourceUrl(preferred, initialLangTyped);
+        if (url) {
+          setActiveSource(url);
+          setSelectedServerId(`admin-${preferred.source_name}`);
+        }
       }
 
       // Anikoto embed id
@@ -404,7 +428,8 @@ export default function Watch() {
 
     if (adminSources.length > 0 && selectedServerId.startsWith('admin-')) {
       const match = adminSources.find((s: any) => s.language === currentLang) || adminSources[0];
-      setActiveSource(match.embed_url);
+      const url = adminSourceUrl(match, currentLang);
+      if (url) setActiveSource(url);
       return;
     }
 
@@ -470,6 +495,7 @@ export default function Watch() {
   // ── Switch server helper ─────────────────────────────────────────
   function switchServer(server: ServerEntry) {
     fireEpAd('server');
+    failedSources.current.delete(server.id);
     setActiveSource(server.url);
     setSelectedServerId(server.id);
     setPlayerError(false);
@@ -477,6 +503,14 @@ export default function Watch() {
     const t = setTimeout(() => setPlayerError(true), 12000);
     setErrorTimer(t);
   }
+
+  useEffect(() => {
+    if (!playerError || serverList.length < 2) return;
+    const next = serverList.find(s => s.id !== selectedServerId && !failedSources.current.has(s.id));
+    if (!next) return;
+    failedSources.current.add(selectedServerId);
+    switchServer(next);
+  }, [playerError, serverList, selectedServerId]);
 
   // ── SEO ──────────────────────────────────────────────────────────
   useSEO(detail?.data ? {
