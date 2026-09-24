@@ -40,10 +40,11 @@ function dismissSeoShell() {
 
 dismissSeoShell();
 
-// Register PWA service worker
+// Register PWA service worker. Explicitly bypass the HTTP cache for the
+// worker script so Chrome notices deployments even when a CDN has cached it.
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch(() => {});
+    navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' }).catch(() => {});
   });
 }
 

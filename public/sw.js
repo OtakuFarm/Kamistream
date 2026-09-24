@@ -1,5 +1,6 @@
 /* ═══════════════════════════════════════════════════
- * KamiStream Service Worker v3.2 (HOTFIX — ads.js excluded from cache)
+ * KamiStream Service Worker v3.3 (cache invalidation hotfix)
+ * - Bumps the cache namespace on every release so old bundles cannot survive
  * - Caches app shell for instant loads
  * - Does NOT block our own ad domains
  * - Passes through all external API/embed traffic
@@ -14,7 +15,7 @@
  * tested in isolation (preview deploy) before re-adding.
  * ═══════════════════════════════════════════════════ */
 
-const CACHE     = 'kamistream-v5';
+const CACHE     = 'kamistream-v6';
 const SHELL     = ['/', '/index.html', '/manifest.json'];
 
 // Only block third-party embed player ad injections
