@@ -408,3 +408,60 @@ export async function getRecentlyAired(hoursBack = 72): Promise<RecentlyAiredIte
 
   return data?.data?.Page?.airingSchedules || [];
 }
+
+// ─────────────────────────────────────────────────────────────────────
+// /best-anime/:year — one AniList page of a year's top-rated anime.
+//
+// This deliberately does NOT go through toJikanShape(): the build-time
+// normaliser in scripts/prerender.mjs (fromAniList) requires a MAL id and
+// maps TV_SHORT to "TV Short", whereas toJikanShape() falls back to the
+// AniList id when idMal is missing and calls TV_SHORT "TV". Because
+// src/lib/bestOfYear.js renders the same strings on both sides, both
+// fetchers MUST hand it identical records — otherwise the crawlable HTML
+// and the React page would disagree after hydration.
+//
+// The query is intentionally identical to collectYearAnime()'s: same
+// filters, same sort, same perPage (YEAR_PAGE_SIZE = 25).
+// ─────────────────────────────────────────────────────────────────────
+const YEAR_FORMAT: Record<string, string> = {
+  TV: 'TV', TV_SHORT: 'TV Short', MOVIE: 'Movie', SPECIAL: 'Special',
+  OVA: 'OVA', ONA: 'ONA', MUSIC: 'Music',
+};
+
+export async function getAnimeOfYear(year: number): Promise<any[]> {
+  const data = await queryAniList(
+    `query($year:Int){Page(page:1,perPage:25){
+      media(type:ANIME,seasonYear:$year,sort:SCORE_DESC,isAdult:false){
+        idMal format episodes season seasonYear averageScore genres
+        title{ romaji english native }
+        coverImage{ extraLarge large }
+        studios(isMain:true){ nodes{ name } }
+      }
+    }}`,
+    { year }
+  );
+
+  const media = data?.data?.Page?.media ?? [];
+  return media
+    // idMal only: a MAL-less node would otherwise link to /anime/<anilist id>.
+    .filter((m: any) => m?.idMal && (m.title?.english || m.title?.romaji || m.title?.native))
+    .map((m: any) => {
+      const cover = m.coverImage?.extraLarge || m.coverImage?.large;
+      return {
+        mal_id:        m.idMal,
+        title:         m.title?.english || m.title?.romaji || m.title?.native,
+        title_english: m.title?.english || null,
+        images: {
+          webp: { large_image_url: cover, image_url: m.coverImage?.large },
+          jpg:  { large_image_url: cover, image_url: m.coverImage?.large },
+        },
+        genres:   (m.genres ?? []).map((name: string) => ({ name })),
+        studios:  (m.studios?.nodes ?? []).map((s: any) => ({ name: s.name })),
+        score:    m.averageScore ? Math.round(m.averageScore) / 10 : null,
+        episodes: m.episodes ?? null,
+        type:     YEAR_FORMAT[m.format] ?? null,
+        season:   m.season ? m.season.toLowerCase() : null,
+        year:     m.seasonYear ?? null,
+      };
+    });
+}

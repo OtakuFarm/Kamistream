@@ -14,6 +14,7 @@ const Home         = lazy(() => import("@/pages/home"));
 const Browse       = lazy(() => import("@/pages/browse"));
 const AnimeDetail  = lazy(() => import("@/pages/anime-detail"));
 const AnimeLike    = lazy(() => import("@/pages/anime-like"));
+const BestOfYear   = lazy(() => import("@/pages/best-anime"));
 const Watch        = lazy(() => import("@/pages/watch"));
 const Watchlist    = lazy(() => import("@/pages/watchlist"));
 const Challenges   = lazy(() => import("@/pages/challenges"));
@@ -66,6 +67,7 @@ function AboutRoute()        { return <Layout><About /></Layout>; }
 function BrowseRoute()       { return <Layout><Browse /></Layout>; }
 function AnimeRoute()        { return <Layout><AnimeDetail /></Layout>; }
 function AnimeLikeRoute()    { return <Layout><AnimeLike /></Layout>; }
+function BestOfYearRoute()   { return <Layout><BestOfYear /></Layout>; }
 function WatchlistRoute()    { return <Layout><Watchlist /></Layout>; }
 function ChallengesRoute()   { return <Layout><Challenges /></Layout>; }
 function LeaderboardRoute()  { return <Layout><Leaderboard /></Layout>; }
@@ -102,6 +104,8 @@ function Router() {
         <Route path="/anime/:id/:slug"    component={AnimeRoute} />
         <Route path="/anime-like/:id"       component={AnimeLikeRoute} />
         <Route path="/anime-like/:id/:slug" component={AnimeLikeRoute} />
+        <Route path="/best-anime"           component={BestOfYearRoute} />
+        <Route path="/best-anime/:year"     component={BestOfYearRoute} />
         <Route path="/watch/:id/:ep"      component={WatchRoute} />
         <Route path="/login"              component={LoginRoute} />
         <Route path="/signup"             component={SignupRoute} />

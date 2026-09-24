@@ -19,6 +19,7 @@ function Footer() {
     { label: 'Action Anime',  href: '/genre/1' },
     { label: 'Romance Anime', href: '/genre/22' },
     { label: 'Isekai Anime',  href: '/genre/66' },
+    { label: 'Best by Year',  href: '/best-anime' },
     { label: 'About',         href: '/about' },
     { label: 'DMCA',          href: '/dmca' },
     { label: 'Terms',         href: '/terms' },

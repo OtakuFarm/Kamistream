@@ -33,8 +33,12 @@
  *   58  genre hubs              (/genre/:id)
  *   199 anime detail pages      (/anime/:id/:slug)
  *   199 "anime like X" pages    (/anime-like/:id/:slug)
+ *   1   year hub                (/best-anime)
+ *   N   "best of year" pages    (/best-anime/:year) — one per year in
+ *                                [YEAR_START … build year] that returned
+ *                                at least MIN_TITLES_FOR_YEAR titles
  *   ---
- *   473 documents (each written in both file shapes)
+ *   473 + (1 + N) documents (each written in both file shapes)
  *
  * ── "ANIME LIKE X" PAGES ───────────────────────────────────────────
  * "anime like <title>" is a high-intent query nothing on the site used to
@@ -91,6 +95,16 @@ import {
   similarAnime, likeIntro, likeTitle, likeDescription, likeHeading,
   comparisonRows, topSharedGenres, titleOf, scoreOf, MIN_MATCHES_FOR_PAGE,
 } from '../src/lib/animeLike.js';
+
+// ── "Best Anime of {year}" engine ────────────────────────────────────
+// Same arrangement as above: imported from src/ so the crawlable year pages
+// and src/pages/best-anime.tsx cannot disagree about which titles a year
+// ranks, how they are worded, or which genre chips they carry.
+import {
+  yearList, yearTitle, yearDescription, yearIntro, yearGenres,
+  yearNeighbors, rankedRows, yearRange, hubHeading, hubTitle,
+  hubDescription, MIN_TITLES_FOR_YEAR, YEAR_PAGE_SIZE, YEAR_START,
+} from '../src/lib/bestOfYear.js';
 
 const BASE      = 'https://www.kamistream.fun';
 const JIKAN     = 'https://api.jikan.moe/v4';
@@ -162,6 +176,13 @@ function animePath(malId, title) {
 function animeLikePath(malId, title) {
   const s = slugifyTitle(title);
   return s ? `/anime-like/${malId}/${s}` : `/anime-like/${malId}`;
+}
+
+/** Same URL shape as bestOfYearPath() in src/lib/seo.ts. */
+function bestOfYearPath(year) {
+  const y = Number(year);
+  if (!Number.isInteger(y) || y < 1900 || y > 2999) return '/best-anime';
+  return `/best-anime/${y}`;
 }
 
 /** Trim to `max` chars on a word boundary (for meta descriptions). */
@@ -524,8 +545,8 @@ const FOOTER_LINKS = [
   ['/browse', 'All Anime'], ['/category/top-anime', 'Top Anime'], ['/category/this-season', 'This Season'],
   ['/category/upcoming', 'Upcoming'], ['/genre/1', 'Action Anime'], ['/genre/22', 'Romance Anime'],
   ['/genre/4', 'Comedy Anime'], ['/genre/10', 'Fantasy Anime'], ['/genre/37', 'Supernatural Anime'],
-  ['/genre/66', 'Isekai Anime'], ['/mood', 'Anime by Mood'], ['/about', 'About KamiStream'],
-  ['/dmca', 'DMCA'], ['/contact', 'Contact'],
+  ['/genre/66', 'Isekai Anime'], ['/best-anime', 'Best Anime by Year'], ['/mood', 'Anime by Mood'],
+  ['/about', 'About KamiStream'], ['/dmca', 'DMCA'], ['/contact', 'Contact'],
 ];
 
 function renderCrumbs(items) {
@@ -672,7 +693,7 @@ function writeRoute(routePath, doc) {
 // the filesystem before applying rewrites (same reason the prerendered HTML
 // wins over the SPA fallback). The `/api/sitemap-anime` rewrite is left in
 // place as a fallback for the "no anime written" case below.
-function writeSitemapAnime(anime, likeAnime = []) {
+function writeSitemapAnime(anime, likeAnime = [], yearPages = []) {
   const today = new Date().toISOString().slice(0, 10);
 
   // aired.to is the last air date we hold, which is the honest lastmod for a
@@ -696,12 +717,19 @@ function writeSitemapAnime(anime, likeAnime = []) {
     .filter(a => a?.mal_id)
     .map(a => entry(BASE + animeLikePath(a.mal_id, a.title), lastmodOf(a), '0.6'));
 
+  // Year pages are supporting index pages: above the "anime like" pages
+  // (they are an index of many titles) but below the titles themselves.
+  const years = (yearPages ?? [])
+    .filter(y => Number.isInteger(y))
+    .map(y => entry(BASE + bestOfYearPath(y), today, '0.7'));
+
   const xml = '<?xml version="1.0" encoding="UTF-8"?>\n' +
     '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' +
-    `${[...detail, ...like].join('\n')}\n</urlset>\n`;
+    `${[...detail, ...like, ...years].join('\n')}\n</urlset>\n`;
 
   writeFileSync(path.join(DIST, 'sitemap-anime.xml'), xml, 'utf8');
-  console.log(`  ✓ sitemap-anime.xml: ${detail.length} anime + ${like.length} "anime like" = ${detail.length + like.length} URLs`);
+  console.log(`  ✓ sitemap-anime.xml: ${detail.length} anime + ${like.length} "anime like" + `
+    + `${years.length} year = ${detail.length + like.length + years.length} URLs`);
 }
 
 
@@ -838,7 +866,7 @@ function animeSchemas(a, canonical) {
 }
 
 // ── Anime detail ─────────────────────────────────────────────────────
-function animeDoc(a, pool, likeMatches) {
+function animeDoc(a, pool, likeMatches, yearPages) {
   const route     = animePath(a.mal_id, a.title);
   const canonical = `${BASE}${route}`;
   const year      = a.year || (a.aired?.from ? Number(a.aired.from.slice(0, 4)) : null);
@@ -891,6 +919,12 @@ function animeDoc(a, pool, likeMatches) {
     likeMatches?.length
       ? `<p class="ks-p"><a href="${esc(animeLikePath(a.mal_id, a.title))}">`
         + `See all ${likeMatches.length} anime like ${esc(a.title)} &rsaquo;</a></p>`
+      : '',
+    // Discovery path for this title's own /best-anime/:year page. Without an
+    // inbound link from a page that already ranks, the year page would only
+    // be reachable from the hub, and orphaned pages get crawled slowly.
+    year && yearPages?.has(year)
+      ? `<p class="ks-p"><a href="/best-anime/${year}">Best anime of ${year} ranked &rsaquo;</a></p>`
       : '',
     shellClose(),
   ].join('');
@@ -1145,6 +1179,189 @@ function staticDoc(page, pool, scheduleList) {
 /** Set from dist/index.html at the start of main(). */
 let SHELL_TEMPLATE = '';
 
+// ── "Best Anime of {year}" ───────────────────────────────────────────
+// Jikan's per-year search endpoint is permanently 504 (verified live), so
+// every year comes from AniList. The query, sort and perPage below are
+// deliberately identical to getAnimeOfYear() in src/lib/anilist.ts — that is
+// what lets src/lib/bestOfYear.js render the same strings in both places.
+async function collectYearAnime(year, attempt = 1) {
+  const query = `query($year:Int){
+    Page(page:1,perPage:${YEAR_PAGE_SIZE}){
+      media(type:ANIME,seasonYear:$year,sort:SCORE_DESC,isAdult:false){
+        idMal format episodes season seasonYear averageScore genres
+        title{ romaji english native }
+        coverImage{ extraLarge large }
+        studios(isMain:true){ nodes{ name } }
+      }
+    }
+  }`;
+
+  try {
+    const res = await fetch(ANILIST, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ query, variables: { year } }),
+      signal: AbortSignal.timeout(20000),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = await res.json();
+    if (json.errors?.length) throw new Error(json.errors[0].message);
+
+    const out = [];
+    for (const m of json?.data?.Page?.media ?? []) {
+      const norm = fromAniList(m);        // same idMal/title rules as React's fetcher
+      if (norm) out.push(norm);
+    }
+    return out;
+  } catch (err) {
+    // AniList 429s and times out sporadically (observed: one build got 17/17
+    // years, the next got 15/17 from the same code). Losing a year means
+    // losing a page AND flapping the sitemap between deploys, so retry with
+    // backoff before conceding the year.
+    if (attempt < 3) {
+      await sleep(1200 * attempt);
+      return collectYearAnime(year, attempt + 1);
+    }
+    throw err;
+  }
+}
+
+/** /best-anime — the index that keeps every year page one hop from Home. */
+function yearsHubDoc(years) {
+  const route     = '/best-anime';
+  const canonical = `${BASE}${route}`;
+  const ys        = [...years].sort((a, b) => b - a);
+
+  // NOTE: keep in sync with the useSEO() call in src/pages/best-anime.tsx
+  const title = `${hubTitle()} | KamiStream`;
+  const desc  = hubDescription(ys);
+
+  const chips = ys.map(y => `<li><a href="/best-anime/${y}">${y}</a></li>`).join('');
+
+  const shell = [
+    shellOpen(),
+    renderCrumbs([['Home', '/'], ['Best Anime by Year', null]]),
+    `<h1 class="ks-h1">${esc(hubHeading())}</h1>`,
+    `<p class="ks-p">${esc(desc)}</p>`,
+    chips ? `<ul class="ks-chips">${chips}</ul>` : '',
+    '<p class="ks-p">Every year above lists that year’s highest-scoring titles with their '
+      + 'score, studio and genres. Looking for something newer? '
+      + '<a href="/category/top-rated">Browse the top rated anime of all time</a>.</p>',
+    shellClose(),
+  ].join('');
+
+  return buildDocument(shell, {
+    title, description: desc, canonical,
+    keywords: 'best anime by year, top anime of the year, anime ranked by year, '
+      + 'best anime 2024, classic anime by year, KamiStream',
+    ogType: 'website', image: `${BASE}/opengraph.jpg`,
+    jsonLd: [{
+      '@context': 'https://schema.org', '@type': 'CollectionPage',
+      name: hubHeading(), url: canonical, description: desc,
+      isPartOf: { '@type': 'WebSite', name: 'KamiStream', url: `${BASE}/` },
+    }, {
+      '@context': 'https://schema.org', '@type': 'ItemList',
+      name: hubHeading(),
+      itemListElement: ys.map((y, i) => ({
+        '@type': 'ListItem', position: i + 1,
+        name: yearTitle(y), url: `${BASE}${bestOfYearPath(y)}`,
+      })),
+    }, {
+      '@context': 'https://schema.org', '@type': 'BreadcrumbList',
+      itemListElement: [
+        { '@type': 'ListItem', position: 1, name: 'Home', item: `${BASE}/` },
+        { '@type': 'ListItem', position: 2, name: hubHeading(), item: canonical },
+      ],
+    }],
+  });
+}
+
+/** /best-anime/:year — mirrors src/pages/best-anime.tsx section for section. */
+function yearDoc(year, list, years) {
+  const route     = bestOfYearPath(year);
+  const canonical = `${BASE}${route}`;
+  const n         = list.length;
+  const { prev, next } = yearNeighbors(year, years);
+
+  // NOTE: keep in sync with the useSEO() call in src/pages/best-anime.tsx
+  const title = `${yearTitle(year)} | KamiStream`;
+  const desc  = yearDescription(year, list);
+
+  // Same three links the React page renders, in the same order.
+  const nav = [
+    prev ? `<a href="/best-anime/${prev}">‹ ${prev}</a>` : '',
+    '<a href="/best-anime">All years</a>',
+    next ? `<a href="/best-anime/${next}">${next} ›</a>` : '',
+  ].filter(Boolean).join(' · ');
+
+  const rows = rankedRows(list).map(r =>
+    `<tr><th>${r.rank}</th>`
+      + `<td><a href="${esc(animePath(r.malId, r.name))}">${esc(r.name)}</a></td>`
+      + `<td>${r.score ? `★ ${r.score}` : '—'}</td>`
+      + `<td>${esc(r.type ?? '—')}</td>`
+      + `<td>${r.episodes ?? '—'}</td>`
+      + `<td>${esc(r.studio ?? '—')}</td></tr>`
+  ).join('');
+
+  const chips = yearGenres(list, 6)
+    .map(g => `<li><a href="/genre/${g.id}">${esc(g.name)} · ${g.count}</a></li>`)
+    .join('');
+
+  const shell = [
+    shellOpen(),
+    renderCrumbs([['Home', '/'], ['Best Anime', '/best-anime'], [String(year), null]]),
+    `<h1 class="ks-h1">${esc(yearTitle(year))}</h1>`,
+    `<p class="ks-p">${esc(yearIntro(year, list))}</p>`,
+    `<p class="ks-p">${nav}</p>`,
+    `<h2 class="ks-h2">Top ${n} anime of ${year}, ranked</h2>`,
+    '<table class="ks-table"><thead><tr><th>#</th><th>Title</th><th>Score</th>'
+      + '<th>Type</th><th>Episodes</th><th>Studio</th></tr></thead><tbody>'
+      + rows + '</tbody></table>',
+    chips ? `<ul class="ks-chips">${chips}</ul>` : '',
+    renderGrid(list, `All ${n} titles from ${year}`),
+    '<p class="ks-p">Pick any title above to watch it free on KamiStream, or '
+      + '<a href="/category/top-rated">browse the top rated anime of all time</a>.</p>',
+    shellClose(),
+  ].join('');
+
+  const hero = list.length ? heroImage(list[0]) : `${BASE}/opengraph.jpg`;
+
+  return buildDocument(shell, {
+    title, description: desc, canonical,
+    keywords: [
+      `best anime ${year}`, `top anime ${year}`, `anime ${year} ranked`,
+      `highest rated anime ${year}`, 'KamiStream',
+    ].join(', '),
+    ogType: 'website', image: hero,
+    imageWidth:  list[0]?.trailer?.images?.maximum_image_url ? 1280 : undefined,
+    imageHeight: list[0]?.trailer?.images?.maximum_image_url ? 720  : undefined,
+    jsonLd: [
+      {
+        '@context': 'https://schema.org', '@type': 'CollectionPage',
+        name: yearTitle(year), url: canonical, description: desc,
+        isPartOf: { '@type': 'WebSite', name: 'KamiStream', url: `${BASE}/` },
+      },
+      {
+        // Ordered so the ranked list is machine-readable.
+        '@context': 'https://schema.org', '@type': 'ItemList',
+        name: yearTitle(year),
+        itemListElement: list.map((a, i) => ({
+          '@type': 'ListItem', position: i + 1,
+          name: titleOf(a), url: `${BASE}${animePath(a.mal_id, a.title)}`,
+        })),
+      },
+      {
+        '@context': 'https://schema.org', '@type': 'BreadcrumbList',
+        itemListElement: [
+          { '@type': 'ListItem', position: 1, name: 'Home',      item: `${BASE}/` },
+          { '@type': 'ListItem', position: 2, name: 'Best Anime', item: `${BASE}/best-anime` },
+          { '@type': 'ListItem', position: 3, name: yearTitle(year), item: canonical },
+        ],
+      },
+    ],
+  });
+}
+
 async function main() {
   if (!existsSync(SHELL_SRC)) {
     throw new Error('prerender: dist/index.html not found — `vite build` must run first.');
@@ -1168,6 +1385,39 @@ async function main() {
   const genreLists    = deriveGenreLists(pool);
   const categoryLists = deriveCategoryLists(pool);
   const airing        = deriveAiring(pool);
+
+  // 0. "Best anime of {year}" — one AniList call per year in range, written
+  //    FIRST so `yearPages` only ever contains years that really exist.
+  //    Neither an anime page's cross-link nor the sitemap may point at a page
+  //    that failed to write; those would silently become SPA-fallback URLs.
+  //    (new Date() here only picks the range — the same input currentSeason()
+  //    already depends on; nothing else in the docs is time-derived.)
+  const wantedYears = yearRange(new Date().getFullYear(), YEAR_START);
+  const yearLists   = new Map();
+  for (let i = 0; i < wantedYears.length; i++) {
+    const y = wantedYears[i];
+    try {
+      const list = yearList(await collectYearAnime(y), y);
+      if (list.length >= MIN_TITLES_FOR_YEAR) yearLists.set(y, list);
+      else warn(`  ! ${y}: only ${list.length} titles — page skipped`);
+    } catch (err) {
+      warn(`  ! year ${y} failed (${err.message}) — page skipped`);
+    }
+    if (i < wantedYears.length - 1) await sleep(1000);       // AniList ~90 req/min
+  }
+
+  const intendedYears = [...yearLists.keys()].sort((a, b) => a - b);
+  const yearPages     = new Set();
+  for (const y of intendedYears) {
+    try {
+      writeRoute(bestOfYearPath(y), yearDoc(y, yearLists.get(y), intendedYears));
+      yearPages.add(y);
+    } catch (err) {
+      warn(`  ! year ${y}: ${err.message}`);
+    }
+  }
+  writeRoute('/best-anime', yearsHubDoc([...yearPages].sort((a, b) => a - b)));
+  console.log(`  ✓ year pages: ${yearPages.size} of ${wantedYears.length} years (+1 hub)`);
 
   // 1. Static + hub pages
   for (const page of STATIC_PAGES) writeRoute(page.path, staticDoc(page, pool, airing));
@@ -1195,7 +1445,7 @@ async function main() {
   const animeWritten = [];
   for (const a of pool) {
     try {
-      writeRoute(animePath(a.mal_id, a.title), animeDoc(a, pool, likeMatches.get(a.mal_id)));
+      writeRoute(animePath(a.mal_id, a.title), animeDoc(a, pool, likeMatches.get(a.mal_id), yearPages));
       animeWritten.push(a);
     } catch (err) {
       warn(`  ! anime ${a.mal_id} (${a.title}): ${err.message}`);
@@ -1225,7 +1475,7 @@ async function main() {
   //    came back empty so a dead API cannot replace a working sitemap with an
   //    empty one; the /api/sitemap-anime rewrite still answers then.
   if (animeWritten.length) {
-    writeSitemapAnime(animeWritten, likeWritten);
+    writeSitemapAnime(animeWritten, likeWritten, [...yearPages].sort((a, b) => a - b));
   } else {
     warn('  ! no anime pages written — /sitemap-anime.xml left to the /api/sitemap-anime fallback');
   }

@@ -45,3 +45,18 @@ export function animeLikePath(malId: number | string, title?: string): string {
   const s = title ? slugifyTitle(title) : '';
   return s ? `/anime-like/${malId}/${s}` : `/anime-like/${malId}`;
 }
+
+/**
+ * "Best anime of <year>" URL — answers the perennial "best anime of 2024"
+ * / "top anime 2019" query class, which nothing on the site used to target.
+ *
+ * Mirrored by the /best-anime docs built in scripts/prerender.mjs.
+ */
+export function bestOfYearPath(year: number | string): string {
+  const y = Number(year);
+  if (!Number.isInteger(y) || y < 1900 || y > 2999) return '/best-anime';
+  return `/best-anime/${y}`;
+}
+
+/** Index of every published year — the hub that keeps year pages linked. */
+export const bestOfYearHubPath = '/best-anime';
