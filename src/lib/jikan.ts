@@ -271,7 +271,7 @@ export const useAnimeDetail = (malId: number | string) =>
       const rawTitle = String(malId).replace(/-/g, ' ');
       const queries = Array.from(new Set([
         rawTitle,
-        rawTitle.replace(/\s+season\s+\d+/gi, '').trim(),
+        rawTitle.replace(/\s+(?:season\s+\d+|\d+(?:st|nd|rd|th)\s+season)\b/gi, '').trim(),
         rawTitle.split(':')[0].trim(),
       ].filter(Boolean)));
 
@@ -300,7 +300,14 @@ export const useAnimeDetail = (malId: number | string) =>
             .filter(Boolean).map(slugifyTitle).join(' ');
           const words = new Set(names.split('-'));
           const overlap = [...requestWords].filter(word => words.has(word)).length;
-          const season = /\bseason\s+3\b/i.test(rawTitle) && /\bseason\s+3\b/i.test(names) ? 100 : 0;
+          // `names` is slugified (`season-3`), so the URL-safe token must be
+          // compared explicitly. Otherwise a season-specific slug can select
+          // the first popular result from the same series.
+          const requestedSeason = rawTitle.match(/\bseason\s+(\d+)\b|\b(\d+)(?:st|nd|rd|th)\s+season\b/i);
+          const candidateSeason = names.match(/\bseason-(\d+)\b|\b(\d+)(?:st|nd|rd|th)-season\b/i);
+          const season = requestedSeason && candidateSeason
+            && (requestedSeason[1] || requestedSeason[2]) === (candidateSeason[1] || candidateSeason[2])
+            ? 100 : 0;
           return season + overlap;
         };
         return score(b) - score(a);
