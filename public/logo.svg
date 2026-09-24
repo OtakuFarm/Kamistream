@@ -1,0 +1,19 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">KamiStream logo</title>
+  <desc id="desc">A stylized pink and purple K mark for KamiStream.</desc>
+  <defs>
+    <linearGradient id="bg" x1="32" y1="24" x2="480" y2="488" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FF2D78"/>
+      <stop offset="1" stop-color="#8B3DFF"/>
+    </linearGradient>
+    <linearGradient id="sheen" x1="100" y1="80" x2="420" y2="430" gradientUnits="userSpaceOnUse">
+      <stop stop-color="white" stop-opacity=".24"/>
+      <stop offset="1" stop-color="white" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect x="16" y="16" width="480" height="480" rx="112" fill="#111116"/>
+  <rect x="32" y="32" width="448" height="448" rx="96" fill="url(#bg)"/>
+  <rect x="32" y="32" width="448" height="448" rx="96" fill="url(#sheen)"/>
+  <path d="M150 122V390M150 256L338 122M150 256L338 390" stroke="white" stroke-width="48" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M338 122L150 256L338 390" stroke="#111116" stroke-opacity=".14" stroke-width="48" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
