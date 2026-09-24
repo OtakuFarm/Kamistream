@@ -269,9 +269,15 @@ export const useAnimeDetail = (malId: number | string) =>
       // so relying on one exact full-title query can incorrectly return no
       // match.
       const rawTitle = String(malId).replace(/-/g, ' ');
+      const normalizeRequestSlug = (value: string) => value
+        .replace(/^pokoki(?:-|$)/, 'pokeoki');
+      const normalizedRequest = normalizeRequestSlug(String(malId));
+      const normalizedTitle = normalizedRequest.replace(/-/g, ' ');
       const queries = Array.from(new Set([
         rawTitle,
+        normalizedTitle,
         rawTitle.replace(/\s+(?:season\s+\d+|\d+(?:st|nd|rd|th)\s+season)\b/gi, '').trim(),
+        normalizedTitle.replace(/\s+(?:season\s+\d+|\d+(?:st|nd|rd|th)\s+season)\b/gi, '').trim(),
         rawTitle.split(':')[0].trim(),
       ].filter(Boolean)));
 
@@ -290,10 +296,13 @@ export const useAnimeDetail = (malId: number | string) =>
       }
 
       const requested = String(malId);
-      const requestWords = new Set(requested.split('-'));
+      // A few provider titles are commonly mistyped in shared links. Keep
+      // this deliberately narrow: only the known Pocky & Rocky spelling
+      // variants are aliased, and the canonical upstream slug remains intact.
+      const requestWords = new Set(normalizedRequest.split('-'));
       const match = candidates.find((a: JikanAnime) => {
         const names = [a.title, (a as any).title_english, (a as any).title_romanji].filter(Boolean);
-        return names.some(value => slugifyTitle(value) === requested);
+        return names.some(value => slugifyTitle(value) === normalizedRequest);
       }) || candidates.sort((a, b) => {
         const score = (anime: JikanAnime) => {
           const names = [anime.title, (anime as any).title_english, (anime as any).title_romanji]
