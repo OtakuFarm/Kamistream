@@ -538,7 +538,11 @@ const SHELL_CSS = [
 
 const NAV_LINKS = [
   ['/browse', 'Browse'], ['/category/top-rated', 'Top Rated'], ['/category/trending', 'Trending'],
-  ['/schedule', 'Schedule'], ['/az-list', 'A–Z List'], ['/genre/66', 'Isekai'], ['/hidden-gems', 'Hidden Gems'],
+  ['/schedule', 'Schedule'], ['/az-list', 'A–Z List'], ['/hidden-gems', 'Hidden Gems'],
+  // Keyword links, mirrored from the React topbar — see TOP_NAV in
+  // src/components/Topbar.tsx. Crawlable sitewide header nav.
+  ['/genre/1', 'Action Anime'], ['/genre/22', 'Romance Anime'],
+  ['/genre/66', 'Isekai Anime'], ['/best-anime', 'Best by Year'],
 ];
 
 const FOOTER_LINKS = [

@@ -7,6 +7,16 @@ import { useAnimeSearch, useTrendingAnime } from '@/lib/jikan';
 import { useDebounce } from '@/hooks/use-debounce';
 import { useTheme, THEMES } from '@/hooks/useTheme';
 
+/** Links shown in the sticky topbar. Mirrors NAV_LINKS in scripts/prerender.mjs
+ *  so the crawlable #seo-shell header and the React header stay in sync. */
+const TOP_NAV = [
+  { label: 'Top Rated',     href: '/category/top-rated' },
+  { label: 'Action Anime',  href: '/genre/1' },
+  { label: 'Romance Anime', href: '/genre/22' },
+  { label: 'Isekai Anime',  href: '/genre/66' },
+  { label: 'Best by Year',  href: '/best-anime' },
+];
+
 export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 300);
@@ -94,6 +104,20 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
       <div className="hidden md:flex">
         <Logo />
       </div>
+
+      {/* Keyword links at the very top of the site.
+          Only >=1280px: the Topbar is one fixed 60px row holding the menu,
+          logo, search, action buttons and auth, so below xl these would
+          collide — there the hamburger + Sidebar carry the same destinations. */}
+      <nav className="hidden xl:flex items-center gap-4 shrink-0">
+        {TOP_NAV.map(({ label, href }) => (
+          <Link key={href} href={href}>
+            <span className="text-[12px] font-bold text-[var(--text3)] hover:text-white transition-colors whitespace-nowrap cursor-pointer">
+              {label}
+            </span>
+          </Link>
+        ))}
+      </nav>
 
       {/* Search */}
       <div className="flex-1 max-w-[320px] relative ml-auto md:ml-0">

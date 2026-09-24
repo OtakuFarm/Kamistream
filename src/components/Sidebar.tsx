@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useLocation } from 'wouter';
-import { Home, Compass, Bookmark, Trophy, BarChart3, Users, User, Settings, Calendar, List, Gem, Smile, HelpCircle, Star, Flame, Tag, ChevronDown, ChevronUp, Info } from 'lucide-react';
+import { Home, Compass, Bookmark, Trophy, BarChart3, Users, User, Settings, Calendar, List, Gem, Smile, HelpCircle, Star, Flame, Tag, ChevronDown, ChevronUp, Info, Award } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { isAdminEmail } from '@/lib/admin';
 import { useGamification, calculateLevel } from '@/hooks/useGamification';
@@ -28,7 +28,7 @@ export function Sidebar({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
     { id: 30, name: 'Sports' },
     { id: 37, name: 'Supernatural' },
     { id: 41, name: 'Thriller' },
-    { id: 62, name: 'Isekai' },
+    { id: 66, name: 'Isekai' },
   ];
 
   const NavItem = ({ href, icon: Icon, label, badge, isLive }: any) => {
@@ -73,6 +73,8 @@ export function Sidebar({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
           <NavItem href="/schedule"    icon={Calendar}    label="Schedule" />
           <NavItem href="/mood"        icon={Smile}       label="Mood Picker" />
           <NavItem href="/hidden-gems" icon={Gem}         label="Hidden Gems" />
+          <NavItem href="/category/top-rated" icon={Star} label="Top Rated" />
+          <NavItem href="/best-anime"  icon={Award}       label="Best by Year" />
 
           {/* Genre expandable */}
           <div className="h-[1px] bg-[var(--border)] mx-4 my-1" />
