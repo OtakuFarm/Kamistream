@@ -74,7 +74,7 @@ export default async function handler(req, res) {
           ? new Date(a.aired.to).toISOString().split('T')[0]
           : new Date().toISOString().split('T')[0];
         const slug = slugifyTitle(a.title);
-        const loc  = slug ? `${BASE}/anime/${a.mal_id}/${slug}` : `${BASE}/anime/${a.mal_id}`;
+        const loc  = slug ? `${BASE}/anime/${slug}` : `${BASE}/browse`;
         return `  <url>
     <loc>${loc}</loc>
     <lastmod>${lastmod}</lastmod>

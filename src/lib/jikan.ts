@@ -247,22 +247,55 @@ export const useAnimeSearch = (query: string) =>
 export const useAnimeDetail = (malId: number | string) =>
   useQuery({
     queryKey: ['anime', malId],
-    queryFn: () => withALFallback(
-      () => fetchJikan(`/anime/${malId}/full`),
-      async () => {
-        const d = await queryAL(
-          `query($m:Int){Media(idMal:$m,type:ANIME){${AL_FIELDS} trailer{site id} bannerImage
-            relations{edges{relationType(version:2) node{id idMal title{english romaji} coverImage{large} format episodes status}}}
-          }}`,
-          { m: Number(malId) }
+    queryFn: async () => {
+      if (/^\d+$/.test(String(malId))) {
+        return withALFallback(
+          () => fetchJikan(`/anime/${malId}/full`),
+          async () => {
+            const d = await queryAL(
+              `query($m:Int){Media(idMal:$m,type:ANIME){${AL_FIELDS} trailer{site id} bannerImage
+                relations{edges{relationType(version:2) node{id idMal title{english romaji} coverImage{large} format episodes status}}}
+              }}`,
+              { m: Number(malId) }
+            );
+            return { data: alToJikan(d.data.Media) };
+          }
         );
-        return { data: alToJikan(d.data.Media) };
       }
-    ),
+      // Title-only public URL: resolve the slug to a Jikan result first.
+      const title = String(malId).replace(/-/g, ' ');
+      const result = await withALFallback(
+        () => fetchJikan<JikanPaginatedResponse<JikanAnime>>(`/anime?q=${encodeURIComponent(title)}&limit=10&sfw=true`),
+        () => alPage(
+          `query($p:Int,$q:String){Page(page:$p,perPage:10){pageInfo{currentPage lastPage hasNextPage}media(type:ANIME,search:$q,sort:POPULARITY_DESC,isAdult:false){${AL_FIELDS}}}}`,
+          { p: 1, q: title }
+        )
+      );
+      const match = (result?.data || []).find((a: JikanAnime) =>
+        a.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') === String(malId)
+      ) || result?.data?.[0];
+      if (!match?.mal_id) throw new Error('Anime not found');
+      return useAnimeDetailFallback(match.mal_id);
+    },
     enabled: !!malId,
     staleTime: 5 * 60 * 1000,
     retry: 1,
   });
+
+async function useAnimeDetailFallback(malId: number | string) {
+  return withALFallback(
+    () => fetchJikan(`/anime/${malId}/full`),
+    async () => {
+      const d = await queryAL(
+        `query($m:Int){Media(idMal:$m,type:ANIME){${AL_FIELDS} trailer{site id} bannerImage
+          relations{edges{relationType(version:2) node{id idMal title{english romaji} coverImage{large} format episodes status}}}
+        }}`,
+        { m: Number(malId) }
+      );
+      return { data: alToJikan(d.data.Media) };
+    }
+  );
+}
 
 export const useAnimeEpisodes = (malId: number | string) =>
   useQuery<{ data: JikanEpisode[] }>({

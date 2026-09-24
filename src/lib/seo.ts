@@ -26,10 +26,9 @@ export function slugifyTitle(title: string): string {
  * suffix is appended for descriptive, keyword-rich URLs. The wouter route
  * accepts both shapes, so old links never break.
  */
-export function animePath(malId: number | string, title?: string): string {
-  if (!malId) return '/browse';
+export function animePath(_malId: number | string, title?: string): string {
   const s = title ? slugifyTitle(title) : '';
-  return s ? `/anime/${malId}/${s}` : `/anime/${malId}`;
+  return s ? `/anime/${s}` : '/browse';
 }
 
 /**

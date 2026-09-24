@@ -102,8 +102,9 @@ function Router() {
         <Route path="/"                   component={HomeRoute} />
         <Route path="/home"               component={HomeRoute} />
         <Route path="/browse"             component={BrowseRoute} />
-        <Route path="/anime/:id"          component={AnimeRoute} />
-        <Route path="/anime/:id/:slug"    component={AnimeRoute} />
+        <Route path="/anime/:slug"         component={AnimeRoute} />
+        <Route path="/anime/:id"           component={AnimeRoute} /> {/* legacy ID URL */}
+        <Route path="/anime/:id/:slug"     component={AnimeRoute} /> {/* legacy ID URL */}
         <Route path="/anime-like/:id"       component={AnimeLikeRoute} />
         <Route path="/anime-like/:id/:slug" component={AnimeLikeRoute} />
         <Route path="/best-anime"           component={BestOfYearRoute} />

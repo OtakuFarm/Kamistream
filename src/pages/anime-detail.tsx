@@ -114,25 +114,25 @@ export default function AnimeDetail() {
   // Supports both /anime/:id and /anime/:id/:slug (descriptive URLs)
   const [, params]   = useRoute('/anime/:id/:slug?');
   const [, navigate] = useLocation();
-  const id = params?.id || '';
-
-  // ── Data ──────────────────────────────────────────────────────────
-  const { data: detail,   isLoading: detailLoading } = useAnimeDetail(id);
-  const { data: episodes, isLoading: episodesLoading } = useAnimeEpisodes(id);
-  const { data: recs }                                  = useAnimeRecommendations(id);
+  const routeParam = params?.slug || params?.id || '';
+  const id = /^\d+$/.test(routeParam) ? routeParam : '';
+  const { data: detail,   isLoading: detailLoading } = useAnimeDetail(routeParam);
+  const resolvedId = String((detail?.data as any)?.mal_id || id || '');
+  const { data: episodes, isLoading: episodesLoading } = useAnimeEpisodes(resolvedId);
+  const { data: recs }                                  = useAnimeRecommendations(resolvedId);
   const { toggleWatchlist, isInWatchlist }              = useWatchlist();
   const { getRecentAnime }                              = useWatchHistory();
   const { toggleWatched, isWatched, getWatchedCount }  = useEpisodeProgress();
 
   const { data: charsData } = useQuery({
-    queryKey: ['anime', id, 'characters'],
-    queryFn: async () => { const r = await fetch(`https://api.jikan.moe/v4/anime/${id}/characters`); return r.ok ? r.json() : { data: [] }; },
-    enabled: !!id, staleTime: 30 * 60 * 1000,
+    queryKey: ['anime', resolvedId, 'characters'],
+    queryFn: async () => { const r = await fetch(`https://api.jikan.moe/v4/anime/${resolvedId}/characters`); return r.ok ? r.json() : { data: [] }; },
+    enabled: !!resolvedId, staleTime: 30 * 60 * 1000,
   });
   const { data: relations } = useQuery({
-    queryKey: ['anime', id, 'relations'],
-    queryFn: () => getAnimeRelations(id),
-    enabled: !!id, staleTime: 60 * 60 * 1000,
+    queryKey: ['anime', resolvedId, 'relations'],
+    queryFn: () => getAnimeRelations(resolvedId),
+    enabled: !!resolvedId, staleTime: 60 * 60 * 1000,
   });
 
   const relationsFiltered = (relations || []).filter((e: any) =>
