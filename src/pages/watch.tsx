@@ -376,14 +376,8 @@ export default function Watch() {
       setIntroStart((adminResult as any)?.intro_start ?? null);
       setIntroEnd((adminResult as any)?.intro_end ?? null);
 
-      if (sources.length > 0) {
-        const preferred = sources.find((s: any) => s.language === initialLang) || sources[0];
-        const url = adminSourceUrl(preferred, initialLangTyped);
-        if (url) {
-          setActiveSource(url);
-          setSelectedServerId(`admin-${preferred.source_name}`);
-        }
-      }
+      // Keep the known-good MegaPlay source active by default. Admin sources
+      // remain available for manual fallback in the server switcher.
 
       // Anikoto embed id
       if (embedId) setAnikotoEmbedId(embedId);
