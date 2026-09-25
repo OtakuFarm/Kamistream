@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link } from 'wouter';
-import { useQuery } from '@tanstack/react-query';
-import { MessageSquare, Star, Send, AlertCircle } from 'lucide-react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { MessageSquare, Star, Send, AlertCircle, ThumbsUp } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
 
@@ -9,6 +9,7 @@ type Review = { id: number; rating: number; review_text: string; contains_spoile
 
 export function AnimeReviews({ malId }: { malId: string }) {
   const { user, loading: authLoading } = useAuth();
+  const queryClient = useQueryClient();
   const [rating, setRating] = useState(8);
   const [text, setText] = useState('');
   const [spoilers, setSpoilers] = useState(false);
@@ -28,6 +29,29 @@ export function AnimeReviews({ malId }: { malId: string }) {
   });
 
   const average = reviews?.length ? (reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length).toFixed(1) : null;
+
+  const { data: votes } = useQuery({
+    queryKey: ['anime-review-votes', malId],
+    queryFn: async () => {
+      const result = await supabase.from('anime_review_votes').select('review_id,user_id').eq('user_id', user?.id || '');
+      if (result.error) throw result.error;
+      return result.data || [];
+    },
+    enabled: !!user,
+    staleTime: 30_000,
+    retry: 0,
+  });
+  const votedIds = new Set((votes || []).map((v: any) => Number(v.review_id)));
+
+  async function toggleHelpful(reviewId: number) {
+    if (!user) { setMessage('Sign in to mark reviews as helpful.'); return; }
+    const hasVote = votedIds.has(reviewId);
+    const result = hasVote
+      ? await supabase.from('anime_review_votes').delete().eq('review_id', reviewId).eq('user_id', user.id)
+      : await supabase.from('anime_review_votes').insert({ review_id: reviewId, user_id: user.id });
+    if (result.error) setMessage(result.error.message);
+    else queryClient.invalidateQueries({ queryKey: ['anime-review-votes', malId] });
+  }
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -55,7 +79,7 @@ export function AnimeReviews({ malId }: { malId: string }) {
         <article key={review.id} className="border-t border-white/10 py-3 first:border-0">
           <div className="flex items-center justify-between gap-2">
             <span className="text-[12px] font-black text-[var(--gold)]">★ {review.rating}/10</span>
-            <span className="text-[10px] text-[var(--text3)]">{new Date(review.created_at).toLocaleDateString()}</span>
+            <button onClick={() => toggleHelpful(review.id)} className="ml-auto text-[10px] font-bold text-[var(--text3)] hover:text-white"><ThumbsUp className="w-3 h-3 inline" /> Helpful</button>
           </div>
           {review.contains_spoilers ? <p className="text-[12px] text-[var(--text3)] mt-2">Spoiler review hidden.</p> : <p className="text-[12px] text-white/75 leading-relaxed mt-1 whitespace-pre-wrap">{review.review_text}</p>}
         </article>

@@ -31,3 +31,46 @@ create policy "Users can update their own review"
 create policy "Users can delete their own review"
   on public.anime_reviews for delete to authenticated
   using (auth.uid() = user_id);
+  review_id bigint not null references public.anime_reviews(id) on delete cascade,
+create table if not exists public.anime_review_votes (
+  review_id bigint not null references public.anime_reviews(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (review_id, user_id)
+);
+
+create index if not exists anime_review_votes_review_idx
+  on public.anime_review_votes (review_id);
+
+alter table public.anime_review_votes enable row level security;
+
+create policy "Anyone can read review votes"
+  on public.anime_review_votes for select using (true);
+
+create policy "Signed-in users can vote once"
+  on public.anime_review_votes for insert to authenticated
+  with check (auth.uid() = user_id);
+
+create policy "Users can remove their own vote"
+  on public.anime_review_votes for delete to authenticated
+  using (auth.uid() = user_id);
+  user_id uuid not null references auth.users(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (review_id, user_id)
+);
+
+create index if not exists anime_review_votes_review_idx
+  on public.anime_review_votes (review_id);
+
+alter table public.anime_review_votes enable row level security;
+
+create policy "Anyone can read review votes"
+  on public.anime_review_votes for select using (true);
+
+create policy "Signed-in users can vote once"
+  on public.anime_review_votes for insert to authenticated
+  with check (auth.uid() = user_id);
+
+create policy "Users can remove their own vote"
+  on public.anime_review_votes for delete to authenticated
+  using (auth.uid() = user_id);
