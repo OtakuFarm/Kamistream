@@ -167,9 +167,10 @@ function slugifyTitle(title) {
 }
 
 /** Same URL shape as animePath() in src/lib/seo.ts. */
-function animePath(_malId, title) {
+function animePath(malId, title) {
+  if (!malId) return '/browse';
   const s = slugifyTitle(title);
-  return s ? `/anime/${s}` : '/browse';
+  return s ? `/anime/${malId}/${s}` : `/anime/${malId}`;
 }
 
 /** Same URL shape as animeLikePath() in src/lib/seo.ts. */

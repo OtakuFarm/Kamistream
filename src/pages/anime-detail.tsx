@@ -189,6 +189,12 @@ export default function AnimeDetail() {
     },
   } : {});
 
+  useEffect(() => {
+    if (!anime || !resolvedId || !routeParam || /^\d+$/.test(routeParam)) return;
+    const canonical = animePath(resolvedId, anime.title);
+    if (window.location.pathname !== canonical) navigate(canonical, { replace: true });
+  }, [anime?.mal_id, resolvedId, routeParam]);
+
   useEffect(() => { setEpPage(1); setActiveEp(null); }, [resolvedId]);
 
   // ── Airing countdown ─────────────────────────────────────────────
