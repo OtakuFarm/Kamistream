@@ -659,6 +659,56 @@ export default function AnimeDetail() {
                </div>
              </section>
 
+             {/* ── At a glance — real metadata only ─────────────────────── */}
+             <section className="backdrop-blur-md bg-white/[0.03] border border-white/10 rounded-2xl p-4">
+               <h2 className="text-[13px] font-black text-white uppercase tracking-widest mb-3 flex items-center gap-2">
+                 <span className="w-1 h-4 rounded-full bg-gradient-to-b from-[var(--blue)] to-[var(--purple)]" />
+                 At a glance
+               </h2>
+               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                 {[
+                   ['Format', anime.type],
+                   ['Status', anime.status],
+                   ['Episodes', totalEps > 0 ? String(totalEps) : bestCount > 0 ? String(bestCount) : 'Unknown'],
+                   ['Duration', anime.duration],
+                   ['Studio', anime.studios?.[0]?.name],
+                   ['Source', anime.source],
+                 ].filter(([, value]) => value).map(([label, value]) => (
+                   <div key={label} className="rounded-xl bg-black/20 border border-white/5 px-3 py-2 min-w-0">
+                     <p className="text-[9px] font-black uppercase tracking-widest text-[var(--text3)]">{label}</p>
+                     <p className="text-[12px] font-bold text-white mt-1 truncate">{value}</p>
+                   </div>
+                 ))}
+               </div>
+             </section>
+
+             {/* ── What to watch next ────────────────────────────────────── */}
+             {recommendations.length > 0 && (
+               <section className="backdrop-blur-md bg-white/[0.03] border border-white/10 rounded-2xl p-4">
+                 <div className="flex items-center justify-between gap-2 mb-3">
+                   <h2 className="text-[13px] font-black text-white uppercase tracking-widest flex items-center gap-2">
+                     <span className="w-1 h-4 rounded-full bg-gradient-to-b from-[var(--pink)] to-[var(--purple)]" />
+                     What to watch next
+                   </h2>
+                   <Link href={`/anime-like/${anime.mal_id}/${anime.title}`} className="text-[10px] font-bold text-[var(--pink)] hover:underline">See all</Link>
+                 </div>
+                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                   {recommendations.slice(0, 4).map((rec: any) => {
+                     const next = rec.entry;
+                     return (
+                       <Link key={next.mal_id} href={animePath(next.mal_id, next.title)} className="min-w-0 group">
+                         <div className="aspect-[2/3] overflow-hidden rounded-xl bg-[var(--bg3)]">
+                           <img src={next.images?.webp?.large_image_url || next.images?.jpg?.large_image_url} alt={next.title} loading="lazy" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                         </div>
+                         <p className="text-[10px] font-bold text-white mt-1 line-clamp-2 group-hover:text-[var(--pink)]">{next.title}</p>
+                       </Link>
+                     );
+                   })}
+                 </div>
+               </section>
+             )}
+
+
 
             {/* ── Synopsis — glass card ───────────────────────────────── */}
             <section className="backdrop-blur-md bg-white/[0.03] border border-white/10 rounded-2xl p-4 shadow-lg shadow-black/20">
