@@ -2,73 +2,19 @@
  * Vercel serverless function: /api/sitemap-pages
  * Sitemap for all static + curated listing pages: home, browse, category
  * pages, A–Z list, schedule, mood, hidden gems, about, the legal pages
- * (DMCA / terms / contact) and EVERY genre page. Complements
- * /sitemap-anime.xml (top anime pages).
+ * (DMCA / terms / contact) and every genre page we publish (POPULAR_GENRES
+ * in src/lib/genres.js). Complements /sitemap-anime.xml (top anime pages).
  * Cached by CDN for 24h — zero cost to run.
  * ═══════════════════════════════════════════════════════════════════ */
-const BASE = 'https://www.kamistream.fun';
 
-// Genre IDs + names — must mirror GENRES in src/pages/genre.tsx (Jikan MAL IDs)
-const GENRES = {
-  '1':  'Action',
-  '2':  'Adventure',
-  '4':  'Comedy',
-  '7':  'Mystery',
-  '8':  'Drama',
-  '9':  'Ecchi',
-  '10': 'Fantasy',
-  '13': 'Historical',
-  '14': 'Horror',
-  '17': 'Martial Arts',
-  '18': 'Mecha',
-  '19': 'Music',
-  '22': 'Romance',
-  '23': 'School',
-  '24': 'Sci-Fi',
-  '25': 'Shoujo',
-  '27': 'Shounen',
-  '29': 'Space',
-  '30': 'Sports',
-  '36': 'Slice of Life',
-  '37': 'Supernatural',
-  '38': 'Military',
-  '40': 'Psychological',
-  '41': 'Thriller',
-  '42': 'Seinen',
-  '43': 'Josei',
-  '46': 'Award Winning',
-  '47': 'Gourmet',
-  '50': 'Adult Cast',
-  '55': 'Delinquents',
-  '56': 'Detective',
-  '57': 'Educational',
-  '60': 'Gore',
-  '61': 'Harem',
-  '62': 'High Stakes Game',
-  '65': 'Idols (Male)',
-  '66': 'Isekai',
-  '67': 'Iyashikei',
-  '70': 'Mahou Shoujo',
-  '71': 'Medical',
-  '72': 'Mythology',
-  '74': 'Otaku Culture',
-  '75': 'Parody',
-  '77': 'Pets',
-  '78': 'Racing',
-  '79': 'Reincarnation',
-  '82': 'Samurai',
-  '83': 'Showbiz',
-  '84': 'Strategy Game',
-  '85': 'Super Power',
-  '86': 'Survival',
-  '87': 'Team Sports',
-  '88': 'Time Travel',
-  '89': 'Vampire',
-  '91': 'Villainess',
-  '93': 'Witchcraft',
-  '94': 'Yaoi',
-  '95': 'Yuri',
-};
+// Genre URLs come from the shared catalogue in src/lib/genres.js — the same
+// module src/pages/genre.tsx and scripts/prerender.mjs read. Listing the full
+// 58-id MAL table here is what made Search Console report "Submitted URL
+// marked 'noindex'": the pages outside POPULAR_GENRES are deliberately
+// noindexed "Genre Not Found" shells, so they must not be advertised.
+import { POPULAR_GENRE_NAMES_BY_ID } from '../src/lib/genres.js';
+
+const BASE = 'https://www.kamistream.fun';
 
 // Must mirror CATEGORY_ORDER in src/pages/category.tsx
 const CATEGORY_ORDER = [
@@ -105,7 +51,7 @@ export default async function handler(req, res) {
   const pages = [
     ...staticPages,
     ...CATEGORY_ORDER.map(c => ({ path: `/category/${c}`, freq: 'daily',  pri: '0.7' })),
-    ...Object.keys(GENRES).map(id => ({ path: `/genre/${id}`, freq: 'weekly', pri: '0.6' })),
+    ...Object.keys(POPULAR_GENRE_NAMES_BY_ID).map(id => ({ path: `/genre/${id}`, freq: 'weekly', pri: '0.6' })),
   ];
 
   const urls = pages

@@ -164,6 +164,10 @@ async function fetchALSearch(q: string, page = 1, filters: Record<string, any> =
 
   if (q) filterClauses.push('search:$q');
   if (filters.genre) { filterClauses.push('genre:$genre'); vars.genre = filters.genre; }
+  // AniList's genre list is a fixed enum, so MAL-only categories travel as
+  // tags (genre 66 "Isekai" → tag:"Isekai"). Without this the filter was
+  // dropped and the fallback returned unfiltered popular titles.
+  if (filters.tag) { filterClauses.push('tag:$tag'); vars.tag = filters.tag; }
   if (filters.format) { filterClauses.push('format:$format'); vars.format = filters.format; }
   if (filters.status) { filterClauses.push('status:$status'); vars.status = filters.status; }
   if (filters.year)   { filterClauses.push('seasonYear:$year'); vars.year = parseInt(filters.year); }
@@ -184,6 +188,7 @@ async function fetchALSearch(q: string, page = 1, filters: Record<string, any> =
     if (k === 'p') return '$p:Int';
     if (k === 'q') return '$q:String';
     if (k === 'genre') return '$genre:String';
+    if (k === 'tag') return '$tag:String';
     if (k === 'format') return '$format:MediaFormat';
     if (k === 'status') return '$status:MediaStatus';
     if (k === 'year') return '$year:Int';
@@ -212,19 +217,34 @@ async function fetchALSearch(q: string, page = 1, filters: Record<string, any> =
 // ─────────────────────────────────────────────────────────────────────────────
 // AniList genre → AniList genre string mapping
 // (Jikan uses numeric IDs, AniList uses string names)
+//
+// Must cover every id in POPULAR_GENRES (src/lib/genres.js) — a missing entry
+// here means the AniList fallback drops the filter and shows unfiltered
+// popular anime whenever Jikan rate-limits us.
 // ─────────────────────────────────────────────────────────────────────────────
 export const JIKAN_GENRE_TO_ANILIST: Record<string, string> = {
   '1':  'Action',
   '2':  'Adventure',
   '4':  'Comedy',
+  '7':  'Mystery',
   '8':  'Drama',
   '10': 'Fantasy',
+  '14': 'Horror',
   '22': 'Romance',
   '24': 'Sci-Fi',
   '36': 'Slice of Life',
   '30': 'Sports',
   '37': 'Supernatural',
   '41': 'Thriller',
+};
+
+/**
+ * Jikan ids that AniList has no *genre* for but does have a *tag* for.
+ * AniList's genre list is fixed (Action … Thriller); "Isekai" only exists as
+ * a tag, so genre 66 has to travel as `tag:"Isekai"`.
+ */
+export const JIKAN_TAG_TO_ANILIST: Record<string, string> = {
+  '66': 'Isekai',
 };
 
 export const JIKAN_TYPE_TO_ANILIST: Record<string, string> = {
@@ -284,6 +304,9 @@ export function useALBrowseInfinite(filters: Record<string, any>, enabled = true
     queryFn: ({ pageParam = 1 }) => {
       const alFilters: Record<string, any> = {};
       if (filters.genre)    alFilters.genre    = JIKAN_GENRE_TO_ANILIST[filters.genre] || filters.genre;
+      // Passed straight through: tags exist for the MAL-only categories that
+      // have no AniList genre equivalent (see JIKAN_TAG_TO_ANILIST).
+      if (filters.tag)      alFilters.tag      = filters.tag;
       if (filters.type)     alFilters.format   = JIKAN_TYPE_TO_ANILIST[filters.type]   || filters.type;
       if (filters.status)   alFilters.status   = JIKAN_STATUS_TO_ANILIST[filters.status] || filters.status;
       if (filters.year)     alFilters.year     = filters.year;

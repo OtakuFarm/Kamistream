@@ -4,6 +4,7 @@ import { Home, Compass, Bookmark, Trophy, BarChart3, Users, User, Settings, Cale
 import { useAuth } from '@/lib/auth';
 import { isAdminEmail } from '@/lib/admin';
 import { useGamification, calculateLevel } from '@/hooks/useGamification';
+import { POPULAR_GENRES } from '@/lib/genres';
 
 export function Sidebar({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const { user } = useAuth();
@@ -14,22 +15,10 @@ export function Sidebar({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
   const level = calculateLevel(stats.totalXP);
   const [genreOpen, setGenreOpen] = React.useState(false);
 
-  const GENRES = [
-    { id: 1,  name: 'Action' },
-    { id: 2,  name: 'Adventure' },
-    { id: 4,  name: 'Comedy' },
-    { id: 8,  name: 'Drama' },
-    { id: 10, name: 'Fantasy' },
-    { id: 14, name: 'Horror' },
-    { id: 7,  name: 'Mystery' },
-    { id: 22, name: 'Romance' },
-    { id: 24, name: 'Sci-Fi' },
-    { id: 36, name: 'Slice of Life' },
-    { id: 30, name: 'Sports' },
-    { id: 37, name: 'Supernatural' },
-    { id: 41, name: 'Thriller' },
-    { id: 66, name: 'Isekai' },
-  ];
+  // The genre drawer lists every hub we publish. The list itself lives in
+  // src/lib/genres.js — before that this array was a private copy that could
+  // (and did) drift from the sitemaps and the /genre/:id pages.
+  const GENRES = POPULAR_GENRES;
 
   const NavItem = ({ href, icon: Icon, label, badge, isLive }: any) => {
     const isActive = location === href || (href !== '/' && location.startsWith(`${href}/`));

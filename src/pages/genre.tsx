@@ -7,78 +7,19 @@ import { useSEO } from "@/hooks/useSEO";
 import { ChevronLeft, Loader2 } from "lucide-react";
 import { jikanFetch } from "@/lib/jikanFetch";
 import { dedupeByMalId } from "@/lib/dedupeAnime";
+import {
+  POPULAR_GENRES_BY_NAME,
+  isPopularGenre,
+  popularGenreName,
+} from "@/lib/genres";
 
-// ── Verified Jikan MAL genre IDs ─────────────────────────────────────────────
-// FIX: Previous IDs were wrong (e.g. 5 was labelled Comedy but is Avant Garde).
-// These match https://api.jikan.moe/v4/genres/anime exactly.
-const GENRES: Record<string, string> = {
-  "1":  "Action",
-  "2":  "Adventure",
-  "4":  "Comedy",
-  "7":  "Mystery",
-  "8":  "Drama",
-  "9":  "Ecchi",
-  "10": "Fantasy",
-  "13": "Historical",
-  "14": "Horror",
-  "17": "Martial Arts",
-  "18": "Mecha",
-  "19": "Music",
-  "22": "Romance",
-  "23": "School",
-  "24": "Sci-Fi",
-  "25": "Shoujo",
-  "27": "Shounen",
-  "29": "Space",
-  "30": "Sports",
-  "36": "Slice of Life",
-  "37": "Supernatural",
-  "38": "Military",
-  "40": "Psychological",
-  "41": "Thriller",
-  "42": "Seinen",
-  "43": "Josei",
-  "46": "Award Winning",
-  "47": "Gourmet",
-  "50": "Adult Cast",
-  "55": "Delinquents",
-  "56": "Detective",
-  "57": "Educational",
-  "60": "Gore",
-  "61": "Harem",
-  "62": "High Stakes Game",
-  "65": "Idols (Male)",
-  "66": "Isekai",
-  "67": "Iyashikei",
-  "70": "Mahou Shoujo",
-  "71": "Medical",
-  "72": "Mythology",
-  "74": "Otaku Culture",
-  "75": "Parody",
-  "77": "Pets",
-  "78": "Racing",
-  "79": "Reincarnation",
-  "82": "Samurai",
-  "83": "Showbiz",
-  "84": "Strategy Game",
-  "85": "Super Power",
-  "86": "Survival",
-  "87": "Team Sports",
-  "88": "Time Travel",
-  "89": "Vampire",
-  "91": "Villainess",
-  "93": "Witchcraft",
-  "94": "Yaoi",
-  "95": "Yuri",
-};
-
-// Show EVERY genre in the quick-switch bar (sorted alphabetically) so any
-// /genre/:id route always has its chip visible and highlighted — previously
-// only 26 "popular" ids were shown, so landing on e.g. /genre/89 (Vampire)
-// displayed a bar where the selected genre was completely missing.
-const ALL_GENRE_IDS = Object.keys(GENRES).sort((a, b) =>
-  GENRES[a].localeCompare(GENRES[b])
-);
+// Which /genre/:id pages exist is decided in exactly ONE place —
+// src/lib/genres.js (POPULAR_GENRES). Before this, this file held all 58 MAL
+// ids while the sidebar offered 14, the browse filter 12 and the sitemaps 58:
+// three answers to the same question. Anything not in POPULAR_GENRES is now
+// unambiguously not a page — the not-found branch below renders it, the
+// sitemaps don't list it and no chip links to it.
+const ALL_GENRES = POPULAR_GENRES_BY_NAME;
 
 const SORT_OPTIONS = [
   { v: "popularity", l: "Most Popular" },
@@ -100,19 +41,24 @@ async function fetchGenrePage(genreId: string, sort: string, page: number) {
 export default function Genre() {
   const [, params] = useRoute("/genre/:id");
   const genreId   = params?.id || "";
-  const genreName = GENRES[genreId] || "Genre";
   const [sort, setSort] = useState("popularity");
   const activeChip = useRef<HTMLSpanElement | null>(null);
+
+  const isKnownGenre = isPopularGenre(genreId);
+  const genreName    = popularGenreName(genreId);
 
   // Keep the selected genre chip in view when switching genres
   useEffect(() => {
     activeChip.current?.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
   }, [genreId]);
 
-  useSEO({
+  useSEO(isKnownGenre ? {
     title:       `${genreName} Anime — Watch Free Online`,
     description: `Browse the best ${genreName} anime on KamiStream — top-rated series streaming free in HD, sub & dub.`,
     url:         `/genre/${genreId}`,
+  } : {
+    title:   'Genre Not Found',
+    noindex: true,
   });
 
   const {
@@ -127,11 +73,55 @@ export default function Genre() {
       return cur >= max ? undefined : cur + 1;
     },
     initialPageParam: 1,
-    enabled:          !!genreId,
+    // A genre we don't publish has no listing to fetch — the not-found branch
+    // below renders instead, so these URLs cost no API calls either.
+    enabled:          isKnownGenre,
     staleTime:        5 * 60 * 1000,
   });
 
   const anime = dedupeByMalId(data?.pages.flatMap((p: any) => p.data ?? []) ?? []);
+
+  // ── Not a page we publish ──────────────────────────────────────────────
+  // noindex is already set above. This used to render a complete listing for
+  // e.g. /genre/9 (Ecchi) — a live page the sitemap described as "Genre Not
+  // Found", which is the exact soft-404 pattern Search Console flags. Now the
+  // URL is short, honest, non-indexable, and its only outbound links are to
+  // genre hubs that really exist.
+  if (!isKnownGenre) {
+    return (
+      <div className="p-4 md:p-6 pb-20 max-w-3xl">
+        <nav className="text-[12px] text-[var(--text3)] mb-4 flex flex-wrap items-center gap-1.5">
+          <Link href="/home"><span className="hover:text-white cursor-pointer">Home</span></Link>
+          <span>/</span>
+          <Link href="/browse"><span className="hover:text-white cursor-pointer">Browse</span></Link>
+          <span>/</span>
+          <span>Genre not found</span>
+        </nav>
+
+        <h1 className="text-2xl font-heading font-black text-white mb-3">Genre Not Found</h1>
+        <p className="text-[13px] text-[var(--text2)] leading-relaxed mb-6">
+          We don't publish a page for this genre. Pick one of the genres below,
+          or browse the full catalogue instead.
+        </p>
+
+        <div className="flex flex-wrap gap-1.5 mb-6">
+          {ALL_GENRES.map(g => (
+            <Link key={g.id} href={`/genre/${g.id}`}>
+              <span className="px-3 py-1 rounded-full text-[11px] font-bold bg-[var(--card)] text-[var(--text2)] border border-[var(--border)] hover:border-[var(--purple)] hover:text-white transition-colors cursor-pointer">
+                {g.name}
+              </span>
+            </Link>
+          ))}
+        </div>
+
+        <Link href="/browse">
+          <button className="bg-gradient-to-r from-[var(--pink)] to-[var(--purple)] text-white px-6 py-2.5 rounded-xl text-[13px] font-bold hover:brightness-110 transition-all">
+            Browse all anime
+          </button>
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 md:p-6 pb-20">
@@ -160,19 +150,19 @@ export default function Genre() {
         </select>
       </div>
 
-      {/* All-genre quick-switch — current genre highlighted */}
+      {/* Genre quick-switch — every genre we publish, current one highlighted */}
       <div className="flex flex-wrap gap-1.5 mb-6">
-        {ALL_GENRE_IDS.map(id => (
-          <Link key={id} href={`/genre/${id}`}>
+        {ALL_GENRES.map(g => (
+          <Link key={g.id} href={`/genre/${g.id}`}>
             <span
-              ref={id === genreId ? activeChip : undefined}
+              ref={String(g.id) === genreId ? activeChip : undefined}
               className={`px-3 py-1 rounded-full text-[11px] font-bold cursor-pointer transition-all ${
-              id === genreId
+              String(g.id) === genreId
                 ? "bg-gradient-to-r from-[var(--pink)] to-[var(--purple)] text-white"
                 : "bg-[var(--card)] text-[var(--text2)] border border-[var(--border)] hover:border-[var(--purple)] hover:text-white"
             }`}
             >
-              {GENRES[id]}
+              {g.name}
             </span>
           </Link>
         ))}

@@ -30,7 +30,10 @@
  *   9   hub / static pages      (/browse, /schedule, /az-list, /mood,
  *                                /hidden-gems, /about, /dmca, /terms, /contact)
  *   8   category listings       (/category/:slug)
- *   58  genre hubs              (/genre/:id)
+ *   14  genre hubs              (/genre/:id — POPULAR_GENRES in
+ *                                src/lib/genres.js; every other MAL genre
+ *                                renders the noindexed "Genre Not Found"
+ *                                page instead, so it is not written here)
  *   199 anime detail pages      (/anime/:id/:slug)
  *   199 "anime like X" pages    (/anime-like/:id/:slug)
  *   1   year hub                (/best-anime)
@@ -106,6 +109,22 @@ import {
   hubDescription, MIN_TITLES_FOR_YEAR, YEAR_PAGE_SIZE, YEAR_START,
 } from '../src/lib/bestOfYear.js';
 
+// ── Genre catalogue ──────────────────────────────────────────────────
+// One source of truth for genre ids, shared with the React app and with
+// api/sitemap-pages.js — see the long note in src/lib/genres.js.
+//   GENRE_NAMES_BY_ID     all 58 MAL ids: used to normalize AniList genre
+//                         names into mal_ids so a title's genre list is
+//                         never silently emptied.
+//   POPULAR_*             the genres that get a hub page, a chip and a
+//                         sitemap entry. Nothing outside this set is
+//                         written to /genre/:id any more, which is what
+//                         stopped the sitemaps advertising URLs that
+//                         render the noindexed "Genre Not Found" page.
+import {
+  GENRE_NAMES_BY_ID, GENRE_ID_BY_NAME, POPULAR_GENRE_IDS,
+  POPULAR_GENRE_NAMES_BY_ID, POPULAR_GENRES_BY_NAME, isPopularGenre,
+} from '../src/lib/genres.js';
+
 const BASE      = 'https://www.kamistream.fun';
 const JIKAN     = 'https://api.jikan.moe/v4';
 const DIST      = path.join(process.cwd(), 'dist');
@@ -114,21 +133,8 @@ const SHELL_SRC = path.join(DIST, 'index.html');
 /** How many /top/anime pages to pull (25 each). 8 pages = the top 200. */
 const TOP_PAGES = 8;
 
-/** id → genre name. Must mirror GENRES in src/pages/genre.tsx */
-const GENRES = {
-  '1': 'Action', '2': 'Adventure', '4': 'Comedy', '7': 'Mystery', '8': 'Drama',
-  '9': 'Ecchi', '10': 'Fantasy', '13': 'Historical', '14': 'Horror', '17': 'Martial Arts',
-  '18': 'Mecha', '19': 'Music', '22': 'Romance', '23': 'School', '24': 'Sci-Fi',
-  '25': 'Shoujo', '27': 'Shounen', '29': 'Space', '30': 'Sports', '36': 'Slice of Life',
-  '37': 'Supernatural', '38': 'Military', '40': 'Psychological', '41': 'Thriller', '42': 'Seinen',
-  '43': 'Josei', '46': 'Award Winning', '47': 'Gourmet', '50': 'Adult Cast', '55': 'Delinquents',
-  '56': 'Detective', '57': 'Educational', '60': 'Gore', '61': 'Harem', '62': 'High Stakes Game',
-  '65': 'Idols (Male)', '66': 'Isekai', '67': 'Iyashikei', '70': 'Mahou Shoujo', '71': 'Medical',
-  '72': 'Mythology', '74': 'Otaku Culture', '75': 'Parody', '77': 'Pets', '78': 'Racing',
-  '79': 'Reincarnation', '82': 'Samurai', '83': 'Showbiz', '84': 'Strategy Game', '85': 'Super Power',
-  '86': 'Survival', '87': 'Team Sports', '88': 'Time Travel', '89': 'Vampire', '91': 'Villainess',
-  '93': 'Witchcraft', '94': 'Yaoi', '95': 'Yuri',
-};
+/** id → genre name for BOTH the normalization table and the hub lookups. */
+const GENRES = GENRE_NAMES_BY_ID;
 
 /** Must mirror CATEGORIES + CATEGORY_ORDER in src/pages/category.tsx */
 const CATEGORIES = [
@@ -291,12 +297,14 @@ async function collectTopAnime() {
 
 const ANILIST = 'https://graphql.anilist.co';
 
-/** AniList's fixed genre list maps 1:1 onto our MAL genre names. */
-const GENRE_ID_BY_NAME = (() => {
-  const map = new Map();
-  for (const [id, name] of Object.entries(GENRES)) map.set(name.toLowerCase(), id);
-  return map;
-})();
+/**
+ * AniList's fixed genre list maps 1:1 onto our MAL genre names, so the
+ * normalization below is a straight name → mal_id lookup in the FULL table
+ * (GENRE_ID_BY_NAME from src/lib/genres.js). Using the full table here — not
+ * the popular subset — is deliberate: it is what keeps a mecha-only or
+ * music-only title's genre list intact for scoring and related-anime links,
+ * even though those genres have no hub page of their own.
+ */
 
 const STATUS_BY_ANILIST = {
   RELEASING: 'Currently Airing',
@@ -344,7 +352,7 @@ function fromAniList(m) {
     },
     trailer: { images: { maximum_image_url: m.trailer?.thumbnail || null } },
     genres: (m.genres ?? [])
-      .map(name => ({ mal_id: GENRE_ID_BY_NAME.get(name.toLowerCase()), name }))
+      .map(name => ({ mal_id: GENRE_ID_BY_NAME[String(name).toLowerCase()], name }))
       .filter(g => g.mal_id),
     studios: (m.studios?.nodes ?? []).map(s => ({ name: s.name })),
     score:       m.averageScore ? Math.round(m.averageScore) / 10 : null,
@@ -443,7 +451,9 @@ const LIST_LIMIT = 24;
 
 function deriveGenreLists(pool) {
   const map = new Map();
-  for (const id of Object.keys(GENRES)) {
+  // POPULAR_GENRE_IDS only: a hub page is written for each of these and for
+  // nothing else, so the prerenderer and the sitemaps list the same URLs.
+  for (const id of POPULAR_GENRE_IDS) {
     map.set(id, pool
       .filter(a => (a.genres ?? []).some(g => String(g.mal_id) === id))
       .slice(0, LIST_LIMIT));
@@ -508,7 +518,7 @@ const SHELL_CSS = [
   '.ks-meta{display:flex;flex-wrap:wrap;gap:8px;list-style:none;padding:0;margin:0 0 12px;font-size:12px;color:#c8c8d8}',
   '.ks-meta li{background:#131316;border:1px solid rgba(255,255,255,.08);border-radius:999px;padding:4px 11px;font-weight:700}',
   '.ks-chips{display:flex;flex-wrap:wrap;gap:6px;list-style:none;padding:0;margin:12px 0 0}',
-  '.ks-chips a{display:inline-block;background:#131316;border:1px solid rgba(255,255,255,.08);border-radius:999px;',
+  '.ks-chips a,.ks-chips span{display:inline-block;background:#131316;border:1px solid rgba(255,255,255,.08);border-radius:999px;',
   'padding:4px 11px;font-size:11.5px;font-weight:800;color:#c8c8d8;text-decoration:none}',
   '.ks-chips a:hover{border-color:#a742ff;color:#fff}',
   '.ks-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:12px;list-style:none;padding:0;margin:0}',
@@ -835,10 +845,16 @@ const STATIC_PAGES = [
 
 
 // ── Shared blocks ────────────────────────────────────────────────────
-function genreChips(limit = 24) {
-  const ids = Object.keys(GENRES).sort((a, b) => GENRES[a].localeCompare(GENRES[b])).slice(0, limit);
+/**
+ * The sitewide "Browse anime by genre" block. Same list — and the same
+ * alphabetical order — as the chip bar on /genre/:id (POPULAR_GENRES_BY_NAME
+ * from src/lib/genres.js), because this block is what a non-JS crawler reads
+ * as our genre nav. A genre that has no hub page must never appear here.
+ */
+function genreChips() {
   return '<h2 class="ks-h2">Browse anime by genre</h2><ul class="ks-chips">'
-    + ids.map(id => `<li><a href="/genre/${id}">${esc(GENRES[id])}</a></li>`).join('')
+    + POPULAR_GENRES_BY_NAME
+        .map(g => `<li><a href="/genre/${g.id}">${esc(g.name)}</a></li>`).join('')
     + '</ul>';
 }
 
@@ -886,7 +902,13 @@ function animeDoc(a, pool, likeMatches, yearPages) {
     a.rank ? `#${a.rank} ranked` : null,
   ].filter(Boolean);
 
-  const genres  = (a.genres ?? []).filter(g => GENRES[g.mal_id]);
+  // Genre chips. Link only the genres that own a hub page; the rest stay as
+  // plain text so the list still describes the title honestly (mirrors the
+  // React page, which renders inert chips for non-hub genres).
+  const genres  = (a.genres ?? []).map(g => ({
+    mal_id: g.mal_id, name: g.name || GENRES[g.mal_id] || '',
+  })).filter(g => g.name);
+
   const studios = (a.studios ?? []).map(s => s.name).filter(Boolean);
   const poster  = a.images?.webp?.large_image_url || a.images?.jpg?.large_image_url || '';
 
@@ -911,7 +933,9 @@ function animeDoc(a, pool, likeMatches, yearPages) {
         studios.length ? `<p class="ks-p"><strong>Studio:</strong> ${esc(studios.join(', '))}</p>` : '',
         a.aired?.string ? `<p class="ks-p"><strong>Aired:</strong> ${esc(a.aired.string)}</p>` : '',
         genres.length
-          ? `<ul class="ks-chips">${genres.map(g => `<li><a href="/genre/${g.mal_id}">${esc(g.name)}</a></li>`).join('')}</ul>`
+          ? `<ul class="ks-chips">${genres.map(g => (isPopularGenre(g.mal_id)
+              ? `<li><a href="/genre/${g.mal_id}">${esc(g.name)}</a></li>`
+              : `<li><span>${esc(g.name)}</span></li>`)).join('')}</ul>`
           : '',
       '</div>',
     '</div>',
@@ -991,13 +1015,16 @@ function animeLikeDoc(a, matches) {
     ? `<ul class="ks-why">${best.reasons.map(r => `<li>${esc(r)}</li>`).join('')}</ul>`
     : '';
 
-  // Chips link into the genre hubs — another crawlable path inward.
+  // Chips link into the genre hubs — another crawlable path inward. Only
+  // genres that own a hub page become links (mirrors anime-like.tsx).
   const genreChips = (() => {
     const top = topSharedGenres(a, matches, 4);
     if (!top.length) return '';
     const items = top.map(g => {
       const gid = (a.genres ?? []).find(x => x.name === g.name)?.mal_id;
-      return gid ? `<li><a href="/genre/${gid}">${esc(g.name)} · ${g.count}</a></li>` : '';
+      return isPopularGenre(gid)
+        ? `<li><a href="/genre/${gid}">${esc(g.name)} · ${g.count}</a></li>`
+        : '';
     }).filter(Boolean).join('');
     return items ? `<ul class="ks-chips">${items}</ul>` : '';
   })();
@@ -1061,7 +1088,10 @@ function animeLikeDoc(a, matches) {
 
 // ── Genre hub ────────────────────────────────────────────────────────
 function genreDoc(genreId, list) {
-  const name      = GENRES[genreId];
+  // POPULAR_GENRE_NAMES_BY_ID, not the full table: this function only ever
+  // runs for the ids deriveGenreLists() produced, and resolving the name from
+  // the popular table keeps the hub pages and the chips in lockstep.
+  const name      = POPULAR_GENRE_NAMES_BY_ID[genreId];
   const route     = `/genre/${genreId}`;
   const canonical = `${BASE}${route}`;
   const n         = list.length;

@@ -106,7 +106,7 @@ const SHELL_CSS = [
   '.ks-meta{display:flex;flex-wrap:wrap;gap:8px;list-style:none;padding:0;margin:0 0 12px;font-size:12px;color:#c8c8d8}',
   '.ks-meta li{background:#131316;border:1px solid rgba(255,255,255,.08);border-radius:999px;padding:4px 11px;font-weight:700}',
   '.ks-chips{display:flex;flex-wrap:wrap;gap:6px;list-style:none;padding:0;margin:12px 0 0}',
-  '.ks-chips a{display:inline-block;background:#131316;border:1px solid rgba(255,255,255,.08);border-radius:999px;',
+  '.ks-chips a,.ks-chips span{display:inline-block;background:#131316;border:1px solid rgba(255,255,255,.08);border-radius:999px;',
   'padding:4px 11px;font-size:11.5px;font-weight:800;color:#c8c8d8;text-decoration:none}',
   '.ks-chips a:hover{border-color:#a742ff;color:#fff}',
   '.ks-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(118px,1fr));gap:12px;list-style:none;padding:0;margin:0}',
@@ -128,6 +128,9 @@ const SHELL_CSS = [
 ].join('');
 
 // MIRROR NAV_LINKS in scripts/prerender.mjs (and TOP_NAV in Topbar.tsx).
+// Every /genre/... href below must be an id from POPULAR_GENRES in
+// src/lib/genres.js — any other id renders the noindexed "Genre Not Found"
+// page, and these links are crawlable sitewide nav.
 const NAV_LINKS = [
   ['/browse', 'Browse'], ['/category/top-rated', 'Top Rated'], ['/category/trending', 'Trending'],
   ['/schedule', 'Schedule'], ['/latest-episodes', 'Latest Episodes'], ['/az-list', 'A–Z List'], ['/hidden-gems', 'Hidden Gems'],

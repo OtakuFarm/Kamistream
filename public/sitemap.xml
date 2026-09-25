@@ -65,6 +65,10 @@
     <changefreq>daily</changefreq>
     <priority>0.7</priority>
   </url>
+  <!-- Genre hubs: exactly the ids in POPULAR_GENRES (src/lib/genres.js).
+       Pages for any other MAL genre id render as noindexed "Genre Not Found"
+       shells, so listing them here is what triggers Search Console's
+       "Submitted URL marked 'noindex'". -->
   <url>
     <loc>https://www.kamistream.fun/genre/1</loc>
     <changefreq>weekly</changefreq>
@@ -96,6 +100,11 @@
     <priority>0.6</priority>
   </url>
   <url>
+    <loc>https://www.kamistream.fun/genre/14</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
     <loc>https://www.kamistream.fun/genre/22</loc>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
@@ -106,17 +115,22 @@
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://www.kamistream.fun/genre/27</loc>
-    <changefreq>weekly</changefreq>
-    <priority>0.6</priority>
-  </url>
-  <url>
     <loc>https://www.kamistream.fun/genre/30</loc>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
   <url>
+    <loc>https://www.kamistream.fun/genre/36</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
     <loc>https://www.kamistream.fun/genre/37</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://www.kamistream.fun/genre/41</loc>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>

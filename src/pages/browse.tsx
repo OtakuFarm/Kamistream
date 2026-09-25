@@ -13,9 +13,11 @@ import {
   useALTopBrowseInfinite,
   useALBrowseInfinite,
   JIKAN_GENRE_TO_ANILIST,
+  JIKAN_TAG_TO_ANILIST,
   JIKAN_TYPE_TO_ANILIST,
   JIKAN_STATUS_TO_ANILIST,
 } from '@/lib/anilist';
+import { POPULAR_GENRES } from '@/lib/genres';
 
 // ── Jikan top anime (infinite) ────────────────────────────────────────
 // Routed through the shared rate-limit queue in lib/jikan.ts instead of a
@@ -48,13 +50,12 @@ interface Filters {
 }
 const DEFAULT_FILTERS: Filters = { q: '', genre: '', type: '', status: '', minScore: '', year: '', orderBy: 'popularity' };
 
+// Genre filter options. The publishable list lives in src/lib/genres.js, so a
+// genre can never be selectable here without also having a /genre/:id hub
+// (and vice versa). "All Genres" is the '' sentinel the query builders expect.
 const GENRES = [
-  { id: '', name: 'All Genres' }, { id: '1', name: 'Action' },
-  { id: '2', name: 'Adventure' }, { id: '4', name: 'Comedy' },
-  { id: '8', name: 'Drama' }, { id: '10', name: 'Fantasy' },
-  { id: '22', name: 'Romance' }, { id: '24', name: 'Sci-Fi' },
-  { id: '36', name: 'Slice of Life' }, { id: '30', name: 'Sports' },
-  { id: '37', name: 'Supernatural' }, { id: '41', name: 'Thriller' },
+  { id: '', name: 'All Genres' },
+  ...POPULAR_GENRES.map(g => ({ id: String(g.id), name: g.name })),
 ];
 const TYPES = ['', 'TV', 'Movie', 'OVA', 'Special', 'ONA'];
 const ORDER_BY = [
@@ -132,10 +133,14 @@ export default function Browse() {
     retry: 1,
   });
 
-  // AniList fallback for Search tab
+  // AniList fallback for Search tab.
+  // Genre 66 (Isekai) has no AniList *genre* — it is a tag there — so the
+  // mapping is split in two; passing only the genre would silently drop the
+  // filter and return fantasy titles as if they were isekai.
   const alSearchFilters = {
     q:        filters.q,
     genre:    JIKAN_GENRE_TO_ANILIST[filters.genre]  || '',
+    tag:      JIKAN_TAG_TO_ANILIST[filters.genre]    || '',
     format:   JIKAN_TYPE_TO_ANILIST[filters.type]    || '',
     status:   JIKAN_STATUS_TO_ANILIST[filters.status] || '',
     year:     filters.year,

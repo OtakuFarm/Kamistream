@@ -7,6 +7,7 @@ import { useWatchHistory } from '@/hooks/useWatchHistory';
 import { useEpisodeProgress } from '@/hooks/useEpisodeProgress';
 import { useSEO } from '@/hooks/useSEO';
 import { animePath } from '@/lib/seo';
+import { isPopularGenre } from '@/lib/genres';
 import { getNextAiring, getAnimeRelations } from '@/lib/anilist';
 import {
   Play, Plus, Check, Star, Timer, CheckCircle2, Share2,
@@ -187,7 +188,11 @@ export default function AnimeDetail() {
       aired:     anime.aired?.from?.split('T')[0],
       malId:     anime.mal_id,
     },
-  } : {});
+  } : (!detailLoading ? {
+    title:       'Anime Not Found',
+    description: 'The requested anime could not be found on KamiStream.',
+    noindex:     true,
+  } : {}));
 
   useEffect(() => { setEpPage(1); setActiveEp(null); }, [resolvedId]);
 
@@ -390,13 +395,18 @@ export default function AnimeDetail() {
               <p className="text-[11px] md:text-xs text-white/50 font-mono mb-3 truncate">{anime.title_english}</p>
             )}
             <div className="flex flex-wrap gap-1.5 mb-4">
-              {anime.genres?.slice(0, 5).map((g: any) => (
-                <Link key={g.mal_id} href={`/genre/${g.mal_id}`}>
+              {anime.genres?.slice(0, 5).map((g: any) => {
+                const chip = (
                   <span className="text-[10px] font-bold px-2.5 py-1 rounded-full backdrop-blur-sm bg-white/[0.07] border border-white/15 text-white/80 hover:bg-[var(--pink)]/25 hover:border-[var(--pink)]/50 hover:text-white transition-all cursor-pointer">
                     {g.name}
                   </span>
-                </Link>
-              ))}
+                );
+                // Only genres that own a hub page become links — the rest
+                // would 404 into the noindexed shell (src/lib/genres.js).
+                return isPopularGenre(g.mal_id)
+                  ? <Link key={g.mal_id} href={`/genre/${g.mal_id}`}>{chip}</Link>
+                  : <span key={g.mal_id ?? g.name}>{chip}</span>;
+              })}
             </div>
             <div className="flex flex-wrap items-center gap-2.5">
               <button
@@ -651,7 +661,8 @@ export default function AnimeDetail() {
                  {anime.studios?.length ? `It is produced by ${anime.studios.map((s: any) => s.name).join(', ')}.` : 'Use the details below to check the format, status, and episode count before you begin.'}
                </p>
                <div className="flex flex-wrap gap-2 mt-3">
-                 {(anime.genres || []).slice(0, 4).map((g: any) => (
+                 {/* Hub genres only — see isPopularGenre() in src/lib/genres.js */}
+                 {(anime.genres || []).filter((g: any) => isPopularGenre(g.mal_id)).slice(0, 4).map((g: any) => (
                    <Link key={g.mal_id} href={`/genre/${g.mal_id}`} className="text-[11px] font-bold text-[var(--pink)] bg-[var(--pink)]/10 border border-[var(--pink)]/25 rounded-lg px-2.5 py-1.5 hover:bg-[var(--pink)]/20 transition-colors">
                      More {g.name} anime
                    </Link>
@@ -853,11 +864,15 @@ export default function AnimeDetail() {
                 <div className="mt-3 pt-3 border-t border-[var(--border)]">
                   <h4 className="font-bold text-[10px] text-[var(--text3)] uppercase tracking-widest mb-2">Genres</h4>
                   <div className="flex flex-wrap gap-1.5">
-                    {anime.genres.map((g: any) => (
-                      <Link key={g.mal_id} href={`/genre/${g.mal_id}`}>
+                    {anime.genres.map((g: any) => {
+                      const chip = (
                         <span className="bg-[var(--bg3)] text-[var(--text2)] px-2 py-1 rounded-lg text-[10px] font-bold hover:bg-[var(--pink)]/20 hover:text-[var(--pink)] transition-colors cursor-pointer">{g.name}</span>
-                      </Link>
-                    ))}
+                      );
+                      // Link only the genres that have a hub page.
+                      return isPopularGenre(g.mal_id)
+                        ? <Link key={g.mal_id} href={`/genre/${g.mal_id}`}>{chip}</Link>
+                        : <span key={g.mal_id ?? g.name}>{chip}</span>;
+                    })}
                   </div>
                 </div>
               )}

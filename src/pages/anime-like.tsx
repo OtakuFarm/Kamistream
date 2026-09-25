@@ -31,6 +31,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useAnimeDetail } from '@/lib/jikan';
 import { jikanFetch } from '@/lib/jikanFetch';
 import { dedupeByMalId } from '@/lib/dedupeAnime';
+import { isPopularGenre } from '@/lib/genres';
 import { useSEO } from '@/hooks/useSEO';
 import { animePath, animeLikePath } from '@/lib/seo';
 import { GridSkeleton } from '@/components/LoadingSkeleton';
@@ -90,7 +91,10 @@ export default function AnimeLike() {
     description: likeDescription(anime, matches),
     image:       anime.trailer?.images?.maximum_image_url || anime.images?.webp?.large_image_url,
     url:         animeLikePath(anime.mal_id, anime.title),
-  } : {});
+  } : (!isLoading ? {
+    title:   'Anime Not Found',
+    noindex: true,
+  } : {}));
 
   // ── Loading / empty states ────────────────────────────────────────
   if (isLoading || poolLoading) {
@@ -175,8 +179,12 @@ function renderPage(
                 {g.name} <span className="text-[var(--text3)]">· {g.count}</span>
               </span>
             );
-            return gid
-              ? <Link key={g.name} href={`/genre/${gid}`}>{chip}</Link>
+            // A shared genre only becomes a link when we publish that hub —
+            // otherwise it would point at the noindexed "Genre Not Found"
+            // shell (see src/lib/genres.js). Same rule in prerender.mjs.
+            const href = gid && isPopularGenre(gid) ? `/genre/${gid}` : null;
+            return href
+              ? <Link key={g.name} href={href}>{chip}</Link>
               : <span key={g.name}>{chip}</span>;
           })}
         </div>

@@ -32,6 +32,7 @@
 import {
   titleOf, yearOf, scoreOf, mainStudio, listWords, clampText,
 } from './animeLike.js';
+import { POPULAR_GENRES } from './genres.js';
 
 // ── Tunables ─────────────────────────────────────────────────────────
 
@@ -47,19 +48,19 @@ export const YEAR_START = 2010;
 /**
  * AniList genre NAME → the MAL id its /genre/:id hub is routed on.
  *
- * Owned here rather than read off either caller on purpose: the build-time
- * normaliser writes genre mal_ids from a 55-entry table while the browser
- * normaliser historically wrote none, so resolving chips by NAME inside the
- * shared engine is the only way both renderings produce the same links.
- * A genre absent from this table is simply not shown as a chip — on both
- * sides, so they still agree.
+ * Derived from POPULAR_GENRES in src/lib/genres.js rather than hand-written,
+ * because the year chips are real links: a genre that has no hub page must not
+ * appear here, or "Best Anime of 2019" would link into a noindexed shell.
+ * AniList's own genre names match the MAL names 1:1, so a name lookup is
+ * enough — and a genre absent from this table is simply not shown as a chip,
+ * on both the build-time and the browser side, so they still agree.
  */
-export const GENRE_IDS = Object.freeze({
-  Action: 1, Adventure: 2, Comedy: 4, Mystery: 7, Drama: 8, Ecchi: 9,
-  Fantasy: 10, Horror: 14, Mecha: 18, Music: 19, Psychological: 40,
-  Romance: 22, 'Sci-Fi': 24, Sports: 30, 'Slice of Life': 36,
-  Supernatural: 37, Thriller: 41, 'Mahou Shoujo': 70,
-});
+export const GENRE_IDS = Object.freeze(
+  POPULAR_GENRES.reduce((acc, g) => {
+    acc[g.name] = g.id;
+    return acc;
+  }, {})
+);
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
