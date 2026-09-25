@@ -175,7 +175,7 @@ export default function AnimeDetail() {
     type:        'video.other',
     // Canonical = descriptive URL. Old bare /anime/:id links (and any
     // wrong-slug variants) all consolidate onto this one URL.
-    url:         animePath(id, anime.title),
+    url:         animePath(resolvedId, anime.title),
     jsonLd: {
       animeName: anime.title,
       score:     anime.score,
@@ -238,6 +238,12 @@ export default function AnimeDetail() {
     if (errorTimerRef.current) clearTimeout(errorTimerRef.current);
     errorTimerRef.current = setTimeout(() => setPlayerError(true), 12000);
   }, [resolvedId, dub, alId]);
+
+  useEffect(() => {
+    if (!resolvedId || !anime) return;
+    const episode = new URLSearchParams(window.location.search).get('episode');
+    if (episode && /^\\d+$/.test(episode)) loadEpisode(episode);
+  }, [resolvedId, anime?.mal_id]);
 
   const onIframeLoad = useCallback(() => {
     if (errorTimerRef.current) clearTimeout(errorTimerRef.current);

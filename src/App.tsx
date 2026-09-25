@@ -15,7 +15,7 @@ const Browse       = lazy(() => import("@/pages/browse"));
 const AnimeDetail  = lazy(() => import("@/pages/anime-detail"));
 const AnimeLike    = lazy(() => import("@/pages/anime-like"));
 const BestOfYear   = lazy(() => import("@/pages/best-anime"));
-const Watch        = lazy(() => import("@/pages/watch"));
+const LegacyWatchRedirect = lazy(() => import("@/pages/legacy-watch-redirect"));
 const Watchlist    = lazy(() => import("@/pages/watchlist"));
 const Challenges   = lazy(() => import("@/pages/challenges"));
 const Leaderboard  = lazy(() => import("@/pages/leaderboard"));
@@ -90,7 +90,7 @@ function DMCARoute()         { return <Layout><DMCA /></Layout>; }
 function TermsRoute()        { return <Layout><Terms /></Layout>; }
 function ContactRoute()      { return <Layout><Contact /></Layout>; }
 function NotFoundRoute()     { return <Layout><NotFound /></Layout>; }
-function WatchRoute()        { return <MinimalLayout><Watch /></MinimalLayout>; }
+function WatchRoute()        { return <MinimalLayout><LegacyWatchRedirect /></MinimalLayout>; }
 function LoginRoute()        { return <MinimalLayout><Login /></MinimalLayout>; }
 function SignupRoute()       { return <MinimalLayout><Signup /></MinimalLayout>; }
 
