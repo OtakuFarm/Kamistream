@@ -13,7 +13,7 @@
 /** One publishable genre hub: the MAL id its URL is routed on, and its name. */
 export interface PopularGenre { readonly id: number; readonly name: string }
 
-/** Every MAL anime genre id → name (58 entries). For normalization only. */
+/** Every MAL anime genre id → name (59 entries). For normalization only. */
 export const GENRE_NAMES_BY_ID: Readonly<Record<string, string>>;
 
 /** Lowercased genre name → MAL id, from the full table. */
@@ -30,6 +30,21 @@ export const POPULAR_GENRE_NAMES_BY_ID: Readonly<Record<string, string>>;
 
 /** The public ids as strings, in POPULAR_GENRES order. */
 export const POPULAR_GENRE_IDS: ReadonlyArray<string>;
+
+/** Jikan's explicit genres (9 Ecchi, 12 Hentai) — fetched without `sfw`. */
+export const ADULT_GENRE_IDS: ReadonlyArray<number>;
+
+/** Adult ids whose AniList catalogue needs `isAdult:true` (12 Hentai only). */
+export const ANILIST_ADULT_GENRE_IDS: ReadonlyArray<number>;
+
+/**
+ * True for the adult genres (id '9'/'12' or the names 'Ecchi'/'Hentai'):
+ * their listings must be requested without Jikan's sfw flag.
+ */
+export function isAdultGenre(idOrName: string | number | null | undefined): boolean;
+
+/** True for Hentai only: that AniList query must run with isAdult:true. */
+export function requiresAniListAdultFilter(idOrName: string | number | null | undefined): boolean;
 
 /** True when /genre/:id is a page we publish — gate every genre link on it. */
 export function isPopularGenre(id: string | number | null | undefined): boolean;

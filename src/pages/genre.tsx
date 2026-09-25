@@ -11,6 +11,7 @@ import {
   POPULAR_GENRES_BY_NAME,
   isPopularGenre,
   popularGenreName,
+  isAdultGenre,
 } from "@/lib/genres";
 
 // Which /genre/:id pages exist is decided in exactly ONE place —
@@ -33,8 +34,12 @@ async function fetchGenrePage(genreId: string, sort: string, page: number) {
     order_by: sort,
     limit:    "24",
     page:     String(page),
-    sfw:      "true",
   });
+  // Jikan's sfw flag filters an explicit genre OUT of its own genre listing,
+  // so /genre/9 (Ecchi) and /genre/12 (Hentai) came back empty with it set.
+  // Adult genres are requested unfiltered; every other genre keeps the flag.
+  // See ADULT_GENRE_IDS in src/lib/genres.js.
+  if (!isAdultGenre(genreId)) params.set("sfw", "true");
   return jikanFetch(`/anime?${params}`);
 }
 
@@ -83,7 +88,7 @@ export default function Genre() {
 
   // ── Not a page we publish ──────────────────────────────────────────────
   // noindex is already set above. This used to render a complete listing for
-  // e.g. /genre/9 (Ecchi) — a live page the sitemap described as "Genre Not
+  // e.g. /genre/18 (Mecha) — a live page the sitemap described as "Genre Not
   // Found", which is the exact soft-404 pattern Search Console flags. Now the
   // URL is short, honest, non-indexable, and its only outbound links are to
   // genre hubs that really exist.

@@ -30,10 +30,13 @@
  *   9   hub / static pages      (/browse, /schedule, /az-list, /mood,
  *                                /hidden-gems, /about, /dmca, /terms, /contact)
  *   8   category listings       (/category/:slug)
- *   14  genre hubs              (/genre/:id — POPULAR_GENRES in
+ *   16  genre hubs              (/genre/:id — POPULAR_GENRES in
  *                                src/lib/genres.js; every other MAL genre
  *                                renders the noindexed "Genre Not Found"
- *                                page instead, so it is not written here)
+ *                                page instead, so it is not written here.
+ *                                Two of the 16 are adult — Ecchi and
+ *                                Hentai — and those two are topped up from
+ *                                AniList, see fillThinAdultGenreLists)
  *   199 anime detail pages      (/anime/:id/:slug)
  *   199 "anime like X" pages    (/anime-like/:id/:slug)
  *   1   year hub                (/best-anime)
@@ -112,7 +115,7 @@ import {
 // ── Genre catalogue ──────────────────────────────────────────────────
 // One source of truth for genre ids, shared with the React app and with
 // api/sitemap-pages.js — see the long note in src/lib/genres.js.
-//   GENRE_NAMES_BY_ID     all 58 MAL ids: used to normalize AniList genre
+//   GENRE_NAMES_BY_ID     all 59 MAL ids: used to normalize AniList genre
 //                         names into mal_ids so a title's genre list is
 //                         never silently emptied.
 //   POPULAR_*             the genres that get a hub page, a chip and a
@@ -120,9 +123,13 @@ import {
 //                         written to /genre/:id any more, which is what
 //                         stopped the sitemaps advertising URLs that
 //                         render the noindexed "Genre Not Found" page.
+//   isAdultGenre         Ecchi/Hentai need their listings fetched WITHOUT
+//   requiresAniList…      Jikan's sfw flag, and Hentai additionally needs
+//                         isAdult:true on AniList.
 import {
   GENRE_NAMES_BY_ID, GENRE_ID_BY_NAME, POPULAR_GENRE_IDS,
   POPULAR_GENRE_NAMES_BY_ID, POPULAR_GENRES_BY_NAME, isPopularGenre,
+  isAdultGenre, requiresAniListAdultFilter,
 } from '../src/lib/genres.js';
 
 const BASE      = 'https://www.kamistream.fun';
@@ -366,40 +373,51 @@ function fromAniList(m) {
   };
 }
 
-/** Fetch up to `want` top anime from AniList (50 per request, 4 for 200). */
-async function collectAniListPool(want) {
-  const out = [];
-  const perPage = 50;
-  const pages = Math.ceil(want / perPage);
-  const query = `query($page:Int,$perPage:Int){
-    Page(page:$page,perPage:$perPage){
-      media(type:ANIME,sort:SCORE_DESC,isAdult:false){
-        idMal format episodes status season seasonYear averageScore genres
+/** The AniList selection every title in this build needs. */
+const AL_MEDIA_FIELDS = `idMal format episodes status season seasonYear averageScore genres
         title{ romaji english native }
         description(asHtml:false)
         coverImage{ extraLarge large }
         trailer{ id site thumbnail }
         studios(isMain:true){ nodes{ name } }
-        startDate{ year month day } endDate{ year month day }
-      }
-    }
-  }`;
+        startDate{ year month day } endDate{ year month day }`;
+
+/**
+ * One page of AniList media, already shaped like Jikan. `mediaArgs` is the
+ * raw filter list (type:ANIME,sort:SCORE_DESC,isAdult:false or
+ * type:ANIME,genre:"Hentai",isAdult:true), so the pool request and the
+ * adult-genre seeds below cannot drift into asking for different fields or
+ * a different result shape.
+ */
+async function fetchAniListPage(mediaArgs, { page = 1, perPage = 50 } = {}) {
+  const res = await fetch(ANILIST, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({
+      query: `query($page:Int,$perPage:Int){
+        Page(page:$page,perPage:$perPage){
+          media(${mediaArgs}){${AL_MEDIA_FIELDS}}
+        }
+      }`,
+      variables: { page, perPage },
+    }),
+    signal: AbortSignal.timeout(20000),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const json = await res.json();
+  if (json.errors?.length) throw new Error(json.errors[0].message);
+  return (json?.data?.Page?.media ?? []).map(fromAniList).filter(Boolean);
+}
+
+/** Fetch up to `want` top anime from AniList (50 per request, 4 for 200). */
+async function collectAniListPool(want) {
+  const out = [];
+  const perPage = 50;
+  const pages = Math.ceil(want / perPage);
 
   for (let page = 1; page <= pages; page++) {
     try {
-      const res = await fetch(ANILIST, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify({ query, variables: { page, perPage } }),
-        signal: AbortSignal.timeout(20000),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const json = await res.json();
-      if (json.errors?.length) throw new Error(json.errors[0].message);
-      for (const m of json?.data?.Page?.media ?? []) {
-        const norm = fromAniList(m);
-        if (norm) out.push(norm);
-      }
+      out.push(...await fetchAniListPage('type:ANIME,sort:SCORE_DESC,isAdult:false', { page, perPage }));
     } catch (err) {
       warn(`  ! AniList page ${page} failed (${err.message}) — continuing`);
     }
@@ -447,6 +465,8 @@ async function collectPool() {
 // make every build slow and failure-prone. Instead each listing is derived
 // from the top-anime pool we already hold: every title genuinely belongs to
 // the listing, so the grid is an honest preview of the topic's own page.
+// The ONE exception is the adult genre hubs, which cannot be derived from
+// the pool at all — see fillThinAdultGenreLists below.
 const LIST_LIMIT = 24;
 
 function deriveGenreLists(pool) {
@@ -459,6 +479,54 @@ function deriveGenreLists(pool) {
       .slice(0, LIST_LIMIT));
   }
   return map;
+}
+
+/**
+ * ── The one exception to "derive every listing from the pool" ──────────
+ * /genre/9 (Ecchi) and /genre/12 (Hentai) are published hubs, but an
+ * explicit genre can never be derived from the pool: MAL's /top/anime
+ * contains no explicit titles, and the AniList pool request runs with
+ * isAdult:false. Left alone, both hubs would ship with an empty grid — a
+ * page that is in both sitemaps, renders its own H1 and links nowhere,
+ * which is the soft-404 shape this file exists to prevent.
+ *
+ * So those hubs get ONE extra AniList request each, filtered to the genre
+ * itself, with isAdult:true only for Hentai (AniList returns nothing for
+ * genre:"Hentai" with isAdult:false, while genre:"Ecchi" returns its
+ * mainstream titles precisely because it is false — see
+ * ANILIST_ADULT_GENRE_IDS in src/lib/genres.js). At most two extra requests
+ * per build, and only when a hub is thin.
+ *
+ * The seeds are deliberately NOT merged into the shared pool: the pool also
+ * drives the anime pages, the "anime like X" pages and every score-sorted
+ * category listing, and adult titles must not leak into those just because
+ * someone asked for a genre hub.
+ */
+const ADULT_HUB_MIN = 12;
+
+async function fillThinAdultGenreLists(genreLists) {
+  for (const id of POPULAR_GENRE_IDS.filter(isAdultGenre)) {
+    const have = genreLists.get(id) ?? [];
+    if (have.length >= ADULT_HUB_MIN) {
+      console.log(`  · /genre/${id} keeps its ${have.length} pool titles (no seed needed)`);
+      continue;
+    }
+    const name  = POPULAR_GENRE_NAMES_BY_ID[id];
+    const adult = requiresAniListAdultFilter(id);
+    try {
+      const seeded = await fetchAniListPage(
+        `type:ANIME,genre:"${name}",isAdult:${adult},sort:POPULARITY_DESC`,
+        { perPage: 50 }
+      );
+      const seen  = new Set(have.map(a => a.mal_id));
+      const added = seeded.filter(a => !seen.has(a.mal_id));
+      const list  = [...have, ...added].slice(0, LIST_LIMIT);
+      genreLists.set(id, list);
+      console.log(`  · /genre/${id} (${name}) seeded from AniList: ${have.length} pool + ${list.length - have.length} seeded (isAdult:${adult})`);
+    } catch (err) {
+      warn(`  ! /genre/${id} (${name}) seed failed (${err.message}) — hub ships with ${have.length} pool titles`);
+    }
+  }
 }
 
 function deriveCategoryLists(pool) {
@@ -1464,7 +1532,10 @@ async function main() {
   const catsWithGrid = [...categoryLists.values()].filter(l => l.length).length;
   console.log(`  ✓ category pages: ${CATEGORIES.length} (${catsWithGrid} with a listing grid)`);
 
-  // 3. Genre hubs
+  // 3. Genre hubs. The two adult hubs are topped up from AniList first —
+  //    no adult title can be derived from the pool, so without this they
+  //    would ship as empty grids (see fillThinAdultGenreLists).
+  await fillThinAdultGenreLists(genreLists);
   for (const [id, list] of genreLists) writeRoute(`/genre/${id}`, genreDoc(id, list));
   const genresWithGrid = [...genreLists.values()].filter(l => l.length).length;
   console.log(`  ✓ genre pages: ${genreLists.size} (${genresWithGrid} with a listing grid)`);

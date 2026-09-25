@@ -139,6 +139,19 @@
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
+  <!-- Adult genres (Ecchi 9, Hentai 12). Both are in POPULAR_GENRES in
+       src/lib/genres.js, so they have real hub pages whose listings are
+       fetched without Jikan's sfw flag (see ADULT_GENRE_IDS there). -->
+  <url>
+    <loc>https://www.kamistream.fun/genre/9</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.6</priority>
+  </url>
+  <url>
+    <loc>https://www.kamistream.fun/genre/12</loc>
+    <changefreq>weekly</changefreq>
+    <priority>0.6</priority>
+  </url>
   <url>
     <loc>https://www.kamistream.fun/mood</loc>
     <changefreq>weekly</changefreq>

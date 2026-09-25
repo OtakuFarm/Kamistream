@@ -6,6 +6,8 @@
 // competed and still hit 429s. Now there is ONE queue for the whole app.
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { isAdultGenre } from "@/lib/genres";
+
 const JIKAN = "https://api.jikan.moe/v4";
 const AL    = "https://graphql.anilist.co";
 
@@ -106,12 +108,13 @@ async function alQuery(gql: string, vars: Record<string, any> = {}) {
 async function alPage(
   vars: Record<string, any>,
   extraFilters = "",
-  sort = "POPULARITY_DESC"
+  sort = "POPULARITY_DESC",
+  includeAdult = false
 ) {
   const d = await alQuery(
     `query($p:Int,$perPage:Int){Page(page:$p,perPage:$perPage){
       pageInfo{currentPage lastPage hasNextPage}
-      media(type:ANIME,isAdult:false,sort:${sort}${extraFilters}){${AL_F}}
+      media(type:ANIME,isAdult:${includeAdult},sort:${sort}${extraFilters}){${AL_F}}
     }}`,
     { p: vars.page || 1, perPage: vars.limit || 24 }
   );
@@ -131,10 +134,14 @@ async function alPage(
 // ─────────────────────────────────────────────────────────────────────────────
 const GENRE_MAP: Record<string, string> = {
   "1": "Action", "2": "Adventure", "4": "Comedy", "7": "Mystery",
-  "9": "Ecchi",
+  "9": "Ecchi", "12": "Hentai",
   // NOTE: AniList only accepts its own fixed genre set — Jikan/MAL-only
   // categories (Historical, School, Isekai, …) must map to the closest valid
   // AniList genre or the fallback query fails outright.
+  // Ecchi and Hentai ARE valid AniList genres; Hentai additionally only
+  // exists behind isAdult:true (handled in jikanToAL below), and a missing
+  // "12" entry here used to drop the genre filter altogether — the fallback
+  // answered /genre/12 with an unfiltered popularity list.
   "8": "Drama", "10": "Fantasy", "13": "Drama", "14": "Horror",
   "17": "Martial Arts", "18": "Mecha", "19": "Music", "22": "Romance",
   "23": "Slice of Life", "24": "Sci-Fi", "25": "Shoujo", "27": "Shounen",
@@ -199,6 +206,14 @@ export async function jikanToAL(endpoint: string): Promise<any> {
   const sort     = p.get("sort")    || "desc";
   const filter   = p.get("filter")  || "";
 
+  // AniList hides adult titles unless isAdult:true is set, and the sfw flag
+  // this endpoint was called with means nothing to AniList — so the *genre*
+  // decides, through the same helper the Jikan path uses to decide whether
+  // to send sfw at all (see ADULT_GENRE_IDS in src/lib/genres.js). A
+  // comma-separated genre list ("9,12", as the mood pages send) counts as
+  // adult when ANY id is.
+  const adult = genres.split(",").some(id => isAdultGenre(id));
+
   let alSort = "POPULARITY_DESC";
   // FIX: /top/anime was never handled — Top Rated / Top Anime fell through to
   // POPULARITY_DESC, so the fallback showed popular anime instead of top-ranked
@@ -250,5 +265,5 @@ export async function jikanToAL(endpoint: string): Promise<any> {
   if (filter === "airing") filters.push(",status:RELEASING");
   if (minScore) filters.push(`,averageScore_greater:${Math.round(parseFloat(minScore) * 10)}`);
 
-  return alPage({ page, limit }, filters.join(""), alSort);
+  return alPage({ page, limit }, filters.join(""), alSort, adult);
 }

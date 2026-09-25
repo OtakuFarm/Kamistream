@@ -8,6 +8,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { useQuery, useInfiniteQuery } from '@tanstack/react-query';
 import type { AniListNextAiring, AiringScheduleItem } from '@/types';
+import { requiresAniListAdultFilter } from '@/lib/genres';
 
 const ANILIST_API = 'https://graphql.anilist.co';
 
@@ -159,7 +160,16 @@ async function fetchALSearch(q: string, page = 1, filters: Record<string, any> =
   // never accidentally overwrite it (or vice versa) — previously this used
   // filterClauses[filterClauses.length - 1] = 'sort:...', which clobbered
   // whichever filter clause happened to be pushed last.
-  const filterClauses: string[] = ['type:ANIME', 'isAdult:false'];
+  // isAdult is a hard filter, not a preference: AniList returns NOTHING for
+  // genre:"Hentai" with isAdult:false, and isAdult:true would strip the
+  // mainstream titles out of every other listing. Only the Hentai hub flips
+  // it, and requiresAniListAdultFilter() accepts either the MAL id ('12') or
+  // the already-mapped AniList name ('Hentai') because browse.tsx maps the
+  // genre before calling this hook.
+  const filterClauses: string[] = [
+    'type:ANIME',
+    `isAdult:${requiresAniListAdultFilter(filters.genre) ? 'true' : 'false'}`,
+  ];
   let sortClause = 'sort:POPULARITY_DESC';
 
   if (q) filterClauses.push('search:$q');
@@ -221,6 +231,12 @@ async function fetchALSearch(q: string, page = 1, filters: Record<string, any> =
 // Must cover every id in POPULAR_GENRES (src/lib/genres.js) — a missing entry
 // here means the AniList fallback drops the filter and shows unfiltered
 // popular anime whenever Jikan rate-limits us.
+//
+// Ecchi (9) and Hentai (12) are genuine AniList genres (verified against the
+// live GenreCollection), so they map like any other. Hentai additionally
+// needs the isAdult flag flipped — see requiresAniListAdultFilter() and the
+// isAdult clause in fetchALSearch below; Ecchi must NOT flip it, because its
+// mainstream titles are the isAdult:false ones.
 // ─────────────────────────────────────────────────────────────────────────────
 export const JIKAN_GENRE_TO_ANILIST: Record<string, string> = {
   '1':  'Action',
@@ -228,7 +244,9 @@ export const JIKAN_GENRE_TO_ANILIST: Record<string, string> = {
   '4':  'Comedy',
   '7':  'Mystery',
   '8':  'Drama',
+  '9':  'Ecchi',
   '10': 'Fantasy',
+  '12': 'Hentai',
   '14': 'Horror',
   '22': 'Romance',
   '24': 'Sci-Fi',

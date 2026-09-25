@@ -17,7 +17,7 @@ import {
   JIKAN_TYPE_TO_ANILIST,
   JIKAN_STATUS_TO_ANILIST,
 } from '@/lib/anilist';
-import { POPULAR_GENRES } from '@/lib/genres';
+import { POPULAR_GENRES, isAdultGenre } from '@/lib/genres';
 
 // ── Jikan top anime (infinite) ────────────────────────────────────────
 // Routed through the shared rate-limit queue in lib/jikan.ts instead of a
@@ -39,7 +39,10 @@ async function fetchJikanFiltered(f: Filters, page = 1) {
   params.set('order_by', f.orderBy || 'popularity');
   params.set('limit', '25');
   params.set('page',  String(page));
-  params.set('sfw',   'true');
+  // sfw=true empties an explicit genre's own listing — /browse?genre=12 is the
+  // same query as /genre/12 — so the flag is only sent for non-adult genres.
+  // See ADULT_GENRE_IDS in src/lib/genres.js.
+  if (!isAdultGenre(f.genre)) params.set('sfw', 'true');
   return fetchJikan(`/anime?${params}`);
 }
 

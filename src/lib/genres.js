@@ -16,15 +16,17 @@
  * noindex" and burns the crawl budget Google gives us.
  *
  * ── TWO TABLES, TWO DIFFERENT JOBS ─────────────────────────────────
- *   GENRE_NAMES_BY_ID   every MAL anime genre id → name (58 entries,
- *                       exactly what api.jikan.moe/v4/genres/anime
- *                       returns). Used for NORMALIZATION: turning the
- *                       genre names AniList hands back at build time
- *                       into the numeric mal_id shape the rest of the
- *                       build expects (see scripts/prerender.mjs), so
- *                       a title's genre list is never silently emptied.
+ *   GENRE_NAMES_BY_ID   every MAL anime genre id → name (59 entries:
+ *                       Jikan's genres + themes + demographics, plus
+ *                       the two explicit genres from
+ *                       /genres/anime?filter=explicit_genres). Used for
+ *                       NORMALIZATION: turning the genre names AniList
+ *                       hands back at build time into the numeric
+ *                       mal_id shape the rest of the build expects (see
+ *                       scripts/prerender.mjs), so a title's genre list
+ *                       is never silently emptied.
  *
- *   POPULAR_GENRES      the 14 genres we actually publish a hub page
+ *   POPULAR_GENRES      the 16 genres we actually publish a hub page
  *                       for. These are the genres that appear in the
  *                       sidebar, the browse filter, the genre
  *                       quick-switch bar, the topbar/footer keyword
@@ -32,6 +34,20 @@
  *                       Add or remove an entry here and every one of
  *                       those surfaces changes with it — that is the
  *                       whole point of the file.
+ *
+ * ── ADULT GENRES (Ecchi 9, Hentai 12) ──────────────────────────────
+ * These two are Jikan's explicit genres and they are NOT fetched like
+ * the rest, in two independent ways:
+ *   · Jikan filters an explicit genre out of its own genre listing when
+ *     `sfw=true` is set, so /genre/12 would come back empty. Adult
+ *     listings are requested without sfw.
+ *   · AniList hides Hentai entirely unless `isAdult:true` is set, while
+ *     Ecchi's mainstream titles (No Game No Life, KonoSuba) are exactly
+ *     the isAdult:false ones. So only Hentai flips that flag.
+ * ADULT_GENRE_IDS / ANILIST_ADULT_GENRE_IDS below encode those two
+ * facts separately; every fetcher asks these helpers instead of
+ * hardcoding an sfw/isAdult value, which is what keeps the hubs
+ * non-empty whichever API answers.
  *
  * ── WHY PLAIN .js AND NOT .ts ──────────────────────────────────────
  * Three very different consumers import it: the Vite/React bundle,
@@ -50,9 +66,10 @@
 
 /**
  * Every Jikan/MAL anime genre id → its MAL name.
- * Verified against https://api.jikan.moe/v4/genres/anime (sfw + themes
- * + demographics + explicit genres). Used for name → id normalization;
- * it is NOT the list of pages we publish — see POPULAR_GENRES.
+ * Verified against https://api.jikan.moe/v4/genres/anime (genres + themes
+ * + demographics) and ?filter=explicit_genres for 9/Ecchi and 12/Hentai.
+ * Used for name → id normalization; it is NOT the list of pages we
+ * publish — see POPULAR_GENRES.
  */
 export const GENRE_NAMES_BY_ID = Object.freeze({
   '1':  'Action',
@@ -62,6 +79,7 @@ export const GENRE_NAMES_BY_ID = Object.freeze({
   '8':  'Drama',
   '9':  'Ecchi',
   '10': 'Fantasy',
+  '12': 'Hentai',
   '13': 'Historical',
   '14': 'Horror',
   '17': 'Martial Arts',
@@ -136,6 +154,12 @@ export const POPULAR_GENRES = Object.freeze([
   { id: 14, name: 'Horror' },
   { id: 41, name: 'Thriller' },
   { id: 66, name: 'Isekai' },
+  // ── Adult genres — see the ADULT GENRES note at the top of this file.
+  // Listed last so the existing sidebar / browse-filter order is untouched;
+  // the chip bar sorts by name anyway (Ecchi lands after Drama, Hentai after
+  // Fantasy).
+  { id: 9,  name: 'Ecchi' },
+  { id: 12, name: 'Hentai' },
 ]);
 
 /** Locale-independent text compare — see DETERMINISM above. */
@@ -163,6 +187,50 @@ export const POPULAR_GENRE_NAMES_BY_ID = Object.freeze(
 
 /** The public ids as strings, in POPULAR_GENRES order. */
 export const POPULAR_GENRE_IDS = Object.freeze(POPULAR_GENRES.map(g => String(g.id)));
+
+/**
+ * Jikan's explicit_genres: /anime?genres=<id>&sfw=true returns nothing for
+ * these, because sfw filters the genre out of its own listing. Every request
+ * for an adult genre is therefore sent WITHOUT sfw (see isAdultGenre()).
+ */
+export const ADULT_GENRE_IDS = Object.freeze([9, 12]);
+
+/**
+ * The subset of ADULT_GENRE_IDS whose AniList catalogue is only reachable
+ * with isAdult:true. Measured against the live API:
+ *   genre:"Hentai", isAdult:false → 0 results
+ *   genre:"Hentai", isAdult:true  → the hentai catalogue
+ *   genre:"Ecchi",  isAdult:false → No Game No Life, KonoSuba, 7DS
+ *   genre:"Ecchi",  isAdult:true  → only the ~dozen adult-flagged titles
+ * So Hentai flips the flag and Ecchi must not: collapsing the two lists
+ * would either empty the Hentai hub or shrink the Ecchi hub to a handful of
+ * explicit titles.
+ */
+export const ANILIST_ADULT_GENRE_IDS = Object.freeze([12]);
+
+/**
+ * Matches a MAL id ('12'), a numeric id (12) or a genre name ('Hentai',
+ * case-insensitive) against `ids`. Names matter because browse.tsx maps the
+ * selected genre to its AniList *name* before calling the fallback, so the
+ * helpers have to recognise both shapes.
+ */
+function matchesGenreIds(ids, idOrName) {
+  const v = String(idOrName ?? '').trim().toLowerCase();
+  if (!v) return false;
+  const n = Number(v);
+  if (Number.isFinite(n) && ids.includes(n)) return true;
+  return POPULAR_GENRES.some(g => ids.includes(g.id) && g.name.toLowerCase() === v);
+}
+
+/** True for Ecchi/Hentai — i.e. "send this listing without Jikan's sfw flag". */
+export function isAdultGenre(idOrName) {
+  return matchesGenreIds(ADULT_GENRE_IDS, idOrName);
+}
+
+/** True for Hentai only — i.e. "this AniList query needs isAdult:true". */
+export function requiresAniListAdultFilter(idOrName) {
+  return matchesGenreIds(ANILIST_ADULT_GENRE_IDS, idOrName);
+}
 
 /** POPULAR_GENRES sorted by name — the shared chip order (prerender + React). */
 export const POPULAR_GENRES_BY_NAME = Object.freeze(
