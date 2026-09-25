@@ -104,7 +104,12 @@ function YearPage({ year }: { year: number }) {
   const chips = useMemo(() => yearGenres(list, 6), [list]);
   const rows  = useMemo(() => rankedRows(list), [list]);
 
-  useSEO({
+  const hasEnoughTitles = list.length >= MIN_TITLES_FOR_YEAR;
+
+  useSEO(!isLoading && !hasEnoughTitles ? {
+    title:   yearTitle(year),
+    noindex: true,
+  } : {
     title: yearTitle(year),
     description: yearDescription(year, list),
     url: bestOfYearPath(year),

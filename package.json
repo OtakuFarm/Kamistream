@@ -12,6 +12,7 @@
     "build:spa": "vite build",
     "icons": "node scripts/generate-icons.mjs",
     "prerender": "node scripts/prerender.mjs",
+    "audit:seo": "node scripts/audit-seo.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

@@ -524,7 +524,10 @@ export default function Watch() {
       episodeNum:  parseInt(epId),
       episodeName: currentEp?.title,
     },
-  } : {});
+  } : {
+    title:   'Anime Not Found',
+    noindex: true,
+  });
 
   if (detailLoading) return <WatchSkeleton />;
   if (!detail?.data) return <div className="p-8 text-center">Anime not found.</div>;

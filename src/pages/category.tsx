@@ -153,10 +153,13 @@ export default function Category() {
   const [page, setPage] = useState(1);
   const cat = CATEGORIES[slug ?? ""];
 
-  useSEO({
-    title:       cat ? `${cat.label} Anime` : "Category",
-    description: cat ? `${cat.description} — streaming free in HD on KamiStream.` : "Browse anime by category on KamiStream.",
+  useSEO(cat ? {
+    title:       `${cat.label} Anime`,
+    description: `${cat.description} — streaming free in HD on KamiStream.`,
     url:         slug ? `/category/${slug}` : undefined,
+  } : {
+    title:   'Category Not Found',
+    noindex: true,
   });
 
   const { data, isLoading, isFetching, error, refetch } = useQuery({
