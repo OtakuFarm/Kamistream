@@ -269,6 +269,9 @@ export const useAnimeDetail = (malId: number | string) =>
       // so relying on one exact full-title query can incorrectly return no
       // match.
       const rawTitle = String(malId).replace(/-/g, ' ');
+      const rawWords = rawTitle.replace(/[^a-z0-9\s]/gi, ' ').split(/\s+/).filter(Boolean);
+      const shortTitle = rawWords.slice(0, 2).join(' ');
+      const baseWords = rawWords.filter(word => !/^(?:season|s2|s3|2nd|3rd)$/i.test(word)).slice(0, 3).join(' ');
       const normalizeRequestSlug = (value: string) => value
         .replace(/^pokoki(?:-|$)/, 'pokeoki');
       const normalizedRequest = normalizeRequestSlug(String(malId));
@@ -279,6 +282,8 @@ export const useAnimeDetail = (malId: number | string) =>
         rawTitle.replace(/\s+(?:season\s+\d+|\d+(?:st|nd|rd|th)\s+season)\b/gi, '').trim(),
         normalizedTitle.replace(/\s+(?:season\s+\d+|\d+(?:st|nd|rd|th)\s+season)\b/gi, '').trim(),
         rawTitle.split(':')[0].trim(),
+        shortTitle,
+        baseWords,
       ].filter(Boolean)));
 
       let candidates: JikanAnime[] = [];
@@ -290,9 +295,9 @@ export const useAnimeDetail = (malId: number | string) =>
             { p: 1, q: query }
           )
         );
-        candidates = candidates.concat(result?.data || []);
+        candidates = candidates.concat(result?.data || []).filter((candidate, index, all) => all.findIndex(c => c.mal_id === candidate.mal_id) === index);
         if (candidates.some(a => [a.title, (a as any).title_english, (a as any).title_romanji]
-          .filter(Boolean).some(value => slugifyTitle(value) === String(malId)))) break;
+          .filter(Boolean).some(value => slugifyTitle(value) === normalizedRequest))) break;
       }
 
       const requested = String(malId);
