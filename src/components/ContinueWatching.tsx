@@ -1,6 +1,7 @@
 import React from "react";
 import { Link } from "wouter";
 import { Play, X, Clock } from "lucide-react";
+import { animePath } from "@/lib/seo";
 import { useWatchHistory, WatchHistoryEntry } from "@/hooks/useWatchHistory";
 
 function timeAgo(ms: number): string {
@@ -34,7 +35,7 @@ export function ContinueWatching() {
 
       <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-thin">
         {recent.map((item) => (
-          <Link key={item.mal_id} href={`/watch/${item.mal_id}/${item.ep_id}`}>
+          <Link key={item.mal_id} href={`${animePath(item.mal_id, item.title)}?episode=${item.ep_id}`}>
             <div className="kami-card group shrink-0 w-32 cursor-pointer">
               <div className="relative aspect-[2/3] rounded-xl overflow-hidden bg-[var(--card)] mb-2">
                 {item.image_url ? (
@@ -65,10 +66,8 @@ export function ContinueWatching() {
                   EP {item.ep_id}
                 </div>
 
-                {/* Progress bar — shows at 60% as generic "in progress" indicator */}
-                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-white/20">
-                  <div className="h-full bg-[var(--pink)] rounded-full" style={{ width: "60%" }} />
-                </div>
+                {/* Real episode data is shown instead of a fabricated video percentage. */}
+                <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-white/20" />
               </div>
 
               <p className="text-[11px] font-bold text-white line-clamp-2 leading-snug mb-0.5">
