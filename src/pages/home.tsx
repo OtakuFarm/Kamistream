@@ -194,7 +194,7 @@ export default function Home() {
   }, [heroAnimes.length, isHovered]);
 
   return (
-    <div className="p-4 md:p-6 space-y-10 pb-20">
+    <div className="p-3 sm:p-4 md:p-6 space-y-8 sm:space-y-10 pb-20">
 
       {/* Semantic H1 for the homepage — visually hidden, since the hero
           already shows the trending anime title as a decorative heading */}
@@ -224,18 +224,18 @@ export default function Home() {
             initial={{ opacity: 0, x: -24 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
-            className="absolute bottom-0 left-0 p-6 md:p-10 max-w-2xl"
+            className="absolute bottom-0 left-0 p-4 sm:p-6 md:p-10 max-w-2xl"
           >
             <div className="text-[10px] font-black text-[var(--pink)] tracking-[2px] uppercase mb-2">
               #{heroIndex + 1} Trending This Week
             </div>
-            <p className="text-3xl md:text-5xl font-heading font-black text-white leading-tight mb-3 line-clamp-2">
+            <p className="text-2xl sm:text-3xl md:text-5xl font-heading font-black text-white leading-tight mb-3 line-clamp-2">
               {activeHero.title}
             </p>
             <p className="text-[13px] md:text-[14px] text-[var(--text2)] line-clamp-2 md:line-clamp-3 mb-6 max-w-xl">
               {activeHero.synopsis}
             </p>
-            <div className="flex gap-3 flex-wrap">
+            <div className="flex gap-2 sm:gap-3 flex-wrap">
               <Link href={animePath(activeHero.mal_id, activeHero.title)}>
                 <button className="bg-gradient-to-r from-[var(--pink)] to-[var(--purple)] text-white px-6 py-2.5 rounded-xl text-[13px] font-bold hover:opacity-90 flex items-center gap-2">
                   <ChevronRight className="w-4 h-4" /> Watch Now
@@ -277,7 +277,7 @@ export default function Home() {
       {recentlyUpdated && recentlyUpdated.length > 0 && (
         <section>
           <SectionHeader icon={<Radio className="w-4 h-4" />} title="Recently Updated" color="var(--green)" href="/latest-episodes" big />
-          <div className="grid grid-cols-3 sm:grid-cols-5 md:grid-cols-7 lg:grid-cols-9 xl:grid-cols-11 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-5 md:grid-cols-7 lg:grid-cols-9 xl:grid-cols-11 gap-2">
             {recentlyUpdated.map((anime: any, i: number) => (
               <div key={anime.mal_id} className="relative kami-rise" style={{ animationDelay: `${Math.min(i * 40, 500)}ms` }}>
                 <AnimeCard anime={anime} />
