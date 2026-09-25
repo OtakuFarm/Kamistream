@@ -28,6 +28,14 @@ export default function DMCA() {
           </ul>
         </section>
         <section>
+          <h2 className="text-[15px] font-black text-white mb-2">Counter Notice & Repeat Claims</h2>
+          <p>If you believe material was removed by mistake, you may send a counter-notice to the same address with the removed URL, your identification, a statement under penalty of perjury that the removal was a mistake or misidentification, and your signature. We may restore access after reviewing the counter-notice. Repeat or knowingly false claims may result in access restrictions for the sender.</p>
+        </section>
+        <section>
+          <h2 className="text-[15px] font-black text-white mb-2">How to Submit</h2>
+          <p>Send one email per notice to <a href="mailto:dmca@kamistream.fun" className="text-[var(--pink)] hover:underline">dmca@kamistream.fun</a>. Include the exact KamiStream URL, the anime title, the copyrighted work, your authority to act, and all required statements. Please do not send passwords, payment details, or unrelated personal information.</p>
+        </section>
+        <section>
           <h2 className="text-[15px] font-black text-white mb-2">Response Time</h2>
           <p>We will respond to valid DMCA notices within 72 hours and will take appropriate action, which may include removing the content or disabling access to it.</p>
         </section>

@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { DetailSkeleton } from '@/components/LoadingSkeleton';
 import { AnimeLoader } from '@/components/AnimeLoader';
+import { AnimeReviews } from '@/components/AnimeReviews';
 
 // ── Constants ────────────────────────────────────────────────────────
 const EP_PAGE_SIZE = 100;
@@ -637,6 +638,28 @@ export default function AnimeDetail() {
               )}
             </div>
 
+             {/* ── Viewing guide — original, data-derived content ─────── */}
+             <section className="backdrop-blur-md bg-white/[0.03] border border-white/10 rounded-2xl p-4">
+               <h2 className="text-[13px] font-black text-white uppercase tracking-widest mb-3 flex items-center gap-2">
+                 <span className="w-1 h-4 rounded-full bg-gradient-to-b from-[var(--pink)] to-[var(--purple)]" />
+                 Who should watch {anime.title}?
+               </h2>
+               <p className="text-[13px] text-white/70 leading-relaxed">
+                 {anime.genres?.length
+                   ? `If you enjoy ${anime.genres.slice(0, 3).map((g: any) => g.name).join(', ')} anime, ${anime.title} is worth adding to your watchlist. `
+                   : `${anime.title} is a useful pick for viewers looking for a new anime to start. `}
+                 {anime.studios?.length ? `It is produced by ${anime.studios.map((s: any) => s.name).join(', ')}.` : 'Use the details below to check the format, status, and episode count before you begin.'}
+               </p>
+               <div className="flex flex-wrap gap-2 mt-3">
+                 {(anime.genres || []).slice(0, 4).map((g: any) => (
+                   <Link key={g.mal_id} href={`/genre/${g.mal_id}`} className="text-[11px] font-bold text-[var(--pink)] bg-[var(--pink)]/10 border border-[var(--pink)]/25 rounded-lg px-2.5 py-1.5 hover:bg-[var(--pink)]/20 transition-colors">
+                     More {g.name} anime
+                   </Link>
+                 ))}
+               </div>
+             </section>
+
+
             {/* ── Synopsis — glass card ───────────────────────────────── */}
             <section className="backdrop-blur-md bg-white/[0.03] border border-white/10 rounded-2xl p-4 shadow-lg shadow-black/20">
               <h2 className="text-[13px] font-black text-white uppercase tracking-widest mb-2 flex items-center gap-2">
@@ -648,7 +671,7 @@ export default function AnimeDetail() {
 
             {/* ── Relations ─────────────────────────────────────────── */}
             {relationsFiltered.length > 0 && (
-              <section>
+               <section>
                 <h2 className="text-[13px] font-black text-white uppercase tracking-widest mb-3 flex items-center gap-2">
                   <span className="w-1 h-4 rounded-full bg-gradient-to-b from-[var(--pink)] to-[var(--purple)]" />
                   Related Anime
@@ -680,6 +703,9 @@ export default function AnimeDetail() {
                 </div>
               </section>
             )}
+
+             <AnimeReviews malId={resolvedId} />
+
 
             {/* ── Characters ────────────────────────────────────────── */}
             {characters.length > 0 && (
