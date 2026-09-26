@@ -6,6 +6,7 @@ import { GridSkeleton } from "@/components/LoadingSkeleton";
 import { useSEO } from "@/hooks/useSEO";
 import { ChevronLeft, Loader2 } from "lucide-react";
 import { jikanFetch } from "@/lib/jikanFetch";
+import { getAnimeList, withCatalogueFallback } from "@/lib/catalogue";
 import { dedupeByMalId } from "@/lib/dedupeAnime";
 import {
   POPULAR_GENRES_BY_NAME,
@@ -29,6 +30,28 @@ const SORT_OPTIONS = [
 ];
 
 async function fetchGenrePage(genreId: string, sort: string, page: number) {
+  // Catalogue first, Jikan second.
+  //
+  // getAnimeList returns the Jikan response shape, so this function's
+  // contract is unchanged and nothing downstream knows the difference.
+  // withCatalogueFallback handles the three cases that matter while the
+  // catalogue is being filled in: the flag being off, the genre not being
+  // imported yet (empty result -> Jikan), and Supabase being unreachable
+  // (throws -> Jikan). A partially-populated catalogue therefore degrades
+  // to today's behaviour rather than showing an empty grid.
+  return withCatalogueFallback(
+    () => getAnimeList({
+      genreId,
+      page,
+      limit: 24,
+      sort: sort === 'score' ? 'score' : sort === 'start_date' ? 'recent' : 'popular',
+    }),
+    () => fetchGenrePageFromJikan(genreId, sort, page),
+    (res) => !res?.data?.length,
+  );
+}
+
+async function fetchGenrePageFromJikan(genreId: string, sort: string, page: number) {
   const params = new URLSearchParams({
     genres:   genreId,
     order_by: sort,
