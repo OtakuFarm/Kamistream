@@ -14,6 +14,7 @@
     "prerender": "node scripts/prerender.mjs",
     "sitemaps": "node scripts/sitemaps.mjs",
     "audit:seo": "node scripts/audit-seo.mjs",
+    "audit:live": "node scripts/audit-sitemap-live.mjs",
     "verify:sitemap": "node scripts/verify-sitemap.mjs",
     "verify": "npm run verify:sitemap && npm run audit:seo",
     "preview": "vite preview"
