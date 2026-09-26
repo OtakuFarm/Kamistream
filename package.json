@@ -17,6 +17,7 @@
     "audit:live": "node scripts/audit-sitemap-live.mjs",
     "verify:sitemap": "node scripts/verify-sitemap.mjs",
     "verify": "npm run verify:sitemap && npm run audit:seo",
+    "import:anime": "node scripts/import/import-anime.mjs",
     "preview": "vite preview"
   },
   "dependencies": {
