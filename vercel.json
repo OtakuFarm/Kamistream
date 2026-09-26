@@ -64,7 +64,6 @@
       "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }]
     }
   ],
-  "$comment": "vercel.json notes. The three retired sitemap 301s below exist because those files were removed when the sitemap was rebuilt on the manifest in src/lib/routes.js. Without an explicit redirect they fall through the catch-all rewrite to /index.html and answer 200 text/html - a soft 404, which is worse than a real 404 because a crawler believes it succeeded. /sitemap.xml was the old hand-maintained list and now points at the index; /sitemap-anime.xml became /sitemap-media.xml; /sitemap-pages.xml became /sitemap-static.xml.",
   "redirects": [
     {
       "source": "/(.*)",
