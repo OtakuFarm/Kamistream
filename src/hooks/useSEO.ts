@@ -1,5 +1,7 @@
-import { useEffect } from 'react';
-import { SITE_URL } from '@/lib/seo';
+import { useEffect, useMemo } from 'react';
+import { SITE_URL, buildRoutes, KINDS, clampText } from '@/lib/routes';
+import { POPULAR_GENRES_BY_NAME, isPopularGenre } from '@/lib/genres';
+import { hubTitle, yearTitle } from '@/lib/bestOfYear';
 
 interface SEOProps {
   title?:       string;
@@ -28,6 +30,33 @@ interface SEOProps {
 const DEFAULT_TITLE   = 'KamiStream — Watch Anime Free in HD';
 const DEFAULT_DESC    = 'Stream thousands of anime episodes free on KamiStream. Sub & dub, trending, seasonal and classic anime all in one place.';
 const DEFAULT_IMAGE   = `${SITE_URL}/opengraph.jpg`;
+
+/**
+ * The manifest is consulted for any page that did NOT pass an explicit
+ * title. That is the fix for the drift this codebase had for months: the
+ * <title> a crawler saw on the prerendered HTML, the one React set after
+ * a client-side navigation, and the one in the sitemap were three
+ * hand-maintained strings that had already fallen out of sync. Now all
+ * three read the same rows in src/lib/routes.js.
+ *
+ * An explicit `title` still wins — pages whose metadata genuinely depends
+ * on runtime data (an anime synopsis, a year page's ranked list) still
+ * pass one, and the prerenderer builds the identical string.
+ */
+function manifestEntryFor(path: string) {
+  // /genre/:id and /best-anime/:year are parameterised, so they need the
+  // static path matched by shape rather than looked up by exact key.
+  const genre = path.match(/^\/genre\/(\d+)/);
+  if (genre && isPopularGenre(genre[1])) {
+    const g = POPULAR_GENRES_BY_NAME.find(x => String(x.id) === genre[1]);
+    return g ? { title: `${g.name} Anime — Watch Free Online | KamiStream`, description: null } : null;
+  }
+  const year = path.match(/^\/best-anime\/(\d{4})$/);
+  if (year) return { title: yearTitle(Number(year[1])), description: null };
+
+  const all = buildRoutes({ genreIds: [], years: [] });
+  return all.find(r => r.kind !== KINDS.NOINDEX && r.path === path) || null;
+}
 
 function setMeta(property: string, content: string, isName = false) {
   const attr = isName ? 'name' : 'property';
@@ -66,9 +95,6 @@ function removeJsonLd(id: string) {
 }
 
 export function useSEO({ title, description, image, url, type = 'website', noindex, jsonLd }: SEOProps = {}) {
-  const fullTitle = title ? `${title} | KamiStream` : DEFAULT_TITLE;
-  const desc      = description || DEFAULT_DESC;
-  const img       = image || DEFAULT_IMAGE;
   // Canonical: prefer the explicit per-page path, otherwise the current
   // path. (Homepage fallback only when location is unavailable.)
   const pageUrl   = url
@@ -76,6 +102,24 @@ export function useSEO({ title, description, image, url, type = 'website', noind
     : (typeof window !== 'undefined'
         ? `${SITE_URL}${window.location.pathname}`
         : SITE_URL);
+
+  // Manifest lookup is keyed on the current path, so it is recomputed only
+  // when navigation actually changes the URL.
+  const path      = url || (typeof window !== 'undefined' ? window.location.pathname : '/');
+  const fromManifest = useMemo(() => (title ? null : manifestEntryFor(path)), [title, path]);
+
+  // NOTE the two different title shapes. An explicit `title` from a page
+  // is a BARE title and gets the brand suffix appended, which is how every
+  // page has always called this. A manifest title is ALREADY complete
+  // ("... | KamiStream"), so appending again would produce
+  // "Estimated Schedule | KamiStream | KamiStream". They are kept
+  // deliberately distinct rather than normalised, because normalising
+  // would mean stripping suffixes off a string that is sometimes both.
+  const fullTitle = title
+    ? `${title} | KamiStream`
+    : (fromManifest?.title || DEFAULT_TITLE);
+  const desc      = description || fromManifest?.description || DEFAULT_DESC;
+  const img       = image || DEFAULT_IMAGE;
 
   useEffect(() => {
     document.title = fullTitle;

@@ -1,7 +1,12 @@
+# robots.txt — KamiStream
+# The Disallow list mirrors NOINDEX_ROUTES in src/lib/routes.js. Those
+# pages carry <meta name="robots" content="noindex, follow"> at runtime;
+# this file stops crawlers wasting budget on them before they get there.
+# scripts/verify-sitemap.mjs asserts the two never disagree.
+
 User-agent: *
 Allow: /
 Disallow: /admin
-Disallow: /admin/
 Disallow: /api/
 Disallow: /watch/
 Disallow: /login
@@ -10,16 +15,21 @@ Disallow: /profile
 Disallow: /stats
 Disallow: /watchlist
 Disallow: /achievements
+Disallow: /leaderboard
+Disallow: /challenges
+Disallow: /quiz
+Disallow: /community
 Disallow: /creator/
 Disallow: /*?q=
 
-# Sitemaps — submit the index in Search Console; it points to the three below
+# Submit the INDEX in Search Console. It points at the two child sitemaps
+# and Google discovers them from there — submitting the children directly
+# as well just made the old three-file setup harder to reason about.
 Sitemap: https://www.kamistream.fun/sitemap-index.xml
-Sitemap: https://www.kamistream.fun/sitemap.xml
-Sitemap: https://www.kamistream.fun/sitemap-pages.xml
-Sitemap: https://www.kamistream.fun/sitemap-anime.xml
 
-# Block AI scrapers (optional — protects your content)
+# Block AI training crawlers. NOTE: this is a policy decision, not an SEO
+# one, and it is deliberately separate from the Google rules above so
+# changing it cannot accidentally unblock or block search engines.
 User-agent: GPTBot
 Disallow: /
 
@@ -27,4 +37,10 @@ User-agent: CCBot
 Disallow: /
 
 User-agent: anthropic-ai
+Disallow: /
+
+User-agent: ClaudeBot
+Disallow: /
+
+User-agent: Google-Extended
 Disallow: /

@@ -2,7 +2,10 @@
 import { writeFileSync } from 'node:fs';
 
 const BASE = 'https://www.kamistream.fun';
-const SITEMAP = `${BASE}/sitemap-anime.xml`;
+// The anime pages moved from /sitemap-anime.xml to /sitemap-media.xml when
+// the sitemap architecture was consolidated onto the manifest in
+// src/lib/routes.js. Pointing at the old name would 404 the whole audit.
+const SITEMAP = `${BASE}/sitemap-media.xml`;
 const SAMPLE_SIZE = Number(process.env.SEO_SAMPLE_SIZE || 12);
 const results = [];
 

@@ -19,21 +19,14 @@
       "headers": [{ "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }]
     },
     {
-      "source": "/sitemap.xml",
-      "headers": [
-        { "key": "Cache-Control", "value": "public, max-age=86400" },
-        { "key": "Content-Type", "value": "application/xml; charset=utf-8" }
-      ]
-    },
-    {
-      "source": "/sitemap-anime.xml",
+      "source": "/sitemap-static.xml",
       "headers": [
         { "key": "Cache-Control", "value": "public, max-age=86400, s-maxage=86400" },
         { "key": "Content-Type", "value": "application/xml; charset=utf-8" }
       ]
     },
     {
-      "source": "/sitemap-pages.xml",
+      "source": "/sitemap-media.xml",
       "headers": [
         { "key": "Cache-Control", "value": "public, max-age=86400, s-maxage=86400" },
         { "key": "Content-Type", "value": "application/xml; charset=utf-8" }
@@ -80,10 +73,6 @@
     }
   ],
   "rewrites": [
-    { "source": "/sitemap-anime.xml",  "destination": "/api/sitemap-anime" },
-    { "source": "/sitemap-pages.xml",  "destination": "/api/sitemap-pages" },
-    { "source": "/sitemap-index.xml",  "destination": "/api/sitemap-index" },
-    { "source": "/sitemap.xml",       "destination": "/sitemap.xml" },
     { "source": "/robots.txt",        "destination": "/robots.txt" },
     { "source": "/manifest.json",     "destination": "/manifest.json" },
     { "source": "/ads.js",            "destination": "/ads.js" },

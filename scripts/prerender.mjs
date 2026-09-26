@@ -22,9 +22,10 @@
  * out once React has painted, so humans get instant content instead of a
  * blank white screen (this also fixes LCP / Core Web Vitals).
  *
- * It also emits /sitemap-anime.xml from the very same pool of titles (see
- * writeSitemapAnime), replacing a runtime API function that listed only 50 of
- * the 199 pages and could fail mid-crawl.
+ * It also writes the anime sitemap data sidecar from the very same pool of
+ * titles (see writeSitemapAnime); scripts/sitemaps.mjs turns that into
+ * /sitemap-media.xml plus the static pages sitemap and the index, replacing
+ * three runtime API functions that could each fail or 500 mid-crawl.
  *
  * ── ROUTES WRITTEN ─────────────────────────────────────────────────
  *   9   hub / static pages      (/browse, /schedule, /az-list, /mood,
@@ -114,7 +115,8 @@ import {
 
 // ── Genre catalogue ──────────────────────────────────────────────────
 // One source of truth for genre ids, shared with the React app and with
-// api/sitemap-pages.js — see the long note in src/lib/genres.js.
+// the sitemap builder (which reaches them through the manifest in
+// src/lib/routes.js) — see the long note in src/lib/genres.js.
 //   GENRE_NAMES_BY_ID     all 59 MAL ids: used to normalize AniList genre
 //                         names into mal_ids so a title's genre list is
 //                         never silently emptied.
@@ -131,6 +133,14 @@ import {
   POPULAR_GENRE_NAMES_BY_ID, POPULAR_GENRES_BY_NAME, isPopularGenre,
   isAdultGenre, requiresAniListAdultFilter,
 } from '../src/lib/genres.js';
+
+// ── Route manifest ────────────────────────────────────────────────────
+// The single source of truth for every indexable URL's title, description
+// and H1. Shared with the runtime useSEO hook, the footer nav and
+// scripts/sitemaps.mjs, so the prerendered <title> and the sitemap entry
+// for a page cannot drift apart the way their four hand-maintained copies
+// did.
+import { buildRoutes, KINDS } from '../src/lib/routes.js';
 
 const BASE      = 'https://www.kamistream.fun';
 const JIKAN     = 'https://api.jikan.moe/v4';
@@ -759,22 +769,25 @@ function writeRoute(routePath, doc) {
   written++;
 }
 
-// ── Sitemap ──────────────────────────────────────────────────────────
-// /sitemap-anime.xml is written HERE, at build time, from the same pool and
-// the same animePath() that just wrote the detail pages — so the sitemap can
-// never list a URL that was not prerendered, nor omit one that was.
+// ── Sitemap data sidecar ──────────────────────────────────────────────
+// This no longer writes XML itself. scripts/sitemaps.mjs owns ALL of the
+// XML now — the manifest in src/lib/routes.js is the single source of
+// truth for pages/categories/genres, and this file is the single source
+// of truth for anime titles.
 //
-// Previously this file came from api/sitemap-anime.js, which had two real
-// problems:
-//   • It listed only 50 URLs. It walked Jikan pages 1-4 and let a single
-//     failed page drop 25 titles, so a partial Jikan outage silently shrank
-//     the sitemap that Search Console was reading.
-//   • It was a runtime function, so every single fetch could 500 or serve a
-//     stale-to-24h list, and it burned a serverless invocation per crawl.
-// A static file is also served INSTEAD of the rewrite, because Vercel checks
-// the filesystem before applying rewrites (same reason the prerendered HTML
-// wins over the SPA fallback). The `/api/sitemap-anime` rewrite is left in
-// place as a fallback for the "no anime written" case below.
+// The split matters: the previous setup had prerender.mjs writing
+// /sitemap-anime.xml AND api/sitemap-pages.js writing /sitemap-pages.xml
+// AND a hand-maintained public/sitemap.xml, so "which URLs exist" had
+// three answers that had already drifted apart.
+//
+// What this writes is a plain JSON sidecar next to the pages, carrying
+// the poster URL for each title so sitemaps.mjs can emit <image:image>
+// entries. sitemaps.mjs runs immediately after us and turns it into
+// /sitemap-media.xml.
+//
+// Because both files read the same `pool` and the same animePath() that
+// wrote the pages a few lines above, the sitemap still cannot list a URL
+// that was not prerendered, nor omit one that was.
 function writeSitemapAnime(anime, likeAnime = [], yearPages = []) {
   const today = new Date().toISOString().slice(0, 10);
 
@@ -785,33 +798,56 @@ function writeSitemapAnime(anime, likeAnime = [], yearPages = []) {
     return /^\d{4}-\d{2}-\d{2}$/.test(airedTo) ? airedTo : today;
   };
 
-  const entry = (loc, lastmod, priority) =>
-    `  <url>\n    <loc>${esc(loc)}</loc>\n    <lastmod>${lastmod}</lastmod>\n` +
-    `    <changefreq>weekly</changefreq>\n    <priority>${priority}</priority>\n  </url>`;
+  // Jikan's image URLs are hotlinked from cdn.myanimelist.net. They are
+  // included because image search is a real lever, but they are the weak
+  // point of this sitemap: MAL can rate-limit or replace them at any time.
+  // Once the catalogue is self-hosted these should point at our own
+  // storage instead — see the Stage 2 plan.
+  const posterOf = a => {
+    const jpg = a?.images?.jpg?.image_url || a?.images?.webp?.image_url;
+    return jpg ? String(jpg) : null;
+  };
 
-  const detail = anime
-    .filter(a => a?.mal_id)
-    .map(a => entry(BASE + animePath(a.mal_id, a.title), lastmodOf(a), '0.8'));
+  const rows = [];
+  // Dedupe by URL, not by mal_id. Jikan's top pages contain several
+  // distinct entries that share a title (Gintama 1996, Gintama°, ...), and
+  // animePath() keys off the title, so they all collapse onto ONE slug. The
+  // old code filtered on mal_id only, so /anime/gintama was emitted four
+  // times - which is exactly the duplicate a sitemap must never contain.
+  // First one wins, so the entry kept is deterministic across builds.
+  const seen = new Set();
+  const push = (a, path, priority) => {
+    if (!a?.mal_id || seen.has(path)) return;
+    seen.add(path);
+    rows.push({
+      url: path,
+      lastmod: lastmodOf(a),
+      priority,
+      title: a.title,
+      image: posterOf(a),
+    });
+  };
+
+  for (const a of anime) {
+    push(a, BASE + animePath(a.mal_id, a.title), '0.8');
+  }
 
   // "Anime like X" pages rank below the title's own page (0.6): they are
-  // supporting pages that answer a follow-up question, not the destination.
-  const like = likeAnime
-    .filter(a => a?.mal_id)
-    .map(a => entry(BASE + animeLikePath(a.mal_id, a.title), lastmodOf(a), '0.6'));
+  // supporting pages that answer a follow-up question, not a destination.
+  for (const a of likeAnime) {
+    push(a, BASE + animeLikePath(a.mal_id, a.title), '0.6');
+  }
 
-  // Year pages are supporting index pages: above the "anime like" pages
-  // (they are an index of many titles) but below the titles themselves.
-  const years = (yearPages ?? [])
-    .filter(y => Number.isInteger(y))
-    .map(y => entry(BASE + bestOfYearPath(y), today, '0.7'));
+  // NOTE: year pages are deliberately NOT written here. They belong to
+  // the manifest (they are index pages, not media) and sitemaps.mjs picks
+  // up exactly the years that got a prerendered document — which is the
+  // set that is actually indexable. Listing them here too was how the
+  // old sitemap ended up advertising years that render a noindex shell.
 
-  const xml = '<?xml version="1.0" encoding="UTF-8"?>\n' +
-    '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n' +
-    `${[...detail, ...like, ...years].join('\n')}\n</urlset>\n`;
-
-  writeFileSync(path.join(DIST, 'sitemap-anime.xml'), xml, 'utf8');
-  console.log(`  ✓ sitemap-anime.xml: ${detail.length} anime + ${like.length} "anime like" + `
-    + `${years.length} year = ${detail.length + like.length + years.length} URLs`);
+  const sidecar = path.join(DIST, '.anime-sitemap-data.json');
+  writeFileSync(sidecar, JSON.stringify(rows), 'utf8');
+  console.log(`  ✓ sitemap data: ${anime.length} anime + ${likeAnime.length} "anime like" `
+    + `= ${rows.length} URLs (+${(rows.filter(r => r.image).length)} with poster images)`);
 }
 
 
@@ -839,77 +875,39 @@ function currentSeason() {
 // the bundle boots. The homepage's <title>/canonical are already correct in
 // index.html, and the pages below supply the crawlable links into the anime
 // detail pages. (Bonus: no fixed overlay ever covers the video player.)
-const STATIC_PAGES = [
-  {
-    path: '/browse',
-    title: 'Browse Anime | KamiStream',
-    h1: 'Browse Anime',
-    desc: 'Browse thousands of anime — search by genre, type, year and score on KamiStream.',
-    keywords: 'browse anime, anime list, find anime, anime by genre, KamiStream',
-    gridHeading: 'Popular anime to start with',
-    genres: true,
-  },
-  {
-    path: '/schedule',
-    title: 'Estimated Schedule | KamiStream',
-    h1: 'Anime Release Schedule',
-    desc: 'Weekly anime airing schedule on KamiStream.',
-    keywords: 'anime schedule, anime release dates, weekly anime, airing anime',
-    schedule: true,
-  },
-  {
-    path: '/az-list',
-    title: 'A-Z List | KamiStream',
-    h1: 'A–Z Anime List',
-    desc: 'Browse all anime alphabetically on KamiStream — from #1 hits to hidden classics, sub & dub.',
-    keywords: 'anime list a-z, alphabetical anime, all anime, KamiStream',
-    genres: true,
-  },
-  {
-    path: '/mood',
-    title: 'Mood Picker | KamiStream',
-    h1: 'Anime by Mood',
-    desc: "Not sure what to watch? Pick your mood and we'll find the perfect anime for you.",
-    keywords: 'anime by mood, what anime to watch, anime picker, KamiStream',
-    genres: true,
-  },
-  {
-    path: '/hidden-gems',
-    title: 'Hidden Gems | KamiStream',
-    h1: 'Hidden Gem Anime',
-    desc: 'Discover underrated, overlooked and criminally under-watched anime — hidden gems streaming free on KamiStream.',
-    keywords: 'hidden gem anime, underrated anime, overlooked anime, KamiStream',
-    genres: true,
-  },
-  {
-    path: '/about',
-    title: 'About Us | KamiStream',                        // about.tsx updated to match
-    h1: 'About KamiStream',
-    desc: 'KamiStream is a free anime streaming site built by fans, for fans. Sub & dub, HD quality, no sign-up needed. The next generation anime experience.',
-    keywords: 'about kamistream, anime streaming site, free anime',
-  },
-  {
-    path: '/dmca',
-    title: 'DMCA | KamiStream',
-    h1: 'DMCA Policy',
-    desc: 'DMCA takedown policy for KamiStream.',
-    keywords: 'dmca, takedown policy, kamistream',
-  },
-  {
-    path: '/terms',
-    title: 'Terms of Service | KamiStream',
-    h1: 'Terms of Service',
-    desc: 'Terms of service for KamiStream.',
-    keywords: 'terms of service, kamistream',
-  },
-  {
-    path: '/contact',
-    title: 'Contact | KamiStream',
-    h1: 'Contact KamiStream',
-    desc: 'Get in touch with KamiStream.',
-    keywords: 'contact kamistream, anime site support',
-  },
-];
+// SEO metadata (title / description / h1) comes from the manifest in
+// src/lib/routes.js — the same array the sitemaps and the runtime useSEO
+// read. It used to be copied into this file, which is exactly how the
+// prerendered <title> and the sitemap entry for a page ended up
+// disagreeing.
+//
+// '/best-anime' is excluded below even though the manifest marks it
+// prerenderable: it has its own doc builder (yearsHubDoc) that emits a
+// CollectionPage + ItemList with the real year chips. Letting the generic
+// staticDoc() write it first would be overwritten here, and the manifest
+// still needs the entry for the sitemap + footer nav.
+//
+// The three render flags are NOT SEO: they only decide which optional
+// blocks the crawlable shell gets, so they stay here rather than leaking
+// prerenderer internals into the manifest.
+const RENDER_FLAGS = {
+  '/browse':     { gridHeading: 'Popular anime to start with', genres: true },
+  '/az-list':    { genres: true },
+  '/mood':       { genres: true },
+  '/hidden-gems':{ genres: true },
+  '/schedule':   { schedule: true },
+};
+
+const STATIC_PAGES = buildRoutes({ genreIds: [], years: [] })
+  .filter(r => r.kind === KINDS.STATIC && r.prerender && r.path !== '/best-anime')
+  .map(r => ({
+    path: r.path,
+    title: r.title,
+    h1: r.h1,
+    desc: r.description,
+    keywords: `${r.navLabel.toLowerCase()}, anime, KamiStream`,
+    ...(RENDER_FLAGS[r.path] || {}),
+  }));
 
 
 // ── Shared blocks ────────────────────────────────────────────────────
@@ -1576,13 +1574,14 @@ async function main() {
   console.log(`  ✓ "anime like" pages: ${likeWritten.length}`
     + (skipped ? ` (${skipped} skipped — under ${MIN_MATCHES_FOR_PAGE} matches)` : ''));
 
-  // 7. Sitemap — covers exactly what was written above. Skipped when the pool
-  //    came back empty so a dead API cannot replace a working sitemap with an
-  //    empty one; the /api/sitemap-anime rewrite still answers then.
+  // 7. Sitemap data — covers exactly what was written above. scripts/sitemaps.mjs
+  //    turns this into /sitemap-media.xml, /sitemap-static.xml and the index.
+  //    Year pages are picked up there from the prerendered documents, so they
+  //    are not passed in here.
   if (animeWritten.length) {
-    writeSitemapAnime(animeWritten, likeWritten, [...yearPages].sort((a, b) => a - b));
+    writeSitemapAnime(animeWritten, likeWritten);
   } else {
-    warn('  ! no anime pages written — /sitemap-anime.xml left to the /api/sitemap-anime fallback');
+    warn('  ! no anime pages written — /sitemap-media.xml will list pages only.');
   }
 
   const secs = ((Date.now() - BUILD_START) / 1000).toFixed(1);

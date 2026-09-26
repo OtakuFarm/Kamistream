@@ -8,11 +8,14 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "vite build && node scripts/generate-icons.mjs && node scripts/prerender.mjs",
+    "build": "vite build && node scripts/generate-icons.mjs && node scripts/prerender.mjs && node scripts/sitemaps.mjs",
     "build:spa": "vite build",
     "icons": "node scripts/generate-icons.mjs",
     "prerender": "node scripts/prerender.mjs",
+    "sitemaps": "node scripts/sitemaps.mjs",
     "audit:seo": "node scripts/audit-seo.mjs",
+    "verify:sitemap": "node scripts/verify-sitemap.mjs",
+    "verify": "npm run verify:sitemap && npm run audit:seo",
     "preview": "vite preview"
   },
   "dependencies": {

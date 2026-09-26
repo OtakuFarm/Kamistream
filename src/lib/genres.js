@@ -6,7 +6,7 @@
  *     src/pages/genre.tsx            (58 ids — the hub + chip bar)
  *     src/components/Sidebar.tsx     (14 ids — the drawer)
  *     src/pages/browse.tsx           (12 ids — the filter select)
- *     api/sitemap-pages.js           (58 ids — /sitemap-pages.xml)
+ *     scripts/sitemaps.mjs           (via the manifest in lib/routes.js)
  *     scripts/prerender.mjs          (58 ids — the crawlable HTML)
  * They had already drifted apart, and the crawlable surfaces were the
  * wrong way round: the sitemaps and the prerendered chip bar advertised
@@ -50,12 +50,12 @@
  * non-empty whichever API answers.
  *
  * ── WHY PLAIN .js AND NOT .ts ──────────────────────────────────────
- * Three very different consumers import it: the Vite/React bundle,
- * Node build scripts (scripts/prerender.mjs) and a Vercel serverless
- * function (api/sitemap-pages.js). A plain ESM module is the only
- * shape all three can load without an extra build step, so the
- * crawlable HTML, the sitemaps and the UI cannot disagree. Types live
- * in src/lib/genres.d.ts.
+ * Two very different consumers import it: the Vite/React bundle and the
+ * Node build scripts (scripts/prerender.mjs, scripts/sitemaps.mjs,
+ * scripts/verify-sitemap.mjs). A plain ESM module is the only shape both
+ * can load without an extra build step, so the crawlable HTML, the
+ * sitemaps and the UI cannot disagree. Types live in
+ * src/lib/genres.d.ts.
  *
  * ── DETERMINISM ────────────────────────────────────────────────────
  * Ordering uses cmpText() rather than localeCompare(): localeCompare
