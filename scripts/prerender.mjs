@@ -142,6 +142,14 @@ import {
 // did.
 import { buildRoutes, KINDS } from '../src/lib/routes.js';
 
+// ── Catalogue pool ─────────────────────────────────────────────────────
+// Reads published rows from anime_catalogue instead of fetching Jikan at
+// 3 req/sec. Returns the same Jikan-shaped objects as the Jikan path, so
+// every document builder below is unaffected. See the long note at the top
+// of this file, and catalogue-pool.mjs for why the shape is duplicated
+// rather than shared.
+import { catalogueConfigured, collectCataloguePool, fetchEpisodes } from './catalogue-pool.mjs';
+
 const BASE      = 'https://www.kamistream.fun';
 const JIKAN     = 'https://api.jikan.moe/v4';
 const DIST      = path.join(process.cwd(), 'dist');
@@ -436,14 +444,48 @@ async function collectAniListPool(want) {
   return out;
 }
 /**
- * The pool every prerendered page is built from. Jikan goes first because
- * its synopses are the exact text the app renders; AniList tops the pool up
- * whenever Jikan comes up short, which today is the norm rather than the
- * exception. Either source alone is enough to produce a full site.
+ * The pool every prerendered page is built from.
+ *
+ * ORDER OF PREFERENCE — catalogue first, Jikan second.
+ *
+ * The catalogue is the real source of truth once titles are imported into it:
+ * one indexed SELECT, no rate limit, no third-party dependency, and no
+ * ceiling other than how many titles you imported. The 200-title cap below
+ * is Jikan's rate limit, not a design decision, and it is also why this
+ * build is slow and has needed a three-layer fallback chain: while writing
+ * this, Jikan returned 504 on every endpoint for stretches of several
+ * minutes at a time.
+ *
+ * Jikan is KEPT as a fallback rather than removed, for two reasons. An empty
+ * catalogue should degrade to today's behaviour rather than produce a
+ * site with no anime in it. And this way the switch is reversible: remove
+ * the catalogue block below and the build is byte-identical to before.
+ *
+ * Both paths return the same shape, so nothing downstream can tell which
+ * one ran.
  */
-const POOL_TARGET = TOP_PAGES * 25;   // 200
+const POOL_TARGET = TOP_PAGES * 25;   // 200 — the JIKAN cap only
 
 async function collectPool() {
+  // ── 1. catalogue ──
+  if (catalogueConfigured()) {
+    try {
+      const pool = await collectCataloguePool();
+      if (pool && pool.length) {
+        console.log(`  · catalogue: ${pool.length} published titles (no rate limit)`);
+        return pool;                       // uncapped, unlike the Jikan path
+      }
+      if (Array.isArray(pool) && pool.length === 0) {
+        warn('  · catalogue is empty (nothing published) — falling back to Jikan');
+      } else {
+        warn('  · catalogue not configured — falling back to Jikan');
+      }
+    } catch (err) {
+      warn(`  ! catalogue pool failed (${err.message}) — falling back to Jikan`);
+    }
+  }
+
+  // ── 2. Jikan, topped up by AniList ──
   let pool = [];
   try {
     pool = await collectTopAnime();
