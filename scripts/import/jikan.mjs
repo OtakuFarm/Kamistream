@@ -25,6 +25,22 @@ const MIN_GAP_MS = 360;
 const MAX_RETRIES = 4;
 const TIMEOUT_MS = 30000;
 
+/* ── circuit breaker ───────────────────────────────────────────────────
+ * Jikan's free tier is frequently overloaded. Observed while building
+ * this: /anime/{id}/full and /anime/{id} both returned 504 for minutes
+ * at a time, with occasional recovery windows.
+ *
+ * The naive response — retry 4x per title — is wrong on two counts. It
+ * turns a 200-title run into 800 requests during an outage, which is slow
+ * AND makes recovery slower by keeping the API busy. So consecutive
+ * failures trip a breaker and the queue PAUSES, letting the upstream
+ * breathe instead of being hammered into staying down.
+ */
+const BREAKER_THRESHOLD = 5;
+const BREAKER_PAUSE_MS = 30000;
+let consecutiveFails = 0;
+let breakerOpenUntil = 0;
+
 let lastRequestAt = 0;
 let queue = [];
 let draining = false;
@@ -45,6 +61,24 @@ function drain() {
   const next = queue.shift();
   const wait = Math.max(0, lastRequestAt + MIN_GAP_MS - Date.now());
   setTimeout(async () => {
+    // The breaker is checked here, before the request, so a paused upstream
+    // costs one delay rather than a full retry storm per queued title.
+    if (breakerOpenUntil > Date.now()) {
+      const wait = breakerOpenUntil - Date.now();
+      // Put the item back at the FRONT of the queue rather than dropping it.
+      // An earlier version returned without resolving, which stranded the
+      // item permanently: with a single queued item, drain() found an empty
+      // queue, returned, and the promise never settled — Node reported
+      // "unsettled top-level await" and exited, silently losing the title.
+      queue.unshift(next);
+      // `draining` MUST be cleared here. drain() early-returns while it is
+      // true, so leaving it set deadlocks the queue: the scheduled re-drain
+      // bails immediately and the item waits forever. This was the actual
+      // cause of the hang, not the missing resolve.
+      draining = false;
+      setTimeout(() => drain(), wait);
+      return;
+    }
     lastRequestAt = Date.now();
     try {
       next.resolve(await next.fn());
@@ -72,9 +106,18 @@ export function jikan(pathname, { allow404 = true } = {}) {
         });
 
         if (res.status === 404 && allow404) return null;
-        if (res.ok) return await res.json();
+        if (res.ok) { consecutiveFails = 0; return await res.json(); }
 
         if (res.status === 429 || res.status >= 500) {
+          consecutiveFails++;
+          if (consecutiveFails >= BREAKER_THRESHOLD) {
+            // Open the breaker: everyone queued waits instead of each
+            // burning their own retries against a struggling upstream.
+            breakerOpenUntil = Date.now() + BREAKER_PAUSE_MS;
+            consecutiveFails = 0;
+            throw Object.assign(new Error('Jikan unavailable (breaker open ' +
+              Math.round(BREAKER_PAUSE_MS / 1000) + 's)'), { breaker: true });
+          }
           // Honour Retry-After when Jikan sends it; it is more accurate than
           // our own guess and avoids burning the remaining retries.
           const ra = Number(res.headers.get('retry-after'));
