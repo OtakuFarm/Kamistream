@@ -286,12 +286,27 @@ export const useAnimeDetail = (malId: number | string) =>
         baseWords,
       ].filter(Boolean)));
 
+      // NOTE: this search is deliberately NOT sent with Jikan's `sfw` flag
+      // (nor AniList's `isAdult:false`).
+      //
+      // `sfw` is a listing filter, not a title filter, but Jikan applies it to
+      // search too: querying "Redo of Healer" (a title the user just clicked
+      // in /genre/9 Ecchi) returned only titles it considered safe, so the
+      // exact match was missing from the candidate list. The resolver then
+      // fell through to the fuzzy word-overlap score below, where the only
+      // shared word is "Redo" — and "Evangelion: 3.0 You Can (Not) Redo"
+      // (far more popular, scored by overlap tie-break) won. The card showed
+      // one title and the detail page rendered another.
+      //
+      // The user reached this URL from a link we generated ourselves, so the
+      // slug is trustworthy input; there is no discovery surface to protect
+      // here. Adult titles stay out of /browse and /genre listings.
       let candidates: JikanAnime[] = [];
       for (const query of queries) {
         const result = await withALFallback(
-          () => fetchJikan<JikanPaginatedResponse<JikanAnime>>(`/anime?q=${encodeURIComponent(query)}&limit=10&sfw=true`),
+          () => fetchJikan<JikanPaginatedResponse<JikanAnime>>(`/anime?q=${encodeURIComponent(query)}&limit=10`),
           () => alPage(
-            `query($p:Int,$q:String){Page(page:$p,perPage:10){pageInfo{currentPage lastPage hasNextPage}media(type:ANIME,search:$q,sort:POPULARITY_DESC,isAdult:false){${AL_FIELDS}}}}`,
+            `query($p:Int,$q:String){Page(page:$p,perPage:10){pageInfo{currentPage lastPage hasNextPage}media(type:ANIME,search:$q,sort:POPULARITY_DESC){${AL_FIELDS}}}}`,
             { p: 1, q: query }
           )
         );
@@ -326,6 +341,20 @@ export const useAnimeDetail = (malId: number | string) =>
         };
         return score(b) - score(a);
       })[0];
+      // Guard the fuzzy tier. Previously ANY candidate won, so a slug whose
+      // words barely appear in some unrelated title silently rendered the
+      // wrong anime (card = Redo of Healer, page = Evangelion ... Redo).
+      // A word-overlap match of 2+ is trustworthy; a single shared word is
+      // not, so a one-word slug must match exactly, and a multi-word slug that
+      // only shares one word is a miss rather than a wrong page.
+      if (match) {
+        const names = [match.title, (match as any).title_english, (match as any).title_romanji]
+          .filter(Boolean).map(slugifyTitle).join(' ').split('-');
+        const words = new Set(names);
+        const overlap = [...requestWords].filter(word => words.has(word)).length;
+        const required = requestWords.size <= 1 ? 1 : 2;
+        if (overlap < required) throw new Error('Anime not found');
+      }
       if (!match?.mal_id) throw new Error('Anime not found');
       return useAnimeDetailFallback(match.mal_id);
     },
