@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { slugifyTitle } from '@/lib/seo';
+import { enqueue } from '@/lib/rateLimit';
 import type {
   JikanAnime,
   JikanEpisode,
@@ -12,48 +13,28 @@ import type {
 const BASE_URL = 'https://api.jikan.moe/v4';
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Rate-limit queue
-// Jikan allows ~3 req/sec. This queue serialises every fetch through a
-// token-bucket so multiple hooks mounting simultaneously don't blast 7+
-// requests at once and trigger 429s.
-// ─────────────────────────────────────────────────────────────────────────────
-const MIN_GAP_MS = 350; // ~2.8 req/sec — safely under the 3 req/sec limit
-let lastRequestTime = 0;
-let pendingQueue: Array<() => void> = [];
-let queueRunning = false;
-
-function runQueue() {
-  if (queueRunning || pendingQueue.length === 0) return;
-  queueRunning = true;
-  const next = pendingQueue.shift()!;
-  const now = Date.now();
-  const wait = Math.max(0, lastRequestTime + MIN_GAP_MS - now);
-  setTimeout(() => {
-    lastRequestTime = Date.now();
-    next();
-    queueRunning = false;
-    runQueue();
-  }, wait);
-}
-
-function enqueue<T>(fn: () => Promise<T>): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    pendingQueue.push(() => fn().then(resolve).catch(reject));
-    runQueue();
-  });
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 // Core fetch helper — retries once on 429 with back-off
+// Jikan has NO hard timeout upstream, so every fetch here races against
+// `JIKAN_TIMEOUT_MS`. Without this a single stalled Jikan connection holds
+// its queue slot forever and every page behind it (cards, detail, browse)
+// waits 20s+ before the AniList fallback can fire.
 // ─────────────────────────────────────────────────────────────────────────────
+const JIKAN_TIMEOUT_MS = 6000;
+
+function fetchWithTimeout(url: string, init: RequestInit = {}, ms = JIKAN_TIMEOUT_MS): Promise<Response> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), ms);
+  return fetch(url, { ...init, signal: ctrl.signal }).finally(() => clearTimeout(timer));
+}
+
 export const fetchJikan = async <T>(endpoint: string): Promise<T> => {
   return enqueue(async () => {
-    const res = await fetch(`${BASE_URL}${endpoint}`);
+    const res = await fetchWithTimeout(`${BASE_URL}${endpoint}`);
 
     if (res.status === 429) {
       // Back off and try once more through the queue
       await new Promise(r => setTimeout(r, 1500));
-      const retry = await fetch(`${BASE_URL}${endpoint}`);
+      const retry = await fetchWithTimeout(`${BASE_URL}${endpoint}`);
       if (!retry.ok) throw new Error(`Jikan error (retry): ${retry.status}`);
       return retry.json() as Promise<T>;
     }
@@ -65,16 +46,24 @@ export const fetchJikan = async <T>(endpoint: string): Promise<T> => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Fetch ALL episode pages with retry on rate-limit (429)
+//
+// Bounded on purpose: long runners (One Piece, Naruto…) have 100+ Jikan
+// episode pages and each page costs a queued request + 400ms pacing. Past
+// MAX_EP_PAGES we stop paging — the detail page already derives the full
+// episode count from /anime/:id/full and renders numbered stubs for the
+// rest, so nobody ever waits on page 47 of an episode list.
 // ─────────────────────────────────────────────────────────────────────────────
+const MAX_EP_PAGES = 12; // 12 × 100 = 1200 episodes — covers everything real
+
 const fetchAllEpisodes = async (malId: number | string): Promise<{ data: JikanEpisode[] }> => {
   let page = 1;
   let allEpisodes: JikanEpisode[] = [];
   let hasNextPage = true;
   let retries = 0;
 
-  while (hasNextPage) {
+  while (hasNextPage && page <= MAX_EP_PAGES) {
     const res = await enqueue(() =>
-      fetch(`${BASE_URL}/anime/${malId}/episodes?page=${page}`)
+      fetchWithTimeout(`${BASE_URL}/anime/${malId}/episodes?page=${page}`)
     );
 
     if (res.status === 429) {
@@ -121,42 +110,86 @@ const fetchAllEpisodes = async (malId: number | string): Promise<{ data: JikanEp
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
-// AniList fallback helpers (inline — avoids circular imports)
-// When Jikan throws, we automatically retry against AniList and normalise
-// the response into the same Jikan shape so every component works unchanged.
+// AniList helpers (inline — avoids circular imports)
+// AniList normalises into the same Jikan shape so components work unchanged.
 // ─────────────────────────────────────────────────────────────────────────────
+const AL_TIMEOUT_MS = 8000;
+
 async function queryAL(query: string, vars: Record<string, any> = {}) {
-  const res = await fetch('https://graphql.anilist.co', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-    body: JSON.stringify({ query, variables: vars }),
-  });
-  if (!res.ok) throw new Error('AniList error');
-  const json = await res.json();
-  if (json.errors) throw new Error(json.errors[0]?.message);
-  return json;
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), AL_TIMEOUT_MS);
+  try {
+    const res = await fetch('https://graphql.anilist.co', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ query, variables: vars }),
+      signal: ctrl.signal,
+    });
+    if (!res.ok) throw new Error('AniList error');
+    const json = await res.json();
+    if (json.errors) throw new Error(json.errors[0]?.message);
+    return json;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
-const AL_FIELDS = `id idMal title{romaji english} coverImage{large extraLarge medium}
-  format episodes averageScore status seasonYear genres
-  studios(isMain:true){nodes{name}} description(asHtml:false)`;
+const AL_FIELDS = `id idMal title{romaji english native} coverImage{large extraLarge medium}
+  bannerImage trailer{id site thumbnail} format episodes duration averageScore meanScore
+  popularity favourites rankings{rank type allTime} status season seasonYear startDate{year month day}
+  endDate{year month day} genres synonyms source studios(isMain:true){nodes{name}}
+  description(asHtml:false)`;
+
+function fmtDate(d: any): string | null {
+  if (!d?.year) return null;
+  const m = String(d.month || 1).padStart(2, '0');
+  const day = String(d.day || 1).padStart(2, '0');
+  return `${d.year}-${m}-${day}T00:00:00+00:00`;
+}
+
+function fmtSeason(season?: string, year?: number | null): string | null {
+  if (!season) return year ? String(year) : null;
+  const s = season.charAt(0) + season.slice(1).toLowerCase();
+  return year ? `${s} ${year}` : s;
+}
 
 function alToJikan(m: any) {
+  const ytId = m.trailer?.site === 'youtube' ? (m.trailer?.id || null) : null;
   return {
     mal_id:   m.idMal ?? m.id,
     title:    m.title?.english || m.title?.romaji || 'Unknown',
+    title_english: m.title?.english || null,
+    title_japanese: m.title?.native || null,
     score:    m.averageScore ? +(m.averageScore / 10).toFixed(1) : null,
+    scored_by: m.popularity ?? null,
+    rank:     m.rankings?.find((r: any) => r.allTime && r.type === 'RATED')?.rank
+      ?? m.rankings?.[0]?.rank ?? null,
+    popularity: m.popularity ?? null,
+    members:  m.popularity ?? null,
+    favorites: m.favourites ?? null,
     episodes: m.episodes ?? null,
-    type:     ({ TV:'TV',MOVIE:'Movie',OVA:'OVA',ONA:'ONA',SPECIAL:'Special' } as any)[m.format] || 'TV',
-    status:   ({ RELEASING:'Currently Airing',FINISHED:'Finished Airing',NOT_YET_RELEASED:'Not yet aired' } as any)[m.status] || '',
+    duration: m.duration ? `${m.duration} min per ep` : null,
+    type:     ({ TV:'TV',TV_SHORT:'TV',MOVIE:'Movie',OVA:'OVA',ONA:'ONA',SPECIAL:'Special',MUSIC:'Music' } as any)[m.format] || 'TV',
+    source:   m.source ? m.source.charAt(0) + m.source.slice(1).toLowerCase().replace(/_/g, ' ') : null,
+    status:   ({ RELEASING:'Currently Airing',FINISHED:'Finished Airing',NOT_YET_RELEASED:'Not yet aired',CANCELLED:'Cancelled',HIATUS:'On Hiatus' } as any)[m.status] || '',
+    airing:   m.status === 'RELEASING',
+    aired:    { from: fmtDate(m.startDate), to: fmtDate(m.endDate), string: [fmtSeason(m.season, m.seasonYear), fmtDate(m.startDate)?.slice(0, 10)].filter(Boolean).join(' ') || null },
+    season:   (m.season || '').toLowerCase() || null,
     year:     m.seasonYear ?? null,
+    broadcast: null,
+    rating:   null,
     synopsis: m.description?.replace(/<[^>]+>/g,'') ?? null,
+    background: null,
     genres:   (m.genres||[]).map((g:string)=>({name:g})),
     studios:  (m.studios?.nodes||[]).map((s:any)=>({name:s.name})),
+    trailer:  ytId ? { youtube_id: ytId, images: { maximum_image_url: m.trailer?.thumbnail || '' } } : null,
     images: {
       webp: { large_image_url: m.coverImage?.extraLarge||m.coverImage?.large||'', image_url: m.coverImage?.medium||'', small_image_url: m.coverImage?.medium||'' },
       jpg:  { large_image_url: m.coverImage?.extraLarge||m.coverImage?.large||'', image_url: m.coverImage?.medium||'', small_image_url: m.coverImage?.medium||'' },
     },
+    // AniList banner for hero sections (components that know to look for it)
+    _bannerImage: m.bannerImage ?? null,
+    _alId: m.id,
   };
 }
 
@@ -169,18 +202,46 @@ async function alPage(query: string, vars: Record<string,any>) {
   };
 }
 
-// withALFallback — runs jikanFn first; on failure runs anilistFn
+// withALFallback — AniList-first with Jikan as the safety net.
+//
+// Jikan was the primary and AniList the rescue path, but measured live
+// (Oct 2026) Jikan stalls 20s+ while AniList answers in ~1s. Waiting for
+// Jikan first meant every card grid and detail page waited out the stall
+// before the fallback could fire.
+//
+// New behaviour: try AniList first. It owns a short head-start window
+// (AL_HEAD_START_MS) — if it resolves in time its data wins immediately.
+// Otherwise fall through to Jikan. The page never waits longer than the
+// head-start window plus one healthy upstream round-trip, and we never
+// fire both upstreams at once (no doubled load on an already-struggling
+// Jikan — the old background-warm idea is deliberately gone).
+const AL_HEAD_START_MS = 3500;
+
 export async function withALFallback<T>(jikanFn: () => Promise<T>, anilistFn: () => Promise<T>): Promise<T> {
+  // Race AniList against the head-start timer. NOTE: the timer does NOT
+  // cancel the AniList request itself — it only decides which branch we
+  // await. Letting the late AniList response land in the HTTP cache still
+  // helps the next mount.
+  const timeout = new Promise<never>((_, reject) =>
+    setTimeout(() => reject(new Error('AniList head-start window elapsed')), AL_HEAD_START_MS)
+  );
+
   try {
-    return await jikanFn();
-  } catch (err) {
-    console.warn('[KamiStream] Jikan failed, switching to AniList fallback:', (err as Error).message);
-    return anilistFn();
+    return await Promise.race([anilistFn(), timeout]);
+  } catch (alErr) {
+    // AniList slow/failed — fall through to Jikan as the safety net.
+    try {
+      return await jikanFn();
+    } catch (jikanErr) {
+      console.warn('[KamiStream] Both sources failed. AniList:', (alErr as Error)?.message, '| Jikan:', (jikanErr as Error)?.message);
+      throw jikanErr;
+    }
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Hooks — each tries Jikan first, falls back to AniList automatically
+// Hooks — AniList-first via withALFallback (answers ~1s); Jikan is the timed
+// safety net for its richer fields. Every component keeps working unchanged.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const useTrendingAnime = () =>
@@ -254,7 +315,7 @@ export const useAnimeDetail = (malId: number | string) =>
           () => fetchJikan(`/anime/${malId}/full`),
           async () => {
             const d = await queryAL(
-              `query($m:Int){Media(idMal:$m,type:ANIME){${AL_FIELDS} trailer{site id} bannerImage
+              `query($m:Int){Media(idMal:$m,type:ANIME){${AL_FIELDS}
                 relations{edges{relationType(version:2) node{id idMal title{english romaji} coverImage{large} format episodes status}}}
               }}`,
               { m: Number(malId) }
@@ -368,7 +429,7 @@ async function useAnimeDetailFallback(malId: number | string) {
     () => fetchJikan(`/anime/${malId}/full`),
     async () => {
       const d = await queryAL(
-        `query($m:Int){Media(idMal:$m,type:ANIME){${AL_FIELDS} trailer{site id} bannerImage
+        `query($m:Int){Media(idMal:$m,type:ANIME){${AL_FIELDS}
           relations{edges{relationType(version:2) node{id idMal title{english romaji} coverImage{large} format episodes status}}}
         }}`,
         { m: Number(malId) }

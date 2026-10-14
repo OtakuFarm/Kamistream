@@ -68,9 +68,13 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
 
-    <!-- API preconnects — data that paints the page content -->
-    <link rel="preconnect" href="https://api.jikan.moe" crossorigin="anonymous" />
-    <link rel="dns-prefetch" href="https://graphql.anilist.co" />
+    <!-- API preconnects — AniList is the primary data source (answers ~1s),
+         Jikan is the timed safety net. Poster CDNs preconnected so the first
+         card images skip DNS/TLS negotiation. -->
+    <link rel="preconnect" href="https://graphql.anilist.co" crossorigin="anonymous" />
+    <link rel="preconnect" href="https://s4.anilist.co" crossorigin="anonymous" />
+    <link rel="preconnect" href="https://cdn.myanimelist.net" crossorigin="anonymous" />
+    <link rel="dns-prefetch" href="https://api.jikan.moe" />
 
     <!-- JSON-LD: Site identity -->
     <script type="application/ld+json">

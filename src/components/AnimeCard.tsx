@@ -195,7 +195,9 @@ export function AnimeCard({ anime, index }: AnimeCardProps) {
           <img
             src={imgSrc}
             alt={anime.title}
-            loading="lazy"
+            // First row paints the LCP — eager + high priority; the rest lazy.
+            loading={index !== undefined && index < 6 ? "eager" : "lazy"}
+            fetchPriority={index !== undefined && index < 6 ? "high" : "auto"}
             decoding="async"
             onError={() => setImgError(true)}
             className="w-full h-full object-cover transition-transform duration-500 ease-out group-hover:scale-110"

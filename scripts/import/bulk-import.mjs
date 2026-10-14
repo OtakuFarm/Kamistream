@@ -40,8 +40,13 @@ import path from 'node:path';
 import { createClient } from '@supabase/supabase-js';
 
 import { animePage, animeFull, animeEpisodes } from './jikan.mjs';
-import { normalizeAnime, diffAnime, readiness, slugifyTitle } from './normalize.mjs';
+import { fetchAniListByMalIds, normalizeFromAniList } from './anilist.mjs';
 import { storePoster, verifyBucket } from './posters.mjs';
+// normalizeAnime is imported rather than only dynamically loaded: ensureRef()
+// needs slugifyTitle on the MAL fallback path, while normalizeFromAniList
+// covers the AniList path. Dropping slugifyTitle here made every MAL-fallback
+// title fail with "slugifyTitle is not defined".
+import { normalizeAnime, slugifyTitle, readiness } from './normalize.mjs';
 
 const ANILIST = 'https://graphql.anilist.co';
 
@@ -58,6 +63,7 @@ const DRY_RUN    = has('dry-run');
 const PUBLISH    = has('publish');
 const NO_EPISODES= has('no-episodes');
 const NO_POSTERS = has('no-posters');
+const NO_MAL     = has('no-mal');
 const FROM_PAGE  = Number(flag('from-page', 1));
 const PAGES      = Number(flag('pages', 20));
 const MAX_TITLES = Number(flag('limit', 99999));
@@ -114,19 +120,50 @@ async function ensureRef(table, name, malId) {
 
 /* ─── one title ──────────────────────────────────────────────────────── */
 
-async function importOne(malId) {
-  const full = await animeFull(malId);
-  if (!full?.data) return { malId, ok: false, reason: 'not on MAL' };
+/**
+ * Import one title.
+ *
+ * ANILIST FIRST. Measured live: Jikan returned 504 on 3/3 sampled titles
+ * while AniList answered the same three in a single call. AniList also
+ * supplies synopsis, poster, banner, score, popularity, genres, studios
+ * and relations — so it is a complete source on its own, and 50 titles
+ * arrive per request instead of one.
+ *
+ * MAL/JIKAN IS SUPPLEMENTARY, not required. It is asked only for the two
+ * things AniList does not have — mal_score/mal_rank and the episode list
+ * — and its failure is tolerated. A 504 costs us a score, never a title.
+ */
+async function importOne(malId, anilistMedia) {
+  let n = anilistMedia ? normalizeFromAniList(anilistMedia) : null;
 
-  const al = await fetchAniList(malId);
-  const n = normalizeAnime(full.data, al);
-  if (!n) return { malId, ok: false, reason: 'unusable payload' };
+  // AniList missed this title (deleted, or not in its catalogue).
+  // Fall back to MAL so a Jikan outage is not a permanent gap.
+  if (!n) {
+    const full = await animeFull(malId);
+    if (!full?.data) return { malId, ok: false, reason: 'not in AniList and not on MAL' };
+    n = normalizeAnime(full.data, null);
+    if (!n) return { malId, ok: false, reason: 'unusable payload' };
+  }
 
   // Resumability: skip anything already stored.
   const { data: existing } = await db.from('anime_catalogue')
     .select('id, slug, title').eq('mal_id', malId).maybeSingle();
   if (existing) {
     return { malId, ok: true, skipped: true, title: existing.title, slug: existing.slug };
+  }
+
+  // Supplementary MAL data. Both calls are best-effort.
+  let malScore = null, malRank = null, ageRating = null, source = n.source;
+  if (!NO_MAL) {
+    try {
+      const full = await animeFull(malId);
+      if (full?.data) {
+        malScore = typeof full.data.score === 'number' ? full.data.score : null;
+        malRank = Number.isInteger(full.data.rank) ? full.data.rank : null;
+        ageRating = full.data.rating ? String(full.data.rating).split(' - ')[1] || null : null;
+        source = full.data.source || n.source;
+      }
+    } catch { /* a 504 here costs a score, not a title */ }
   }
 
   // Poster: download to our own storage, fall back to the remote URL so a
@@ -140,13 +177,12 @@ async function importOne(malId) {
 
   // Episodes: the detail page's internal links depend on these.
   let episodes = 0;
+  let epFromList = false;
   if (!NO_EPISODES) {
-    const list = await animeEpisodes(malId, { knownCount: full.data.episodes });
+    const list = await animeEpisodes(malId, { knownCount: n.episodes_total });
     episodes = list.length;
-    if (episodes) {
-      // Written after the parent row exists, below.
-      n._episodes = list;
-    }
+    epFromList = list.some((e) => e.title);
+    if (episodes) n._episodes = list;
   }
 
   const row = {
@@ -160,19 +196,23 @@ async function importOne(malId) {
     banner_url: n.banner_url,
     trailer_id: n.trailer_id,
     type: n.type,
-    source: n.source,
+    source: source,
     air_status: n.air_status,
     season: n.season,
     year: n.year,
     episodes_total: n.episodes_total,
     duration_min: n.duration_min,
-    age_rating: n.age_rating,
+    age_rating: ageRating || n.age_rating,
     aired_from: n.aired_from,
     aired_to: n.aired_to,
-    mal_score: n.mal_score,
-    mal_rank: n.mal_rank,
+    mal_score: malScore,
+    mal_rank: malRank,
     popularity: n.popularity,
     favorites: n.favorites,
+    // With MAL unreachable we still know AniList's own 0-100 mean score, so
+    // the page is not left scoreless. It is stored as OUR rating only
+    // because it is a real aggregated score, not a single reviewer's.
+    rating: (n.mean_score != null && n.mean_score >= 4) ? Math.round(n.mean_score * 10) / 10 : null,
     has_poster: Boolean(posterUrl),
     has_synopsis: n.has_synopsis,
     has_episodes: episodes > 0,
@@ -182,7 +222,7 @@ async function importOne(malId) {
   if (DRY_RUN) {
     const r = readiness(row);
     return { malId, ok: true, dryRun: true, title: n.title, slug: n.slug,
-             publishable: r.ok, missing: r.missing, episodes, posterCached };
+             publishable: r.ok, missing: r.missing, episodes, epFromList, posterCached };
   }
 
   const { data: saved, error } = await db.from('anime_catalogue')
@@ -301,10 +341,22 @@ console.log('');
 const started = Date.now();
 const results = [];
 
+// Batched AniList prefetch, 50 ids per request. This is the single biggest
+// speed-up in the importer: 200 titles arrive in 4 calls instead of 200.
+// It runs BEFORE the loop so a title that is already stored is still
+// looked up — the skip check below costs one indexed query, not a fetch.
+console.log('prefetching metadata from AniList...');
+const mediaByMalId = await fetchAniListByMalIds(ids);
+console.log('  ' + mediaByMalId.size + ' / ' + ids.length + ' titles returned by AniList');
+if (mediaByMalId.size < ids.length) {
+  warn(mediaByMalId.size + ' titles missing from AniList — those fall back to MAL');
+}
+console.log('');
+
 for (let i = 0; i < ids.length; i++) {
   const id = ids[i];
   let r;
-  try { r = await importOne(id); }
+  try { r = await importOne(id, mediaByMalId.get(id)); }
   catch (err) { r = { malId: id, ok: false, reason: err.message }; }
   results.push(r);
 
