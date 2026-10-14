@@ -46,8 +46,14 @@ const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 300_000,
+      // Keep resolved data for back-navigation even after it goes stale —
+      // remounts render instantly from cache while revalidating quietly.
+      gcTime: 30 * 60_000,
       refetchOnWindowFocus: false,
-      retry: 2,
+      // Each query already races AniList-first with a Jikan safety net, so
+      // one retry with backoff is plenty — more would just replay the race.
+      retry: 1,
+      retryDelay: attempt => Math.min(1000 * 2 ** attempt, 5000),
     },
   },
 });

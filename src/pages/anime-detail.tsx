@@ -128,8 +128,45 @@ export default function AnimeDetail() {
 
   const { data: charsData } = useQuery({
     queryKey: ['anime', resolvedId, 'characters'],
-    queryFn: async () => { const r = await fetch(`https://api.jikan.moe/v4/anime/${resolvedId}/characters`); return r.ok ? r.json() : { data: [] }; },
-    enabled: !!resolvedId, staleTime: 30 * 60 * 1000,
+    queryFn: async () => {
+      // Characters are a below-the-fold nicety — never let them stall the
+      // page. Jikan-first would hang this slot 20s+ when Jikan stalls, so
+      // AniList (fast, ~1s) is primary and Jikan is the timed safety net.
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 8000);
+      try {
+        const r = await fetch('https://graphql.anilist.co', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+          body: JSON.stringify({
+            query: `query($m:Int){Media(idMal:$m,type:ANIME){characters(perPage:12,sort:ROLE){edges{role node{id name{full} image{large}}}}}}`,
+            variables: { m: Number(resolvedId) },
+          }),
+          signal: ctrl.signal,
+        });
+        if (r.ok) {
+          const j = await r.json();
+          const edges = j?.data?.Media?.characters?.edges || [];
+          if (edges.length) {
+            return {
+              data: edges.map((e: any) => ({
+                role: e.role?.toLowerCase() || '',
+                character: {
+                  name: e.node?.name?.full || 'Unknown',
+                  images: { jpg: { image_url: e.node?.image?.large || '' } },
+                },
+              })),
+            };
+          }
+        }
+      } catch { /* fall through to Jikan */ }
+      finally { clearTimeout(timer); }
+      try {
+        const r = await fetch(`https://api.jikan.moe/v4/anime/${resolvedId}/characters`, { signal: AbortSignal.timeout(6000) });
+        return r.ok ? r.json() : { data: [] };
+      } catch { return { data: [] }; }
+    },
+    enabled: !!resolvedId, staleTime: 30 * 60 * 1000, retry: 1,
   });
   const { data: relations } = useQuery({
     queryKey: ['anime', resolvedId, 'relations'],

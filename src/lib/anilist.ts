@@ -13,10 +13,13 @@ import { requiresAniListAdultFilter } from '@/lib/genres';
 const ANILIST_API = 'https://graphql.anilist.co';
 
 async function queryAniList(query: string, variables: Record<string, any> = {}) {
+  // Below-the-fold helpers share this path — never let a stalled AniList
+  // call hang them forever; callers already treat errors as empty data.
   const res = await fetch(ANILIST_API, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
     body: JSON.stringify({ query, variables }),
+    signal: AbortSignal.timeout(8000),
   });
   if (!res.ok) throw new Error('AniList error');
   const json = await res.json();
@@ -380,6 +383,7 @@ export async function getAnimeRelations(malId: number | string): Promise<any[]> 
         query: `query($m:Int){Media(idMal:$m,type:ANIME){relations{edges{relationType(version:2) node{id idMal title{english romaji} coverImage{large} format episodes status}}}}}`,
         variables: { m: parseInt(String(malId)) },
       }),
+      signal: AbortSignal.timeout(8000),
     });
     const data = await res.json();
     return data?.data?.Media?.relations?.edges || [];

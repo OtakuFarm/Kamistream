@@ -1,83 +1,124 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // Shared Jikan → AniList fallback fetcher
 //
-// Single rate-limit queue shared across ALL pages (category, genre, az-list,
-// browse, home). Previously each page had its own queue which meant they
-// competed and still hit 429s. Now there is ONE queue for the whole app.
+// Uses the shared rate-limit queue (single instance across the entire app)
+// from @/lib/rateLimit — previously each page had its own queue which meant
+// they competed and still hit 429s. Now there is ONE queue for the whole app.
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { isAdultGenre } from "@/lib/genres";
+import { enqueue } from "@/lib/rateLimit";
 
 const JIKAN = "https://api.jikan.moe/v4";
 const AL    = "https://graphql.anilist.co";
 
-// 350 ms gap ≈ 2.8 req/sec — comfortably under Jikan's 3 req/sec limit
-const MIN_GAP = 350;
-let lastT    = 0;
-let queue: Array<() => void> = [];
-let running  = false;
+/** Hard timeouts so one stalled upstream can never hang a page. */
+const JIKAN_TIMEOUT_MS = 6000;
+const AL_TIMEOUT_MS    = 8000;
+/** AniList gets first crack; Jikan is the safety net while it's stalling. */
+const AL_HEAD_START_MS = 3500;
 
-function runQueue() {
-  if (running || !queue.length) return;
-  running = true;
-  const next = queue.shift()!;
-  const wait = Math.max(0, lastT + MIN_GAP - Date.now());
-  setTimeout(() => {
-    lastT   = Date.now();
-    next();
-    running = false;
-    runQueue();
-  }, wait);
+function fetchWithTimeout(url: string, init: RequestInit = {}, ms = JIKAN_TIMEOUT_MS): Promise<Response> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), ms);
+  return fetch(url, { ...init, signal: ctrl.signal }).finally(() => clearTimeout(timer));
 }
 
-/** Queued Jikan fetch with one 429 retry, then AniList fallback */
+/** Queued Jikan fetch with one 429 retry. Throws on failure — the caller
+ *  decides whether to fall back to AniList (see jikanFetch below). */
+async function jikanAttempt(endpoint: string): Promise<any> {
+  return enqueue(async () => {
+    const r = await fetchWithTimeout(`${JIKAN}${endpoint}`);
+
+    if (r.status === 429) {
+      // Back off 1.5 s then retry once
+      await new Promise(w => setTimeout(w, 1500));
+      const r2 = await fetchWithTimeout(`${JIKAN}${endpoint}`);
+      if (!r2.ok) throw new Error(`429 retry: ${r2.status}`);
+      return r2.json();
+    }
+
+    if (!r.ok) throw new Error(`Jikan ${r.status}`);
+    return r.json();
+  });
+}
+
+/**
+ * AniList-first fetch with Jikan as the safety net.
+ *
+ * Jikan stalls 20s+ under load (measured live, Oct 2026) while AniList
+ * answers in ~1s, so AniList races with a short head-start window and its
+ * result wins when healthy. Jikan is only attempted when AniList misses
+ * the window or errors — never in parallel, so we don't double the load
+ * on an already-struggling Jikan.
+ */
 export async function jikanFetch(endpoint: string): Promise<any> {
+  const timeout = new Promise<never>((_, reject) =>
+    setTimeout(() => reject(new Error("AniList head-start window elapsed")), AL_HEAD_START_MS)
+  );
   try {
-    return await new Promise<any>((resolve, reject) => {
-      queue.push(async () => {
-        try {
-          const r = await fetch(`${JIKAN}${endpoint}`);
-
-          if (r.status === 429) {
-            // Back off 1.5 s then retry once
-            await new Promise(w => setTimeout(w, 1500));
-            const r2 = await fetch(`${JIKAN}${endpoint}`);
-            if (!r2.ok) return reject(new Error(`429 retry: ${r2.status}`));
-            return resolve(r2.json());
-          }
-
-          if (!r.ok) return reject(new Error(`Jikan ${r.status}`));
-          resolve(r.json());
-        } catch (e) {
-          reject(e);
-        }
-      });
-      runQueue();
-    });
-  } catch (err) {
-    console.warn("[KamiStream] Jikan failed, using AniList fallback:", (err as Error).message);
-    return jikanToAL(endpoint);
+    return await Promise.race([jikanToAL(endpoint), timeout]);
+  } catch (alErr) {
+    try {
+      return await jikanAttempt(endpoint);
+    } catch (jikanErr) {
+      console.warn("[KamiStream] Both sources failed. AniList:", (alErr as Error).message, "| Jikan:", (jikanErr as Error).message);
+      throw jikanErr;
+    }
   }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
 // AniList normaliser — output always matches Jikan's shape
+// Includes the richer detail fields (banner, trailer, aired, rank) so pages
+// served from AniList don't render half-empty while Jikan is stalling.
 // ─────────────────────────────────────────────────────────────────────────────
-const AL_F = `id idMal title{romaji english} coverImage{large extraLarge medium}
-  format episodes averageScore status seasonYear genres
-  studios(isMain:true){nodes{name}}`;
+const AL_F = `id idMal title{romaji english native} coverImage{large extraLarge medium}
+  bannerImage trailer{id site thumbnail} format episodes duration averageScore meanScore
+  popularity favourites rankings{rank type allTime} status season seasonYear
+  startDate{year month day} endDate{year month day} genres synonyms source
+  studios(isMain:true){nodes{name}} description(asHtml:false}`;
+
+function alDate(d: any): string | null {
+  if (!d?.year) return null;
+  const m = String(d.month || 1).padStart(2, "0");
+  const day = String(d.day || 1).padStart(2, "0");
+  return `${d.year}-${m}-${day}T00:00:00+00:00`;
+}
+
+function alSeason(season?: string, year?: number | null): string | null {
+  if (!season) return year ? String(year) : null;
+  const s = season.charAt(0) + season.slice(1).toLowerCase();
+  return year ? `${s} ${year}` : s;
+}
 
 function alShape(m: any) {
+  const ytId = m.trailer?.site === "youtube" ? (m.trailer?.id || null) : null;
   return {
     mal_id:   m.idMal ?? m.id,
     title:    m.title?.english || m.title?.romaji || "Unknown",
+    title_english: m.title?.english || null,
+    title_japanese: m.title?.native || null,
     score:    m.averageScore ? +(m.averageScore / 10).toFixed(1) : null,
+    scored_by: m.popularity ?? null,
+    rank:     m.rankings?.find((r: any) => r.allTime && r.type === "RATED")?.rank
+      ?? m.rankings?.[0]?.rank ?? null,
+    popularity: m.popularity ?? null,
+    members:  m.popularity ?? null,
+    favorites: m.favourites ?? null,
     episodes: m.episodes ?? null,
-    type:     ({ TV: "TV", MOVIE: "Movie", OVA: "OVA", ONA: "ONA", SPECIAL: "Special" } as any)[m.format] || "TV",
-    status:   ({ RELEASING: "Currently Airing", FINISHED: "Finished Airing", NOT_YET_RELEASED: "Not yet aired" } as any)[m.status] || "",
+    duration: m.duration ? `${m.duration} min per ep` : null,
+    type:     ({ TV: "TV", TV_SHORT: "TV", MOVIE: "Movie", OVA: "OVA", ONA: "ONA", SPECIAL: "Special", MUSIC: "Music" } as any)[m.format] || "TV",
+    source:   m.source ? m.source.charAt(0) + m.source.slice(1).toLowerCase().replace(/_/g, " ") : null,
+    status:   ({ RELEASING: "Currently Airing", FINISHED: "Finished Airing", NOT_YET_RELEASED: "Not yet aired", CANCELLED: "Cancelled", HIATUS: "On Hiatus" } as any)[m.status] || "",
+    airing:   m.status === "RELEASING",
+    aired:    { from: alDate(m.startDate), to: alDate(m.endDate), string: [alSeason(m.season, m.seasonYear), alDate(m.startDate)?.slice(0, 10)].filter(Boolean).join(" ") || null },
+    season:   (m.season || "").toLowerCase() || null,
     year:     m.seasonYear ?? null,
+    synopsis: m.description?.replace(/<[^>]+>/g, "") ?? null,
     genres:   (m.genres || []).map((g: string) => ({ name: g })),
     studios:  (m.studios?.nodes || []).map((s: any) => ({ name: s.name })),
+    trailer:  ytId ? { youtube_id: ytId, images: { maximum_image_url: m.trailer?.thumbnail || "" } } : null,
     images: {
       webp: {
         large_image_url: m.coverImage?.extraLarge || m.coverImage?.large || "",
@@ -90,19 +131,28 @@ function alShape(m: any) {
         small_image_url: m.coverImage?.medium || "",
       },
     },
+    _bannerImage: m.bannerImage ?? null,
+    _alId: m.id,
   };
 }
 
 async function alQuery(gql: string, vars: Record<string, any> = {}) {
-  const r = await fetch(AL, {
-    method:  "POST",
-    headers: { "Content-Type": "application/json", Accept: "application/json" },
-    body:    JSON.stringify({ query: gql, variables: vars }),
-  });
-  if (!r.ok) throw new Error("AniList error");
-  const j = await r.json();
-  if (j.errors) throw new Error(j.errors[0]?.message);
-  return j;
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), AL_TIMEOUT_MS);
+  try {
+    const r = await fetch(AL, {
+      method:  "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body:    JSON.stringify({ query: gql, variables: vars }),
+      signal:  ctrl.signal,
+    });
+    if (!r.ok) throw new Error("AniList error");
+    const j = await r.json();
+    if (j.errors) throw new Error(j.errors[0]?.message);
+    return j;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 async function alPage(
@@ -202,6 +252,7 @@ export async function jikanToAL(endpoint: string): Promise<any> {
   const status   = p.get("status")  || "";
   const letter   = p.get("letter")  || "";
   const minScore = p.get("min_score") || "";
+  const startDate = p.get("start_date") || "";
   const orderBy  = p.get("order_by") || "popularity";
   const sort     = p.get("sort")    || "desc";
   const filter   = p.get("filter")  || "";
@@ -264,6 +315,12 @@ export async function jikanToAL(endpoint: string): Promise<any> {
   if (status)   { const s = STATUS_MAP[status]; if (s) filters.push(`,status:${s}`); }
   if (filter === "airing") filters.push(",status:RELEASING");
   if (minScore) filters.push(`,averageScore_greater:${Math.round(parseFloat(minScore) * 10)}`);
+  // Browse sends year as start_date=YYYY-01-01 — without this the AniList
+  // fallback silently dropped the year filter and returned unfiltered titles.
+  if (startDate) {
+    const y = parseInt(startDate.slice(0, 4));
+    if (y > 1900 && y < 2100) filters.push(`,seasonYear:${y}`);
+  }
 
   return alPage({ page, limit }, filters.join(""), alSort, adult);
 }
