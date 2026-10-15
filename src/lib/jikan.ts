@@ -48,12 +48,12 @@ export const fetchJikan = async <T>(endpoint: string): Promise<T> => {
 // Fetch ALL episode pages with retry on rate-limit (429)
 //
 // Bounded on purpose: long runners (One Piece, Naruto…) have 100+ Jikan
-// episode pages and each page costs a queued request + 400ms pacing. Past
+// episode pages and each page costs a queued request + 200ms pacing. Past
 // MAX_EP_PAGES we stop paging — the detail page already derives the full
 // episode count from /anime/:id/full and renders numbered stubs for the
 // rest, so nobody ever waits on page 47 of an episode list.
 // ─────────────────────────────────────────────────────────────────────────────
-const MAX_EP_PAGES = 12; // 12 × 100 = 1200 episodes — covers everything real
+const MAX_EP_PAGES = 4; // 4 × 100 = 400 episodes — most anime fit in 4 pages, enough for detail load
 
 const fetchAllEpisodes = async (malId: number | string): Promise<{ data: JikanEpisode[] }> => {
   let page = 1;
@@ -85,7 +85,7 @@ const fetchAllEpisodes = async (malId: number | string): Promise<{ data: JikanEp
     hasNextPage = data?.pagination?.has_next_page === true;
     page++;
 
-    if (hasNextPage) await new Promise(r => setTimeout(r, 400));
+    if (hasNextPage) await new Promise(r => setTimeout(r, 200));
   }
 
   // If Jikan has no episode list, generate numbered episodes from anime details
