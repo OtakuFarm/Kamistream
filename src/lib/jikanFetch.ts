@@ -6,6 +6,7 @@
 // they competed and still hit 429s. Now there is ONE queue for the whole app.
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { catalogueEnabled } from "@/lib/catalogue";
 import { isAdultGenre } from "@/lib/genres";
 import { enqueue } from "@/lib/rateLimit";
 
@@ -53,6 +54,10 @@ async function jikanAttempt(endpoint: string): Promise<any> {
  * on an already-struggling Jikan.
  */
 export async function jikanFetch(endpoint: string): Promise<any> {
+  // VITE_CATALOGUE=1 means the site reads ONLY from Supabase — never call Jikan or AniList.
+  if (catalogueEnabled()) {
+    return { data: [], pagination: { current_page: 1, last_visible_page: 1, has_next_page: false } };
+  }
   const timeout = new Promise<never>((_, reject) =>
     setTimeout(() => reject(new Error("AniList head-start window elapsed")), AL_HEAD_START_MS)
   );

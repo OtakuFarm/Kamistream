@@ -92,7 +92,11 @@ export interface CatalogueRow {
  * be misleading, and it is a structured-data violation to show an
  * aggregateRating we did not collect.
  */
-export function rowToJikan(row: CatalogueRow, genres: JikanGenre[] = []): JikanAnime {
+export function rowToJikan(
+  row: CatalogueRow,
+  genres: JikanGenre[] = [],
+  studios: JikanGenre[] = [],
+): JikanAnime {
   return {
     mal_id: row.mal_id ?? 0,
     title: row.title,
@@ -120,7 +124,7 @@ export function rowToJikan(row: CatalogueRow, genres: JikanGenre[] = []): JikanA
     demographics: [],
     duration: row.duration_min ? `${row.duration_min} min per ep` : null,
     source: row.source,
-    studios: [],
+    studios,
   };
 }
 /* ─── queries ──────────────────────────────────────────────────────────── */
@@ -158,6 +162,24 @@ async function genresByAnime(animeIds: number[]): Promise<Map<number, JikanGenre
   return map;
 }
 
+/** Fetch studios for a set of anime ids, keyed by anime id. */
+async function studiosByAnime(animeIds: number[]): Promise<Map<number, JikanGenre[]>> {
+  const map = new Map<number, JikanGenre[]>();
+  if (!animeIds.length) return map;
+  const { data } = await supabase
+    .from('anime_studios')
+    .select('anime_id, studios(mal_id, name)')
+    .in('anime_id', animeIds);
+  for (const row of (data || []) as any[]) {
+    const s = row.studios;
+    if (!s) continue;
+    const list = map.get(row.anime_id) || [];
+    list.push(toGenre(s.name, s.mal_id));
+    map.set(row.anime_id, list);
+  }
+  return map;
+}
+
 /** Look up one title by its slug. Returns a Jikan-shaped single response. */
 export async function getAnimeBySlug(slug: string) {
   const row = await oneRow<CatalogueRow | null>(
@@ -167,8 +189,43 @@ export async function getAnimeBySlug(slug: string) {
   );
   if (!row) return { data: null as unknown as JikanAnime };
   const genres = await genresByAnime([row.id]);
-  return { data: rowToJikan(row, genres.get(row.id) || []) };
+  const studios = await studiosByAnime([row.id]);
+  return { data: rowToJikan(row, genres.get(row.id) || [], studios.get(row.id) || []) };
 }
+
+/**
+ * First published row for a MAL id.
+ *
+ * mal_id is indexed but NOT unique (a re-import can match by slug and leave a
+ * second row), so this takes the most recently updated match instead of
+ * maybeSingle(), which errors on duplicates and would bounce every numeric
+ * URL to the fallback.
+ */
+async function oneByMal(malId: number): Promise<CatalogueRow | null> {
+  const { data, error } = await supabase
+    .from('anime_catalogue').select('*')
+    .eq('mal_id', malId).eq('status', 'published')
+    .order('updated_at', { ascending: false })
+    .limit(1);
+  if (error) throw new Error(error.message);
+  return (data as CatalogueRow[] | null)?.[0] ?? null;
+}
+
+/** Look up one title by its MAL id — the shape /anime/:id and /watch/:id use. */
+export async function getAnimeByMalId(malId: number) {
+  const row = await oneByMal(malId);
+  if (!row) return { data: null as unknown as JikanAnime };
+  const genres = await genresByAnime([row.id]);
+  const studios = await studiosByAnime([row.id]);
+  return { data: rowToJikan(row, genres.get(row.id) || [], studios.get(row.id) || []) };
+}
+
+/** Jikan status values the UI sends → the exact strings stored in air_status. */
+const AIR_STATUS_ALIAS: Record<string, string> = {
+  airing:   'Currently Airing',
+  complete: 'Finished Airing',
+  upcoming: 'Not yet aired',
+};
 
 /**
  * Paginated listing.
@@ -182,7 +239,12 @@ export async function getAnimeList(opts: {
   limit?: number;
   genreId?: string;
   year?: number;
-  sort?: 'popular' | 'score' | 'recent' | 'trending';
+  season?: string;    // 'winter'|'spring'|'summer'|'fall' (case-insensitive)
+  q?: string;         // title search; sanitised for PostgREST or-syntax
+  type?: string;      // TV | Movie | OVA | Special | ONA
+  airStatus?: string; // Jikan value or alias (airing|complete|upcoming)
+  minScore?: number;  // MAL score floor
+  sort?: 'popular' | 'score' | 'recent' | 'trending' | 'title' | 'favorites' | 'ended';
 }): Promise<JikanPaginatedResponse<JikanAnime>> {
   const page = Math.max(1, opts.page || 1);
   const limit = Math.min(50, opts.limit || 24);
@@ -206,12 +268,26 @@ export async function getAnimeList(opts: {
     q = q.in('id', ids);
   }
   if (opts.year) q = q.eq('year', opts.year);
+  if (opts.season) q = q.eq('season', String(opts.season).toLowerCase());
+  if (opts.type) q = q.eq('type', opts.type);
+  if (opts.airStatus) q = q.eq('air_status', AIR_STATUS_ALIAS[opts.airStatus] || opts.airStatus);
+  if (opts.minScore != null) q = q.gte('mal_score', opts.minScore);
+  if (opts.q) {
+    // Commas and parentheses are structural in PostgREST's or= grammar, and
+    // %/* are LIKE wildcards — a search string containing any of them would
+    // either break the filter or widen it beyond what was typed.
+    const term = String(opts.q).replace(/[%,()*"']/g, ' ').replace(/\s+/g, ' ').trim();
+    if (term) q = q.or(`title.ilike.%${term}%,title_romaji.ilike.%${term}%`);
+  }
 
   switch (opts.sort) {
-    case 'score':   q = q.order('mal_score', { ascending: false, nullsFirst: false }); break;
-    case 'recent':  q = q.order('aired_from', { ascending: false, nullsFirst: false }); break;
-    case 'trending':q = q.order('popularity', { ascending: false, nullsFirst: false }); break;
-    default:        q = q.order('popularity', { ascending: false, nullsFirst: false });
+    case 'score':    q = q.order('mal_score', { ascending: false, nullsFirst: false }); break;
+    case 'recent':   q = q.order('aired_from', { ascending: false, nullsFirst: false }); break;
+    case 'ended':    q = q.order('aired_to', { ascending: false, nullsFirst: false }); break;
+    case 'favorites':q = q.order('favorites', { ascending: false, nullsFirst: false }); break;
+    case 'title':    q = q.order('title', { ascending: true }); break;
+    case 'trending': q = q.order('popularity', { ascending: false, nullsFirst: false }); break;
+    default:         q = q.order('popularity', { ascending: false, nullsFirst: false });
   }
 
   const { data, error, count } = await q.range(from, from + limit - 1);
@@ -219,11 +295,12 @@ export async function getAnimeList(opts: {
 
   const rows = (data || []) as CatalogueRow[];
   const genres = await genresByAnime(rows.map(r => r.id));
+  const studios = await studiosByAnime(rows.map(r => r.id));
   const total = count ?? rows.length;
   const lastPage = Math.max(1, Math.ceil(total / limit));
 
   return {
-    data: rows.map(r => rowToJikan(r, genres.get(r.id) || [])),
+    data: rows.map(r => rowToJikan(r, genres.get(r.id) || [], studios.get(r.id) || [])),
     pagination: {
       current_page: page,
       last_visible_page: lastPage,
@@ -231,10 +308,33 @@ export async function getAnimeList(opts: {
     },
   };
 }
+/**
+ * Title search over the catalogue (Topbar dropdown + /search).
+ *
+ * Matches the display and romaji titles; popularity-ordered so the most
+ * well-known match leads. Callers fall back to Jikan on a complete miss,
+ * so a not-yet-imported title still resolves everywhere on the site.
+ */
+export async function searchAnime(query: string, limit = 20): Promise<{ data: JikanAnime[] }> {
+  // Same or-syntax sanitisation as getAnimeList's `q`.
+  const term = String(query || '').replace(/[%,()*"']/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!term) return { data: [] };
+  const { data, error } = await supabase
+    .from('anime_catalogue').select('*')
+    .eq('status', 'published')
+    .or(`title.ilike.%${term}%,title_romaji.ilike.%${term}%`)
+    .order('popularity', { ascending: false, nullsFirst: false })
+    .limit(limit);
+  if (error) throw new Error(error.message);
+  const rows = (data || []) as CatalogueRow[];
+  const genres = await genresByAnime(rows.map(r => r.id));
+  const studios = await studiosByAnime(rows.map(r => r.id));
+  return { data: rows.map(r => rowToJikan(r, genres.get(r.id) || [], studios.get(r.id) || [])) };
+}
+
 /** Episode list for a title, in the Jikan episode shape. */
 export async function getEpisodes(malId: number): Promise<{ data: JikanEpisode[] }> {
-  const anime = await oneRow<{ id: number } | null>(
-    'anime_catalogue', (q) => q.eq('mal_id', malId).maybeSingle(), null);
+  const anime = await oneByMal(malId);
   if (!anime) return { data: [] };
 
   const { data, error } = await supabase
@@ -266,8 +366,7 @@ export async function getEpisodes(malId: number): Promise<{ data: JikanEpisode[]
  * instead of a similarity scan across the whole pool.
  */
 export async function getSimilar(malId: number, limit = 12) {
-  const src = await oneRow<{ id: number } | null>(
-    'anime_catalogue', (q) => q.eq('mal_id', malId).maybeSingle(), null);
+  const src = await oneByMal(malId);
   if (!src) return { data: [] as JikanAnime[] };
 
   const { data: rels } = await supabase
@@ -280,7 +379,8 @@ export async function getSimilar(malId: number, limit = 12) {
     .in('id', ids).eq('status', 'published').limit(limit);
   const rows = (data || []) as CatalogueRow[];
   const genres = await genresByAnime(rows.map(r => r.id));
-  return { data: rows.map(r => rowToJikan(r, genres.get(r.id) || [])) };
+  const studios = await studiosByAnime(rows.map(r => r.id));
+  return { data: rows.map(r => rowToJikan(r, genres.get(r.id) || [], studios.get(r.id) || [])) };
 }
 
 /* ─── hooks ────────────────────────────────────────────────────────────────
@@ -300,18 +400,19 @@ export async function withCatalogueFallback<T>(
   catalogueFn: () => Promise<T>,
   jikanFn: () => Promise<T>,
   isEmpty: (v: T) => boolean = () => false,
+  emptyValue?: T,
 ): Promise<T> {
   if (!catalogueEnabled()) return jikanFn();
   try {
     const result = await catalogueFn();
     if (isEmpty(result)) {
-      console.info('[KamiStream] catalogue miss, falling back to Jikan');
-      return jikanFn();
+      console.info('[KamiStream] catalogue miss — VITE_CATALOGUE=1, returning empty (no Jikan call)');
+      return emptyValue ?? (result as T);
     }
     return result;
   } catch (err) {
-    console.warn('[KamiStream] catalogue failed, falling back to Jikan:', (err as Error).message);
-    return jikanFn();
+    console.warn('[KamiStream] catalogue failed — VITE_CATALOGUE=1, returning empty (no Jikan call):', (err as Error).message);
+    return emptyValue ?? (undefined as unknown as T);
   }
 }
 

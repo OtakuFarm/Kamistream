@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { useTrendingAnime, useTopRatedAnime, useSeasonalAnime, fetchJikan, withALFallback } from '@/lib/jikan';
+import { getAnimeList, withCatalogueFallback } from '@/lib/catalogue';
 import { jikanToAL } from '@/lib/jikanFetch';
 import { AnimeCard } from '@/components/AnimeCard';
 import { AnimeListCard } from '@/components/AnimeListCard';
@@ -67,15 +68,25 @@ export default function Home() {
     week:  'filter=bypopularity',
     month: 'filter=favorite',
   };
+  // Catalogue equivalents of the three /top/anime filters above.
+  const topPeriodCat: Record<string, { airStatus?: string; sort: 'popular' | 'trending' | 'favorites' }> = {
+    day:   { airStatus: 'Currently Airing', sort: 'trending' },
+    week:  { sort: 'popular' },
+    month: { sort: 'favorites' },
+  };
   const { data: topAnimeData, isLoading: topAnimeLoading } = useQuery({
     queryKey: ['home', 'top-anime', topPeriod],
-    queryFn: async () => {
-      // Same fallback treatment as the other sections — Jikan 429/504s left
-      // this section blank; jikanToAL maps /top/anime filters to AniList.
-      const ep = `/top/anime?${topPeriodFilter[topPeriod]}&limit=10&sfw=true`;
-      const j = await withALFallback<any>(() => fetchJikan<any>(ep), () => jikanToAL(ep));
-      return j.data || [];
-    },
+    queryFn: () => withCatalogueFallback<any[]>(
+      () => getAnimeList({ ...topPeriodCat[topPeriod], limit: 10 }).then(r => r.data),
+      async () => {
+        // Same fallback treatment as the other sections — Jikan 429/504s left
+        // this section blank; jikanToAL maps /top/anime filters to AniList.
+        const ep = `/top/anime?${topPeriodFilter[topPeriod]}&limit=10&sfw=true`;
+        const j = await withALFallback<any>(() => fetchJikan<any>(ep), () => jikanToAL(ep));
+        return j.data || [];
+      },
+      (v) => !v?.length,
+    ),
     staleTime: 30 * 60 * 1000, // low-priority — cache for 30min
   });
 
@@ -97,46 +108,58 @@ export default function Home() {
   // needed since the queue serialises every request app-wide.
   const { data: newRelease } = useQuery({
     queryKey: ['home', 'new-release'],
-    queryFn: async () => {
-      // Jikan 504s/429s on this heavy query — fall back to AniList (RELEASING)
-      const ep = '/anime?status=airing&order_by=members&sort=desc&limit=8&sfw=true';
-      const j = await withALFallback<any>(
-        () => fetchJikan<any>(ep),
-        () => jikanToAL(ep)
-      );
-      return j.data || [];
-    },
+    queryFn: () => withCatalogueFallback<any[]>(
+      () => getAnimeList({ airStatus: 'Currently Airing', sort: 'popular', limit: 8 }).then(r => r.data),
+      async () => {
+        // Jikan 504s/429s on this heavy query — fall back to AniList (RELEASING)
+        const ep = '/anime?status=airing&order_by=members&sort=desc&limit=8&sfw=true';
+        const j = await withALFallback<any>(
+          () => fetchJikan<any>(ep),
+          () => jikanToAL(ep)
+        );
+        return j.data || [];
+      },
+      (v) => !v?.length,
+    ),
     staleTime: 15 * 60 * 1000,
   });
 
   // Just Completed
   const { data: justCompleted } = useQuery({
     queryKey: ['home', 'just-completed'],
-    queryFn: async () => {
-      // NOTE: this Jikan query regularly 504s (status=complete + end_date sort
-      // is extremely slow on their side) — the AniList fallback (FINISHED,
-      // END_DATE_DESC) is what usually serves this section.
-      const ep = '/anime?status=complete&order_by=end_date&sort=desc&limit=5&sfw=true';
-      const j = await withALFallback<any>(
-        () => fetchJikan<any>(ep),
-        () => jikanToAL(ep)
-      );
-      return j.data || [];
-    },
+    queryFn: () => withCatalogueFallback<any[]>(
+      () => getAnimeList({ airStatus: 'Finished Airing', sort: 'ended', limit: 5 }).then(r => r.data),
+      async () => {
+        // NOTE: this Jikan query regularly 504s (status=complete + end_date sort
+        // is extremely slow on their side) — the AniList fallback (FINISHED,
+        // END_DATE_DESC) is what usually serves this section.
+        const ep = '/anime?status=complete&order_by=end_date&sort=desc&limit=5&sfw=true';
+        const j = await withALFallback<any>(
+          () => fetchJikan<any>(ep),
+          () => jikanToAL(ep)
+        );
+        return j.data || [];
+      },
+      (v) => !v?.length,
+    ),
     staleTime: 15 * 60 * 1000,
   });
 
   // Upcoming anime
   const { data: upcoming } = useQuery({
     queryKey: ['home', 'upcoming'],
-    queryFn: async () => {
-      const ep = '/anime?status=upcoming&order_by=members&sort=desc&limit=12&sfw=true';
-      const j = await withALFallback<any>(
-        () => fetchJikan<any>(ep),
-        () => jikanToAL(ep)
-      );
-      return j.data || [];
-    },
+    queryFn: () => withCatalogueFallback<any[]>(
+      () => getAnimeList({ airStatus: 'Not yet aired', sort: 'popular', limit: 12 }).then(r => r.data),
+      async () => {
+        const ep = '/anime?status=upcoming&order_by=members&sort=desc&limit=12&sfw=true';
+        const j = await withALFallback<any>(
+          () => fetchJikan<any>(ep),
+          () => jikanToAL(ep)
+        );
+        return j.data || [];
+      },
+      (v) => !v?.length,
+    ),
     staleTime: 30 * 60 * 1000,
   });
 

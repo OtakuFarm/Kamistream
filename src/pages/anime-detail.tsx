@@ -116,7 +116,7 @@ export default function AnimeDetail() {
   // Supports both /anime/:id and /anime/:id/:slug (descriptive URLs)
   const [, params]   = useRoute('/anime/:id/:slug?');
   const [, navigate] = useLocation();
-  const routeParam = params?.slug || params?.id || '';
+  const routeParam = params?.id || params?.slug || '';
   const id = /^\d+$/.test(routeParam) ? routeParam : '';
   const { data: detail,   isLoading: detailLoading } = useAnimeDetail(routeParam);
   const resolvedId = String((detail?.data as any)?.mal_id || id || '');
