@@ -1,6 +1,16 @@
 import { useQuery } from '@tanstack/react-query';
 import { slugifyTitle } from '@/lib/seo';
 import { enqueue } from '@/lib/rateLimit';
+import {
+  catalogueEnabled,
+  getAnimeByMalId,
+  getAnimeBySlug,
+  getAnimeList,
+  getEpisodes,
+  getSimilar,
+  searchAnime,
+  withCatalogueFallback,
+} from '@/lib/catalogue';
 import type {
   JikanAnime,
   JikanEpisode,
@@ -28,6 +38,10 @@ function fetchWithTimeout(url: string, init: RequestInit = {}, ms = JIKAN_TIMEOU
 }
 
 export const fetchJikan = async <T>(endpoint: string): Promise<T> => {
+  // VITE_CATALOGUE=1 means the site reads ONLY from Supabase — never call Jikan.
+  if (catalogueEnabled()) {
+    return { data: [] } as unknown as T;
+  }
   return enqueue(async () => {
     const res = await fetchWithTimeout(`${BASE_URL}${endpoint}`);
 
@@ -240,19 +254,25 @@ export async function withALFallback<T>(jikanFn: () => Promise<T>, anilistFn: ()
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Hooks — AniList-first via withALFallback (answers ~1s); Jikan is the timed
-// safety net for its richer fields. Every component keeps working unchanged.
+// Hooks — catalogue-first via withCatalogueFallback (Supabase, when
+// VITE_CATALOGUE=1), then AniList-first via withALFallback (answers ~1s);
+// Jikan is the timed safety net for its richer fields. Every component keeps
+// working unchanged: the flag off, or a catalogue miss, = today's behaviour.
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const useTrendingAnime = () =>
   useQuery({
     queryKey: ['anime', 'trending'],
-    queryFn: () => withALFallback(
-      () => fetchJikan('/top/anime?filter=airing&limit=20&sfw=true'),
-      () => alPage(
-        `query($p:Int){Page(page:$p,perPage:20){pageInfo{currentPage lastPage hasNextPage}media(type:ANIME,sort:TRENDING_DESC,status:RELEASING,isAdult:false){${AL_FIELDS}}}}`,
-        { p: 1 }
-      )
+    queryFn: () => withCatalogueFallback<any>(
+      () => getAnimeList({ airStatus: 'Currently Airing', sort: 'trending', limit: 20 }),
+      () => withALFallback(
+        () => fetchJikan('/top/anime?filter=airing&limit=20&sfw=true'),
+        () => alPage(
+          `query($p:Int){Page(page:$p,perPage:20){pageInfo{currentPage lastPage hasNextPage}media(type:ANIME,sort:TRENDING_DESC,status:RELEASING,isAdult:false){${AL_FIELDS}}}}`,
+          { p: 1 }
+        )
+      ),
+      (v: any) => !v?.data?.length,
     ),
     staleTime: 5 * 60 * 1000,
     retry: 1,
@@ -261,12 +281,16 @@ export const useTrendingAnime = () =>
 export const useTopRatedAnime = () =>
   useQuery({
     queryKey: ['anime', 'top-rated'],
-    queryFn: () => withALFallback(
-      () => fetchJikan('/top/anime?filter=bypopularity&limit=20&sfw=true'),
-      () => alPage(
-        `query($p:Int){Page(page:$p,perPage:20){pageInfo{currentPage lastPage hasNextPage}media(type:ANIME,sort:SCORE_DESC,isAdult:false){${AL_FIELDS}}}}`,
-        { p: 1 }
-      )
+    queryFn: () => withCatalogueFallback<any>(
+      () => getAnimeList({ sort: 'score', limit: 20 }),
+      () => withALFallback(
+        () => fetchJikan('/top/anime?filter=bypopularity&limit=20&sfw=true'),
+        () => alPage(
+          `query($p:Int){Page(page:$p,perPage:20){pageInfo{currentPage lastPage hasNextPage}media(type:ANIME,sort:SCORE_DESC,isAdult:false){${AL_FIELDS}}}}`,
+          { p: 1 }
+        )
+      ),
+      (v: any) => !v?.data?.length,
     ),
     staleTime: 5 * 60 * 1000,
     retry: 1,
@@ -279,12 +303,16 @@ export const useSeasonalAnime = () => {
   const year = now.getFullYear();
   return useQuery({
     queryKey: ['anime', 'seasonal'],
-    queryFn: () => withALFallback(
-      () => fetchJikan('/seasons/now?limit=20&sfw=true'),
-      () => alPage(
-        `query($p:Int,$s:MediaSeason,$y:Int){Page(page:$p,perPage:20){pageInfo{currentPage lastPage hasNextPage}media(type:ANIME,season:$s,seasonYear:$y,sort:POPULARITY_DESC,isAdult:false){${AL_FIELDS}}}}`,
-        { p: 1, s: season, y: year }
-      )
+    queryFn: () => withCatalogueFallback<any>(
+      () => getAnimeList({ season, year, airStatus: 'Currently Airing', sort: 'trending', limit: 20 }),
+      () => withALFallback(
+        () => fetchJikan('/seasons/now?limit=20&sfw=true'),
+        () => alPage(
+          `query($p:Int,$s:MediaSeason,$y:Int){Page(page:$p,perPage:20){pageInfo{currentPage lastPage hasNextPage}media(type:ANIME,season:$s,seasonYear:$y,sort:POPULARITY_DESC,isAdult:false){${AL_FIELDS}}}}`,
+          { p: 1, s: season, y: year }
+        )
+      ),
+      (v: any) => !v?.data?.length,
     ),
     staleTime: 5 * 60 * 1000,
     retry: 1,
@@ -294,12 +322,16 @@ export const useSeasonalAnime = () => {
 export const useAnimeSearch = (query: string) =>
   useQuery({
     queryKey: ['anime', 'search', query],
-    queryFn: () => withALFallback(
-      () => fetchJikan(`/anime?q=${encodeURIComponent(query)}&limit=20&sfw=true`),
-      () => alPage(
-        `query($p:Int,$q:String){Page(page:$p,perPage:20){pageInfo{currentPage lastPage hasNextPage}media(type:ANIME,search:$q,sort:POPULARITY_DESC,isAdult:false){${AL_FIELDS}}}}`,
-        { p: 1, q: query }
-      )
+    queryFn: () => withCatalogueFallback<any>(
+      () => searchAnime(query, 20),
+      () => withALFallback(
+        () => fetchJikan(`/anime?q=${encodeURIComponent(query)}&limit=20&sfw=true`),
+        () => alPage(
+          `query($p:Int,$q:String){Page(page:$p,perPage:20){pageInfo{currentPage lastPage hasNextPage}media(type:ANIME,search:$q,sort:POPULARITY_DESC,isAdult:false){${AL_FIELDS}}}}`,
+          { p: 1, q: query }
+        )
+      ),
+      (v: any) => !v?.data?.length,
     ),
     enabled: !!query,
     staleTime: 5 * 60 * 1000,
@@ -309,7 +341,14 @@ export const useAnimeSearch = (query: string) =>
 export const useAnimeDetail = (malId: number | string) =>
   useQuery({
     queryKey: ['anime', malId],
-    queryFn: async () => {
+    // Catalogue first: exact slug/mal_id lookup in our own tables. A miss
+    // (title not imported yet) falls through to the pre-existing AniList/
+    // Jikan resolution below — unchanged.
+    queryFn: () => withCatalogueFallback<any>(
+      () => (/^\d+$/.test(String(malId))
+        ? getAnimeByMalId(Number(malId))
+        : getAnimeBySlug(String(malId))),
+      async () => {
       if (/^\d+$/.test(String(malId))) {
         return withALFallback(
           () => fetchJikan(`/anime/${malId}/full`),
@@ -418,7 +457,9 @@ export const useAnimeDetail = (malId: number | string) =>
       }
       if (!match?.mal_id) throw new Error('Anime not found');
       return useAnimeDetailFallback(match.mal_id);
-    },
+      },
+      (v: any) => !v?.data,
+    ),
     enabled: !!malId,
     staleTime: 5 * 60 * 1000,
     retry: 1,
@@ -442,23 +483,27 @@ async function useAnimeDetailFallback(malId: number | string) {
 export const useAnimeEpisodes = (malId: number | string) =>
   useQuery<{ data: JikanEpisode[] }>({
     queryKey: ['anime', malId, 'episodes', 'all'],
-    queryFn: () => withALFallback(
-      () => fetchAllEpisodes(malId),
-      // AniList doesn't have episode lists — generate numbered stubs
-      async () => {
-        const d = await queryAL(
-          `query($m:Int){Media(idMal:$m,type:ANIME){episodes nextAiringEpisode{episode}}}`,
-          { m: Number(malId) }
-        );
-        const count = d.data?.Media?.episodes || d.data?.Media?.nextAiringEpisode?.episode || 0;
-        return {
-          data: Array.from({ length: count }, (_, i): JikanEpisode => ({
-            mal_id: i + 1, title: `Episode ${i + 1}`,
-            title_japanese: null, title_romanji: null,
-            aired: null, score: null, filler: false, recap: false,
-          })),
-        };
-      }
+    queryFn: () => withCatalogueFallback<{ data: JikanEpisode[] }>(
+      () => getEpisodes(Number(malId)),
+      () => withALFallback(
+        () => fetchAllEpisodes(malId),
+        // AniList doesn't have episode lists — generate numbered stubs
+        async () => {
+          const d = await queryAL(
+            `query($m:Int){Media(idMal:$m,type:ANIME){episodes nextAiringEpisode{episode}}}`,
+            { m: Number(malId) }
+          );
+          const count = d.data?.Media?.episodes || d.data?.Media?.nextAiringEpisode?.episode || 0;
+          return {
+            data: Array.from({ length: count }, (_, i): JikanEpisode => ({
+              mal_id: i + 1, title: `Episode ${i + 1}`,
+              title_japanese: null, title_romanji: null,
+              aired: null, score: null, filler: false, recap: false,
+            })),
+          };
+        }
+      ),
+      (v) => !v?.data?.length,
     ),
     enabled: !!malId,
     staleTime: 10 * 60 * 1000,
@@ -468,20 +513,30 @@ export const useAnimeEpisodes = (malId: number | string) =>
 export const useAnimeRecommendations = (malId: number | string) =>
   useQuery({
     queryKey: ['anime', malId, 'recommendations'],
-    queryFn: () => withALFallback(
-      () => fetchJikan(`/anime/${malId}/recommendations`),
+    // Catalogue: the relations the importer stored (sequel/prequel/…) are the
+    // no-API-call version of this list, mapped into Jikan's { entry, votes }
+    // shape. No relations stored → AniList/Jikan recommendations as before.
+    queryFn: () => withCatalogueFallback<any>(
       async () => {
-        const d = await queryAL(
-          `query($m:Int){Media(idMal:$m,type:ANIME){recommendations(perPage:12){nodes{mediaRecommendation{${AL_FIELDS}}}}}}`,
-          { m: Number(malId) }
-        );
-        const recs = d.data?.Media?.recommendations?.nodes || [];
-        return {
-          data: recs
-            .filter((r: any) => r.mediaRecommendation)
-            .map((r: any) => ({ entry: alToJikan(r.mediaRecommendation), votes: 0 })),
-        };
-      }
+        const sim = await getSimilar(Number(malId), 12);
+        return { data: sim.data.map((entry: any) => ({ entry, votes: 0 })) };
+      },
+      () => withALFallback(
+        () => fetchJikan(`/anime/${malId}/recommendations`),
+        async () => {
+          const d = await queryAL(
+            `query($m:Int){Media(idMal:$m,type:ANIME){recommendations(perPage:12){nodes{mediaRecommendation{${AL_FIELDS}}}}}}`,
+            { m: Number(malId) }
+          );
+          const recs = d.data?.Media?.recommendations?.nodes || [];
+          return {
+            data: recs
+              .filter((r: any) => r.mediaRecommendation)
+              .map((r: any) => ({ entry: alToJikan(r.mediaRecommendation), votes: 0 })),
+          };
+        }
+      ),
+      (v: any) => !v?.data?.length,
     ),
     enabled: !!malId,
     staleTime: 10 * 60 * 1000,

@@ -27,7 +27,8 @@ export function slugifyTitle(title: string): string {
  * accepts both shapes, so old links never break.
  */
 export function animePath(malId: number | string, title?: string): string {
-  return `/anime/${malId}`;
+  const s = title ? slugifyTitle(title) : '';
+  return s ? `/anime/${s}` : `/anime/${malId}`;
 }
 
 /**

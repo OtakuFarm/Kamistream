@@ -7,6 +7,7 @@ import { SlidersHorizontal, X, Search, Loader2 } from 'lucide-react';
 import { useSEO } from '@/hooks/useSEO';
 import { useSearch } from 'wouter';
 import { fetchJikan } from '@/lib/jikan';
+import { getAnimeList, withCatalogueFallback } from '@/lib/catalogue';
 
 // ── AniList fallback for browse ───────────────────────────────────────
 import {
@@ -25,10 +26,34 @@ import { POPULAR_GENRES, isAdultGenre } from '@/lib/genres';
 // alongside the Topbar's trending call and any other Jikan fetch in flight,
 // rather than racing them.
 async function fetchTopPage(page: number) {
-  return fetchJikan(`/top/anime?limit=25&page=${page}&sfw=true`);
+  // Catalogue first: MAL's /top/anime default order is score rank. Jikan is
+  // the fallback while the catalogue is being filled in.
+  return withCatalogueFallback<any>(
+    () => getAnimeList({ sort: 'score', page, limit: 25 }),
+    () => fetchJikan(`/top/anime?limit=25&page=${page}&sfw=true`),
+    (v: any) => !v?.data?.length,
+  );
 }
 
 async function fetchJikanFiltered(f: Filters, page = 1) {
+  // Catalogue first — the same filters, mapped onto getAnimeList()'s options
+  // (status is the Jikan alias airStatus resolves; orderBy maps to sorts).
+  return withCatalogueFallback<any>(
+    () => getAnimeList({
+      page,
+      limit: 25,
+      q: f.q || undefined,
+      genreId: f.genre || undefined,
+      type: f.type || undefined,
+      airStatus: f.status || undefined,
+      minScore: f.minScore ? Number(f.minScore) : undefined,
+      year: f.year ? Number(f.year) : undefined,
+      sort: f.orderBy === 'score'      ? 'score'
+          : f.orderBy === 'start_date' ? 'recent'
+          : f.orderBy === 'title'      ? 'title'
+          : 'popular',
+    }),
+    async () => {
   const params = new URLSearchParams();
   if (f.q)        params.set('q',          f.q);
   if (f.genre)    params.set('genres',     f.genre);
@@ -44,6 +69,9 @@ async function fetchJikanFiltered(f: Filters, page = 1) {
   // See ADULT_GENRE_IDS in src/lib/genres.js.
   if (!isAdultGenre(f.genre)) params.set('sfw', 'true');
   return fetchJikan(`/anime?${params}`);
+    },
+    (v: any) => !v?.data?.length,
+  );
 }
 
 // ── Types & constants ─────────────────────────────────────────────────

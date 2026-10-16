@@ -95,6 +95,16 @@
     { "source": "/latest-episodes",   "destination": "/api/latest" },
     { "source": "/latest-episodes/",  "destination": "/api/latest" },
     { "source": "/assets/(.*)",       "destination": "/api/asset-404" },
+
+  ],
+  "crons": [
+    {
+      "path": "/api/import-bulk?action=run&pages=5&publish=true&from-page=1",
+      "schedule": "0 */6 * * *"
+    }
+  ]
+}
+
     { "source": "/(.*)",              "destination": "/index.html" }
   ]
 }

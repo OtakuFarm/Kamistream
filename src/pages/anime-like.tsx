@@ -30,6 +30,7 @@ import { useRoute, Link } from 'wouter';
 import { useQuery } from '@tanstack/react-query';
 import { useAnimeDetail } from '@/lib/jikan';
 import { jikanFetch } from '@/lib/jikanFetch';
+import { getAnimeList, withCatalogueFallback } from '@/lib/catalogue';
 import { dedupeByMalId } from '@/lib/dedupeAnime';
 import { isPopularGenre } from '@/lib/genres';
 import { useSEO } from '@/hooks/useSEO';
@@ -57,16 +58,22 @@ export default function AnimeLike() {
     queryKey: ['anime-like-pool'],
     // Sequential, not Promise.all: Jikan 429s on concurrent requests and a
     // failed fetch here would leave the page with no matches at all.
-    queryFn: async () => {
-      const out: any[] = [];
-      for (const page of POOL_PAGES) {
-        try {
-          const res = await jikanFetch(`/top/anime?limit=25&page=${page}`);
-          out.push(...(res?.data ?? []));
-        } catch { /* keep what we have — a partial pool still ranks */ }
-      }
-      return dedupeByMalId(out);
-    },
+    queryFn: () => withCatalogueFallback<any[]>(
+      () => getAnimeList({ sort: 'score', limit: 50 }).then(r => r.data),
+      async () => {
+        // Sequential, not Promise.all: Jikan 429s on concurrent requests and a
+        // failed fetch here would leave the page with no matches at all.
+        const out: any[] = [];
+        for (const page of POOL_PAGES) {
+          try {
+            const res = await jikanFetch(`/top/anime?limit=25&page=${page}`);
+            out.push(...(res?.data ?? []));
+          } catch { /* keep what we have — a partial pool still ranks */ }
+        }
+        return dedupeByMalId(out);
+      },
+      (v) => !v?.length,
+    ),
     enabled:   !!id,
     staleTime: 60 * 60 * 1000,
   });

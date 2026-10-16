@@ -441,6 +441,19 @@ tr:hover td{background:rgba(124,58,237,0.04);}
 .jai-import-btn:disabled{background:rgba(6,214,160,0.15);color:var(--green);cursor:default;border:1px solid rgba(6,214,160,0.3);}
 .jai-empty{text-align:center;padding:36px;color:var(--text3);font-size:13px;grid-column:1/-1;}
 .jai-loading{display:flex;align-items:center;justify-content:center;gap:10px;color:var(--text3);font-size:13px;padding:36px;grid-column:1/-1;}
+
+.jai-csv-preview,.jai-csv-status,.jai-refresh-status{
+  background:var(--bg3);border:1px solid var(--border2);border-radius:10px;
+  padding:14px;margin-top:10px;font-size:12px;line-height:1.6;
+}
+.jai-csv-preview{display:none;}
+.jai-csv-preview .jai-csv-preview-row{
+  font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--text);
+  padding:2px 0;border-bottom:1px solid var(--border2);white-space:nowrap;overflow:hidden;
+}
+.jai-csv-status,.jai-refresh-status{display:none;}
+.jai-csv-status.success{color:#06d6a0;} .jai-csv-status.error{color:#ff4757;}
+
 .jai-section-title{font-family:'Poppins',sans-serif;font-size:15px;font-weight:800;color:#fff;margin-bottom:14px;display:flex;align-items:center;gap:8px;}
 .jai-lib-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:13px;}
 .jai-lib-card{background:var(--card);border:1px solid var(--border2);border-radius:12px;overflow:hidden;transition:all .25s;}
@@ -1224,6 +1237,57 @@ tr:hover td{background:rgba(124,58,237,0.04);}
       <div class="jai-lib-grid" id="jaiLibGrid">
         <div class="jai-empty" style="grid-column:1/-1;">No anime imported yet.</div>
       </div>
+
+
+      <!-- ══ CSV BATCH IMPORT ══ -->
+      <div class="jai-section-title" style="margin-top:8px;">📥 CSV Batch Import</div>
+      <div class="jai-search-bar" style="flex-wrap:wrap;gap:10px;">
+        <input class="jai-input" id="jaiCsvInput" placeholder="Paste comma-separated MAL IDs (e.g. 52991,113415,200022)" style="flex:1;min-width:300px;"/>
+        <button class="jai-btn" onclick="jaiCsvImport()">⬇ Import from CSV</button>
+        <button class="jai-btn-ghost" onclick="jaiCsvPaste()">📋 Paste from clipboard</button>
+      </div>
+      <div class="jai-csv-preview" id="jaiCsvPreview" style="display:none;background:var(--bg3);border:1px solid var(--border2);border-radius:10px;padding:14px;margin-top:10px;font-size:12px;color:var(--text3);">
+        <div style="font-weight:700;color:#fff;margin-bottom:6px;">📋 Preview (first 5):</div>
+        <div id="jaiCsvPreviewList" style="max-height:120px;overflow-y:auto;font-family:'Share Tech Mono',monospace;font-size:11px;"></div>
+        <div style="margin-top:8px;display:flex;gap:8px;align-items:center;">
+          <span style="color:var(--text3);font-size:11px;" id="jaiCsvCount"></span>
+          <button class="btn btn-ghost btn-sm" onclick="jaiCsvPreviewHide()">✕</button>
+        </div>
+      </div>
+      <div id="jaiCsvStatus" style="display:none;background:var(--bg3);border:1px solid var(--border2);border-radius:10px;padding:14px;margin-top:10px;font-size:12px;"></div>
+
+      <!-- ══ AUTO-IMPORT SCHEDULE (Vercel Cron) ══ -->
+      <div class="jai-section-title" style="margin-top:8px;">⏰ Auto-Import Schedule (Vercel Cron)</div>
+      <div style="background:var(--bg3);border:1px solid var(--border2);border-radius:10px;padding:16px;margin-top:10px;line-height:1.7;">
+        <div style="font-weight:700;color:#fff;margin-bottom:10px;">Schedule your bulk importer to run automatically:</div>
+        <div style="display:flex;gap:12px;flex-wrap:wrap;">
+          <div style="flex:1;min-width:200px;">
+            <label style="font-size:11px;font-weight:700;color:var(--text3);display:block;margin-bottom:6px;">Trigger endpoint (server-side):</label>
+            <div style="background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:10px;font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--text);word-break:break-all;">POST /api/import-bulk?action=run&pages=5&publish=true&from-page=1</div>
+          </div>
+          <div style="flex:1;min-width:200px;">
+            <label style="font-size:11px;font-weight:700;color:var(--text3);display:block;margin-bottom:6px;">Every (hours):</label>
+            <input id="jaiCronHours" type="number" value="6" min="1" max="48" style="width:100%;background:var(--bg2);border:1px solid var(--border2);border-radius:6px;color:var(--text);padding:8px;"/>
+          </div>
+        </div>
+        <div style="margin-top:10px;font-size:11px;color:var(--text3);">
+          Set up a <code>cron</code> entry in your Vercel project dashboard, or use the <code>vercel cron</code> CLI:
+          <code>vercel env add VERCEL_CRON</code> — then add the scheduled function call here.
+          The endpoint returns 202 immediately so multiple concurrent runs stay under Vercel's limits.
+        </div>
+      </div>
+
+      <!-- ══ REFRESH METADATA ══ -->
+      <div class="jai-section-title" style="margin-top:8px;">🔄 Refresh Metadata Batch</div>
+      <div class="jai-search-bar" style="flex-wrap:wrap;gap:10px;">
+        <input class="jai-input" id="jaiRefreshInput" placeholder="Paste MAL IDs to refresh, or leave empty for auto_update=true" style="flex:1;min-width:300px;"/>
+        <button class="jai-btn" onclick="jaiRefreshMetadata()">🔄 Refresh Selected</button>
+        <button class="jai-btn-ghost" onclick="jaiRefreshAutoUpdate()">🔄 All Auto-Update</button>
+        <button class="jai-btn-ghost" onclick="jaiFetchSchedule()">⏱ Next run</button>
+      </div>
+      <div id="jaiRefreshStatus" style="display:none;background:var(--bg3);border:1px solid var(--border2);border-radius:10px;padding:14px;margin-top:10px;font-size:12px;"></div>
+    </div>
+
     </div>
 
 
@@ -3558,7 +3622,7 @@ function jaiRenderResults(list){
   }).join('');
 }
 
-async function jaiImport(malId){
+async function jaiImport(malId, quiet){
   const btn=document.getElementById('jaibtn-'+malId);
   if(btn){btn.textContent='⏳…';btn.disabled=true;}
   jaiSetStatus(malId,'pending','Checking duplicates…');
@@ -3566,10 +3630,10 @@ async function jaiImport(malId){
   // ── Duplicate check: localStorage ──
   const all=jaiGetAll();
   if(all.find(a=>a.mal_id===malId)){
-    showToast('Already imported','warn');
+    if(!quiet) showToast('Already imported','warn');
     if(btn)btn.textContent='✓ Imported';
     jaiSetStatus(malId,'imported','Already in library');
-    return;
+    return 'duplicate';
   }
 
   // ── Duplicate check: Supabase ──
@@ -3577,10 +3641,10 @@ async function jaiImport(malId){
   if(sb){
     const {data:existing}=await sb.from('anime').select('id').eq('mal_id',malId).maybeSingle();
     if(existing){
-      showToast('Already in Supabase','warn');
+      if(!quiet) showToast('Already in Supabase','warn');
       if(btn)btn.textContent='✓ Imported';
       jaiSetStatus(malId,'imported','Already in Supabase #'+existing.id);
-      return;
+      return 'duplicate_supabase';
     }
   }
 
@@ -3590,6 +3654,13 @@ async function jaiImport(malId){
     const m=data.data||data;
     const anime=jaiMapAnime(m);
     anime.episodes=jaiBuildEpisodes(anime.episodes_total||0);
+    // Attach MegaPlay source URLs to local episodes (used by 📥 generated pages).
+    // Supabase embed_sources rows are generated separately in sbInsertAnime.
+    anime.episodes.forEach(ep=>{
+      ep.embed_urls=[{name:'MegaPlay',    url:'https://megaplay.buzz/stream/mal/'+malId+'/'+ep.number+'/sub'},
+                     {name:'MegaPlay Dub',url:'https://megaplay.buzz/stream/mal/'+malId+'/'+ep.number+'/dub'}];
+      ep.has_source=true;
+    });
 
     jaiSetStatus(malId,'pending','Saving to library…');
     all.push(anime);jaiSaveAll(all);
@@ -3615,7 +3686,8 @@ async function jaiImport(malId){
       }
     }
     jaiRefreshStats();jaiRenderLibrary();jaiStartScheduler();
-    showToast('✅ '+anime.title+' imported! '+anime.episodes.length+' eps.','ok');
+    if(!quiet) showToast('✅ '+anime.title+' imported! '+anime.episodes.length+' eps.','ok');
+    return 'imported';
   }catch(e){
     jaiSetStatus(malId,'failed',e.message);
     jaiAddLog('❌ Import failed MAL #'+malId+': '+e.message);
@@ -3624,6 +3696,7 @@ async function jaiImport(malId){
     if(btn){btn.textContent='+ Import';btn.disabled=false;}
     const failEl=document.getElementById('jaiStatFailed');
     if(failEl)failEl.textContent=parseInt(failEl.textContent||'0')+1;
+    return 'failed';
   }
 }
 
@@ -3968,7 +4041,7 @@ async function jaiSyncOne(malId){
         const existing=new Set((lsAnime.episodes||[]).map(e=>e.number));
         for(let i=1;i<=apiTotal;i++){
           if(!existing.has(i))
-            lsAnime.episodes.push({number:i,title:'Episode '+i,embed_urls:[],has_source:false});
+            lsAnime.episodes.push({number:i,title:'Episode '+i,embed_urls:[{name:'MegaPlay',url:'https://megaplay.buzz/stream/mal/'+malId+'/'+i+'/sub'}],has_source:true});
         }
       }
       lsAll[lsIdx]=lsAnime;
@@ -4089,7 +4162,7 @@ async function jaiSyncOne(malId){
 }
 
 // ── Auto-attach sources for new episodes ──
-// 1. Auto-generate URLs for every configured provider (VidNest, Cinetaro, …)
+// 1. Auto-generate URLs for every configured provider (MegaPlay, VidNest, Cinetaro, …)
 // 2. Also apply any custom anime_sources patterns the admin saved earlier
 async function autoAttachSources(sb,animeId,newEpRows,malId){
   // ─── (A) Auto-providers (VidNest / Cinetaro / etc.) ───
@@ -4555,11 +4628,21 @@ async function deleteComment(commentId, videoId){
 
 // ════════════════════════════════════════════════════════════════
 // ███ ADMIN EMBED PROVIDERS
+// MegaPlay (Anikoto/HiAnime library): MAL-id based — works for EVERY anime,
+//   no AniList ID needed. Sub + Dub auto-generated per episode on import.
 // VidNest + Cinetaro: anilist_id required
 // AnimePlay: handled separately via 9anime ID panel (opend API)
 // AutoEmbed + AnimEmbed: permanently removed
 // ════════════════════════════════════════════════════════════════
 const ADMIN_EMBED_PROVIDERS = [
+  {
+    id:'megaplay-sub', name:'MegaPlay', icon:'⚡', quality:'1080p', language:'sub', type:'mal',
+    build:(a,ep)=> a.mal_id?'https://megaplay.buzz/stream/mal/'+a.mal_id+'/'+ep+'/sub':null
+  },
+  {
+    id:'megaplay-dub', name:'MegaPlay Dub', icon:'⚡', quality:'1080p', language:'dub', type:'mal',
+    build:(a,ep)=> a.mal_id?'https://megaplay.buzz/stream/mal/'+a.mal_id+'/'+ep+'/dub':null
+  },
   {
     id:'vidnest',  name:'VidNest',  icon:'📺', quality:'SUB',  language:'sub', type:'anilist',
     build:(a,ep)=>{ const id=a.anilist_id; return id?'https://vidnest.fun/animepahe/'+id+'/'+ep+'/sub':null; }
@@ -4709,7 +4792,7 @@ function escRenderAutoProviders(epNum){
         ✅ AniList ID: <strong>${alId}</strong> — AniList servers will work
        </div>`
     : `<div style="display:flex;align-items:center;gap:7px;background:rgba(255,71,87,0.08);border:1px solid rgba(255,71,87,0.2);border-radius:8px;padding:7px 12px;margin-bottom:10px;font-size:11px;font-weight:700;color:var(--red);">
-        ⚠️ No AniList ID — primary servers unavailable. Only fallback servers shown.
+        ⚠️ No AniList ID — VidNest & Cinetaro unavailable. MegaPlay still works (MAL-based).
         ${escAnime.mal_id ? '<button onclick="escFetchAnilistId()" style="margin-left:auto;background:rgba(255,71,87,0.15);border:1px solid rgba(255,71,87,0.3);color:var(--red);padding:3px 10px;border-radius:6px;font-size:10px;font-weight:700;cursor:pointer;">🔍 Fetch AniList ID</button>' : ''}
        </div>`;
 
@@ -4720,9 +4803,9 @@ function escRenderAutoProviders(epNum){
     if(!url || blocked) return `
       <div style="background:rgba(255,255,255,0.02);border:1px solid var(--border);border-radius:10px;padding:10px 12px;opacity:.35;">
         <div style="font-size:13px;margin-bottom:3px;">${p.icon} <strong style="font-size:11px;color:var(--text2);">${p.name}</strong>
-          <span style="font-size:8px;background:rgba(255,71,87,0.15);color:var(--red);border-radius:4px;padding:1px 6px;margin-left:6px;">${p.type==='anilist'?'NEEDS ANILIST ID':'MISSING TITLE'}</span>
+          <span style="font-size:8px;background:rgba(255,71,87,0.15);color:var(--red);border-radius:4px;padding:1px 6px;margin-left:6px;">${p.type==='anilist'?'NEEDS ANILIST ID':(p.type==='mal'?'MISSING MAL ID':'MISSING TITLE')}</span>
         </div>
-        <div style="font-size:9px;color:var(--text3);">${p.type==='anilist'?'Requires anilist_id to generate URL':'Could not build URL from title'}</div>
+        <div style="font-size:9px;color:var(--text3);">${p.type==='anilist'?'Requires anilist_id to generate URL':(p.type==='mal'?'Could not build URL — no MAL ID on this anime':'Could not build URL from title')}</div>
       </div>`;
 
     return `
@@ -4732,7 +4815,7 @@ function escRenderAutoProviders(epNum){
         onclick="escPreviewProvider('${url.replace(/'/g,"\\'")}','${p.name}')">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
           <div style="font-size:13px;">${p.icon} <strong style="font-size:11px;color:#fff;">${p.name}</strong>
-            <span style="font-size:8px;background:${p.type==='anilist'?'rgba(67,97,238,0.15)':'rgba(155,93,229,0.12)'};color:${p.type==='anilist'?'var(--blue)':'var(--purple)'};border-radius:4px;padding:1px 6px;margin-left:5px;">${p.type==='anilist'?'ANILIST':'TITLE'}</span>
+            <span style="font-size:8px;background:${p.type==='anilist'?'rgba(67,97,238,0.15)':'rgba(155,93,229,0.12)'};color:${p.type==='anilist'?'var(--blue)':'var(--purple)'};border-radius:4px;padding:1px 6px;margin-left:5px;">${p.type==='anilist'?'ANILIST':(p.type==='mal'?'MAL':'TITLE')}</span>
           </div>
           <div style="font-size:9px;font-weight:700;background:rgba(255,255,255,0.07);border-radius:5px;padding:1px 6px;color:var(--text3);">${p.quality}</div>
         </div>
@@ -4818,7 +4901,7 @@ async function escSaveProviderDirect(url, name){
 
 // Upgrade dropdowns to match current provider list
 (function upgradeDropdowns(){
-  const providerNames = ['AnimePlay','VidNest','Cinetaro','Sub','Dub','Custom'];
+  const providerNames = ['MegaPlay','MegaPlay Dub','AnimePlay','VidNest','Cinetaro','Sub','Dub','Custom'];
   const opts = providerNames.map(v=>`<option value="${v}">${v}</option>`).join('');
   const srcName = document.getElementById('escSrcName');
   if(srcName) srcName.innerHTML = opts;
@@ -5061,7 +5144,7 @@ async function jaiBulkRegenerateAllEmbeds(){
   if(!animeList.length){ showToast('Library is empty','warn'); return; }
 
   // Disable both buttons while running
-  const animeManagerBtn = document.getElementById('animeManagerRegenBtn');
+  animeManagerBtn = document.getElementById('animeManagerRegenBtn');
   if(animeManagerBtn){ animeManagerBtn.disabled=true; animeManagerBtn.textContent='⏳ Generating…'; }
 
   if(!confirm('Regenerate embeds for ALL '+animeList.length+' anime?\n\nThis fills every episode × every server ('+ADMIN_EMBED_PROVIDERS.length+' servers) with a fresh embed URL. Existing URLs are overwritten.\n\nMay take a few minutes.')) return;
@@ -5131,6 +5214,218 @@ async function jaiBulkRegenerateAllEmbeds(){
   if(typeof loadLibrary === 'function') await loadLibrary();
 }
 
+
+
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// CSV BATCH IMPORT — client-side; reads Supabase + local library first to skip duplicates
+// ═══════════════════════════════════════════════════════════════════════════════
+async function jaiCsvImport(){
+  const raw = document.getElementById('jaiCsvInput').value.trim();
+  if(!raw){ showToast('Please paste or type MAL IDs','warn'); return; }
+  const ids = [...new Set(raw.split(/[,\s]+/).map(s=>Number(s.trim())).filter(n=>n&&Number.isInteger(n)))];
+  if(ids.length===0){ showToast('No valid MAL IDs found','err'); return; }
+
+  const sb = getSB();
+  if(!sb){ showToast('Supabase not connected — save your URL & key in Settings first','err'); showView('settings'); return; }
+
+  const preview = document.getElementById('jaiCsvPreview');
+  const previewList = document.getElementById('jaiCsvPreviewList');
+  const count = document.getElementById('jaiCsvCount');
+  preview.style.display='block';
+  count.textContent = ids.length + ' MAL ID' + (ids.length>1?'s':'') + ' found';
+  previewList.innerHTML = ids.slice(0,5).map(n=>'<div>MAL #'+n+'</div>').join('');
+  if(ids.length>5) previewList.innerHTML += '<div style="color:var(--text3);font-size:11px;">+ '+(ids.length-5)+' more</div>';
+
+  const statusEl = document.getElementById('jaiCsvStatus');
+  statusEl.style.display='block';
+  statusEl.innerHTML = '<div class="jai-loading" style="margin-bottom:8px;">⏳ Reading existing titles from Supabase…</div>';
+  statusEl.scrollIntoView({behavior:'smooth',block:'center'});
+  showToast('⏳ Checking '+ids.length+' IDs against your library…','info');
+
+  try{
+    // ── 1. DEDUP #1: local auto-import library (localStorage) ──
+    const lsIds = new Set(jaiGetAll().map(a=>Number(a.mal_id)));
+
+    // ── 2. DEDUP #2: read what is ALREADY in the Supabase `anime` table ──
+    const sbIds = new Set();
+    for(let i=0;i<ids.length;i+=500){
+      const {data, error} = await sb.from('anime').select('mal_id').in('mal_id', ids.slice(i,i+500));
+      if(error) throw new Error('Supabase lookup failed: '+error.message);
+      (data||[]).forEach(r=>{ if(r.mal_id!=null) sbIds.add(Number(r.mal_id)); });
+    }
+    const isDup = id => lsIds.has(id) || sbIds.has(id);
+    const newIds = ids.filter(id=>!isDup(id));
+    const dupIds = ids.filter(isDup);
+
+    let html = '<div style="margin-bottom:8px;">📋 <b>'+ids.length+'</b> pasted — <span style="color:#06d6a0;">'+newIds.length+' new</span>'+
+      (dupIds.length ? ' · <span style="color:var(--gold);">'+dupIds.length+' already imported (skipped)</span>' : '')+'</div>';
+    if(dupIds.length){
+      html += '<div style="font-size:11px;color:var(--text3);margin-bottom:8px;">Already in library: '+dupIds.slice(0,20).join(', ')+(dupIds.length>20?' +'+(dupIds.length-20)+' more':'')+'</div>';
+    }
+    statusEl.innerHTML = html;
+    if(newIds.length===0){
+      showToast('✅ All '+ids.length+' titles already imported — nothing to do','ok');
+      jaiAddLog('📥 CSV import: '+ids.length+' pasted — all already in library');
+      return;
+    }
+
+    // ── 3. Import the NEW titles only (Jikan → localStorage + Supabase) ──
+    const res = {imported:0, dup:0, failed:0};
+    const failedIds = [];
+    for(let i=0;i<newIds.length;i++){
+      const id = newIds[i];
+      statusEl.innerHTML = html+'<div class="jai-loading">⏳ Importing '+(i+1)+'/'+newIds.length+' — MAL #'+id+'</div>';
+      const r = await jaiImport(id, true);
+      if(r==='imported') res.imported++;
+      else if(r==='failed'){ res.failed++; failedIds.push(id); }
+      else if(r==='duplicate'||r==='duplicate_supabase') res.dup++;
+      if(i<newIds.length-1) await new Promise(done=>setTimeout(done, JAI_DELAY_MS));
+    }
+
+    // ── 4. Final report ──
+    const skipped = dupIds.length + res.dup;
+    const report = '<div style="color:'+(res.imported?'#06d6a0':'var(--gold)')+';">✅ Done — <b>'+res.imported+'</b> imported, '+skipped+' skipped (already in library)'+
+      (res.failed ? ' · <span style="color:#ff4757;">'+res.failed+' failed</span>' : '')+'</div>'+
+      (failedIds.length ? '<div style="font-size:11px;color:var(--text3);margin-top:6px;">Failed: '+failedIds.join(', ')+'</div>' : '');
+    statusEl.innerHTML = html+report;
+    showToast('✅ CSV import done: '+res.imported+' new titles'+(skipped?', '+skipped+' skipped':''),'ok');
+    jaiAddLog('📥 CSV Batch import: '+ids.length+' pasted → '+res.imported+' imported, '+skipped+' skipped, '+res.failed+' failed');
+    addLog('CSV Batch import: '+res.imported+'/'+newIds.length+' new titles imported', res.failed?'red':'green');
+    jaiRefreshStats(); jaiRenderLibrary(); jaiStartScheduler();
+    await loadLibrary();
+  }catch(e){
+    statusEl.innerHTML = '<div style="color:#ff4757;">❌ '+e.message+'</div>';
+    showToast('❌ CSV import failed: '+e.message,'err');
+    console.error('[CSV Import]',e);
+  }
+}
+// ═══════════════════════════════════════════════════════════════════════════════
+// AUTO-IMPORT SCHEDULE (Vercel Cron) — computes the next UTC run locally
+// ═══════════════════════════════════════════════════════════════════════════════
+function jaiFetchSchedule(){
+  const hours = Math.max(1, Math.min(48, parseInt(document.getElementById('jaiCronHours')?.value,10)||6));
+  if(24 % hours !== 0){
+    showToast('⚠️ Use an interval that divides 24 hours (1,2,3,4,6,8,12,24) to match the vercel.json cron `0 */N * * *`','warn');
+    return;
+  }
+  // vercel.json cron runs at 0 */N * * * — i.e. UTC-aligned every N hours
+  const now = Date.now();
+  const d = new Date();
+  const dayStart = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+  let next = null;
+  for(let h=0; h<24; h+=hours){
+    const t = dayStart + h*3600000;
+    if(t > now){ next = t; break; }
+  }
+  if(next==null) next = dayStart + 24*3600000;
+  const utc = new Date(next).toISOString().slice(0,16).replace('T',' ')+' UTC';
+  const local = new Date(next).toLocaleString();
+  showToast('⏰ Cron every '+hours+'h → next run '+local,'ok');
+  jaiAddLog('⏰ Schedule: every '+hours+'h · next '+utc+' (local: '+local+')');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// REFRESH METADATA — client-side; targets pasted MAL ids or auto_update rows
+// ═══════════════════════════════════════════════════════════════════════════════
+async function jaiRefreshMetadata(){
+  const raw = document.getElementById('jaiRefreshInput').value.trim();
+  const sb = getSB();
+  const statusEl = document.getElementById('jaiRefreshStatus');
+  statusEl.style.display='block';
+  statusEl.scrollIntoView({behavior:'smooth',block:'center'});
+  if(!sb){
+    statusEl.innerHTML='<div style="color:#ff4757;">❌ Supabase not connected — save your URL & key in Settings first</div>';
+    showToast('Supabase not connected','err'); showView('settings'); return;
+  }
+
+  try{
+    let targets = [], head = '';
+    if(raw){
+      // Explicit MAL ids — must already exist in the library
+      const ids = [...new Set(raw.split(/[,\s]+/).map(s=>Number(s.trim())).filter(n=>n&&Number.isInteger(n)))];
+      if(!ids.length){ showToast('No valid MAL IDs','err'); return; }
+      statusEl.innerHTML = '<div class="jai-loading" style="margin-bottom:8px;">⏳ Checking library…</div>';
+      for(let i=0;i<ids.length;i+=500){
+        const {data,error} = await sb.from('anime').select('id, mal_id, title_english, title_romaji').in('mal_id', ids.slice(i,i+500));
+        if(error) throw new Error('Supabase lookup failed: '+error.message);
+        targets.push(...(data||[]));
+      }
+      const missing = ids.filter(id=>!targets.some(t=>Number(t.mal_id)===id));
+      if(missing.length) head = '<div style="color:var(--gold);margin-bottom:8px;">⚠️ Not in library (skipped): '+missing.slice(0,20).join(', ')+(missing.length>20?' +'+(missing.length-20)+' more':'')+'</div>';
+    } else {
+      // Batch: every non-finished anime with auto_update=true (same set as the scheduler)
+      statusEl.innerHTML = '<div class="jai-loading" style="margin-bottom:8px;">⏳ Loading auto-update titles…</div>';
+      const {data,error} = await sb.from('anime').select('id, mal_id, title_english, title_romaji').eq('auto_update',true).neq('status','FINISHED').order('last_checked',{ascending:true,nullsFirst:true});
+      if(error) throw new Error(error.message);
+      targets = data||[];
+    }
+    if(!targets.length){
+      statusEl.innerHTML = head + '<div style="color:var(--gold);">Nothing to refresh.</div>';
+      showToast('Nothing to refresh','warn'); return;
+    }
+
+    let ok = 0, failed = 0;
+    const failedTitles = [];
+    for(let i=0;i<targets.length;i++){
+      const t = targets[i];
+      const title = t.title_english || t.title_romaji || ('MAL #'+t.mal_id);
+      statusEl.innerHTML = head + '<div class="jai-loading">⏳ Refreshing '+(i+1)+'/'+targets.length+' — '+title+'</div>';
+      try{
+        await jaiSyncOne(Number(t.mal_id));
+        ok++;
+      }catch(e){
+        failed++; failedTitles.push(title); console.warn('[Refresh] MAL #'+t.mal_id, e.message);
+      }
+      if(i<targets.length-1) await new Promise(done=>setTimeout(done, JAI_DELAY_MS));
+    }
+
+    statusEl.innerHTML = head + '<div style="color:#06d6a0;">✅ Refreshed '+ok+'/'+targets.length+' titles'+
+      (failed ? ' · <span style="color:#ff4757;">'+failed+' failed</span>' : '')+'</div>'+
+      (failedTitles.length ? '<div style="font-size:11px;color:var(--text3);margin-top:6px;">Failed: '+failedTitles.slice(0,10).join(', ')+(failedTitles.length>10?' +'+(failedTitles.length-10)+' more':'')+'</div>' : '');
+    showToast('✅ Refresh done: '+ok+'/'+targets.length+' updated','ok');
+    jaiAddLog('🔄 Refresh metadata: '+ok+'/'+targets.length+' updated'+(failed?', '+failed+' failed':''));
+    document.getElementById('jaiRefreshInput').value='';
+    jaiRefreshStats(); jaiRenderLibrary();
+    await loadLibrary();
+  }catch(e){
+    statusEl.innerHTML = '<div style="color:#ff4757;">❌ '+e.message+'</div>';
+    showToast('❌ Refresh failed: '+e.message,'err');
+    console.error('[Refresh]',e);
+  }
+}
+
+async function jaiRefreshAutoUpdate(){
+  document.getElementById('jaiRefreshInput').value='';
+  await jaiRefreshMetadata();
+}
+
+function jaiCsvPaste(){
+  if(typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.readText){
+    navigator.clipboard.readText().then(jaiCsvInputValue => {
+      document.getElementById('jaiCsvInput').value = jaiCsvInputValue;
+      jaiCsvPreviewShow();
+    }).catch(()=>{ jaiCsvPreviewShow(); });
+  } else {
+    const raw = prompt('Paste MAL IDs (comma-separated, e.g. 52991, 113415, 200022):');
+    if(raw) { document.getElementById('jaiCsvInput').value = raw; jaiCsvPreviewShow(); }
+  }
+}
+
+function jaiCsvPreviewShow(){
+  const preview = document.getElementById('jaiCsvPreview');
+  const count = document.getElementById('jaiCsvCount');
+  const raw = document.getElementById('jaiCsvInput').value.trim();
+  if(raw){
+    const ids = raw.split(/[,\s]+/).map(s=>Number(s.trim())).filter(n=>n&&Number.isInteger(n));
+    count.textContent = ids.length + ' MAL ID' + (ids.length>1?'s':'')+' found';
+    preview.style.display='block';
+  }
+}
+
+function jaiCsvPreviewHide(){
+  document.getElementById('jaiCsvPreview').style.display='none';
+}
 
 
 </script>

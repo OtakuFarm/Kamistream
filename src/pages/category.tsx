@@ -11,6 +11,7 @@ import { CountUp, FloatingPetals } from "@/components/motionBits";
 import { useSEO } from "@/hooks/useSEO";
 import { jikanFetch } from "@/lib/jikanFetch";
 import { dedupeByMalId } from "@/lib/dedupeAnime";
+import { getAnimeList, withCatalogueFallback } from "@/lib/catalogue";
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 function getCurrentSeason(): { season: string; year: number } {
@@ -31,6 +32,21 @@ async function catFetch(endpoint: string, page: number) {
   };
 }
 
+// Catalogue first, Jikan second — getAnimeList() mapped into catFetch()'s
+// { data, hasNext, lastPage } contract so nothing downstream changes.
+// An empty catalogue result (category not imported yet) falls back to Jikan.
+function catPage(opts: Parameters<typeof getAnimeList>[0], endpoint: string) {
+  return (p: number) => withCatalogueFallback(
+    () => getAnimeList({ ...opts, page: p }).then(r => ({
+      data:     r.data,
+      hasNext:  r.pagination.has_next_page,
+      lastPage: r.pagination.last_visible_page,
+    })),
+    () => catFetch(endpoint, p),
+    (r: any) => !r?.data?.length,
+  );
+}
+
 // ── Category config ─────────────────────────────────────────────────────────
 const CATEGORIES: Record<string, {
   label:       string;
@@ -49,28 +65,28 @@ const CATEGORIES: Record<string, {
     description: "What's hot right now — the top airing anime this week",
     color:       "#f97316",
     ranked:      true,
-    fetchPage:   (p) => catFetch("/top/anime?filter=airing&limit=24", p),
+    fetchPage:   catPage({ airStatus: 'Currently Airing', sort: 'trending', limit: 24 }, "/top/anime?filter=airing&limit=24"),
   },
   "new-release": {
     label:       "New Release",
     icon:        <Flame className="w-5 h-5" />,
     description: "Currently airing anime sorted by popularity",
     color:       "var(--pink)",
-    fetchPage:   (p) => catFetch("/anime?status=airing&order_by=members&sort=desc&limit=24", p),
+    fetchPage:   catPage({ airStatus: 'Currently Airing', sort: 'popular', limit: 24 }, "/anime?status=airing&order_by=members&sort=desc&limit=24"),
   },
   "new-added": {
     label:       "New Added",
     icon:        <Zap className="w-5 h-5" />,
     description: "Recently started anime — fresh new seasons and debuts",
     color:       "var(--green)",
-    fetchPage:   (p) => catFetch("/anime?status=airing&order_by=start_date&sort=desc&limit=24", p),
+    fetchPage:   catPage({ airStatus: 'Currently Airing', sort: 'recent', limit: 24 }, "/anime?status=airing&order_by=start_date&sort=desc&limit=24"),
   },
   "just-completed": {
     label:       "Just Completed",
     icon:        <CheckCircle2 className="w-5 h-5" />,
     description: "Anime that recently finished airing",
     color:       "var(--blue)",
-    fetchPage:   (p) => catFetch("/anime?status=complete&order_by=end_date&sort=desc&limit=24", p),
+    fetchPage:   catPage({ airStatus: 'Finished Airing', sort: 'ended', limit: 24 }, "/anime?status=complete&order_by=end_date&sort=desc&limit=24"),
   },
   "top-rated": {
     label:       "Top Rated",
@@ -78,7 +94,7 @@ const CATEGORIES: Record<string, {
     description: "Highest rated anime of all time",
     color:       "var(--gold)",
     ranked:      true,
-    fetchPage:   (p) => catFetch("/top/anime?limit=24", p),
+    fetchPage:   catPage({ sort: 'score', limit: 24 }, "/top/anime?limit=24"),
   },
   "this-season": {
     label:       "This Season",
@@ -87,7 +103,7 @@ const CATEGORIES: Record<string, {
     color:       "var(--purple)",
     fetchPage:   (p) => {
       const { season, year } = getCurrentSeason();
-      return catFetch(`/seasons/${year}/${season}?limit=24`, p);
+      return catPage({ season, year, sort: 'popular', limit: 24 }, `/seasons/${year}/${season}?limit=24`)(p);
     },
   },
   "top-anime": {
@@ -96,14 +112,14 @@ const CATEGORIES: Record<string, {
     description: "All-time top anime ranked by score",
     color:       "var(--gold)",
     ranked:      true,
-    fetchPage:   (p) => catFetch("/top/anime?type=tv&limit=24", p),
+    fetchPage:   catPage({ type: 'TV', sort: 'score', limit: 24 }, "/top/anime?type=tv&limit=24"),
   },
   "upcoming": {
     label:       "Upcoming Anime",
     icon:        <Rocket className="w-5 h-5" />,
     description: "Anime that haven't started airing yet",
     color:       "var(--pink)",
-    fetchPage:   (p) => catFetch("/anime?status=upcoming&order_by=members&sort=desc&limit=24", p),
+    fetchPage:   catPage({ airStatus: 'Not yet aired', sort: 'popular', limit: 24 }, "/anime?status=upcoming&order_by=members&sort=desc&limit=24"),
   },
 };
 
