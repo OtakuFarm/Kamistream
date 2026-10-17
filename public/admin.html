@@ -358,6 +358,12 @@ tr:hover td{background:rgba(124,58,237,0.04);}
 .esc-bulk-panel{background:var(--card);border:1px solid var(--border2);border-radius:12px;padding:16px;margin-bottom:14px;}
 .esc-bulk-title{font-size:12px;font-weight:800;color:#fff;margin-bottom:10px;}
 .esc-bulk-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;}
+/* ── Bulk import (Anime Manager) ── */
+.bi-inp{background:var(--bg3);border:1px solid var(--border2);border-radius:9px;color:var(--text);padding:8px 10px;font-family:'Nunito',sans-serif;font-size:12px;outline:none;}
+.bi-inp:focus{border-color:rgba(155,93,229,.5);}
+.bi-lab{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--text2);cursor:pointer;user-select:none;padding:7px 10px;background:var(--bg3);border:1px solid var(--border2);border-radius:9px;}
+.bi-lab:hover{border-color:rgba(155,93,229,.35);}
+.bi-chip{display:inline-block;font-size:8px;font-weight:800;padding:2px 6px;border-radius:6px;letter-spacing:.5px;white-space:nowrap;}
 .esc-pattern-input{flex:1;min-width:200px;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;color:var(--text);padding:9px 12px;font-family:'Share Tech Mono',monospace;font-size:12px;outline:none;transition:border .2s;}
 .esc-pattern-input:focus{border-color:rgba(124,58,237,0.4);}
 .esc-pattern-input::placeholder{color:var(--text3);}
@@ -1003,6 +1009,7 @@ tr:hover td{background:rgba(124,58,237,0.04);}
         <div class="page-actions">
           <button class="btn btn-ghost btn-sm" onclick="runScheduler()">▶ Run Sync Now</button>
           <button class="btn btn-success" id="animeManagerRegenBtn" onclick="jaiBulkRegenerateAllEmbeds()" title="Auto-generate VidNest embed URLs for every episode of every anime using their AniList ID">⚡ Auto-Generate All Embeds</button>
+          <button class="btn btn-ghost" onclick="switchAnimeTab('bulk')" title="Bulk import from AniList / Jikan with filters + automatic episode sources">📥 Bulk Import</button>
           <button class="btn btn-primary" onclick="switchAnimeTab('search')">+ Import Anime</button>
         </div>
       </div>
@@ -1012,6 +1019,7 @@ tr:hover td{background:rgba(124,58,237,0.04);}
         <button id="at-library" class="tbn active" style="border-bottom:2px solid var(--admin);color:#a78bfa;" onclick="switchAnimeTab('library')">📚 Library</button>
         <button id="at-search" class="tbn" onclick="switchAnimeTab('search')">🔍 Import</button>
         <button id="at-schedule" class="tbn" onclick="switchAnimeTab('schedule')">🕐 Scheduler</button>
+        <button id="at-bulk" class="tbn" onclick="switchAnimeTab('bulk')">📥 Bulk Import</button>
       </div>
 
       <!-- LIBRARY TAB -->
@@ -1092,6 +1100,82 @@ tr:hover td{background:rgba(124,58,237,0.04);}
           <div class="tbl-header"><div class="tbl-title">Import Log</div></div>
           <table><thead><tr><th>Time</th><th>Action</th><th>Details</th><th>Status</th></tr></thead>
           <tbody id="importLogBody"></tbody></table>
+        </div>
+      </div>
+      <!-- ══ BULK IMPORT TAB ══ -->
+      <div id="aTab-bulk" style="display:none;">
+        <div style="background:var(--card);border:1px solid var(--border2);border-radius:12px;padding:16px;margin-bottom:16px;">
+          <div style="font-family:'Poppins',sans-serif;font-size:14px;font-weight:800;color:#fff;margin-bottom:4px;">📥 Bulk Import Anime</div>
+          <div style="font-size:11px;color:var(--text3);margin-bottom:12px;">Pick source &amp; mode → Preview → select → Import. Episode rows and source embeds (MegaPlay · MegaPlay Dub · VidNest · Cinetaro) can be generated automatically for every import.</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
+            <select id="bulkSource" class="bi-inp" onchange="bulkModeChanged()">
+              <option value="anilist">AniList</option>
+              <option value="jikan">Jikan (MAL)</option>
+            </select>
+            <select id="bulkMode" class="bi-inp" onchange="bulkModeChanged()">
+              <option value="season-now">🔥 Current Season</option>
+              <option value="trending">📈 Trending</option>
+              <option value="top">🏆 Top Rated</option>
+              <option value="season">🗓️ Season + Year</option>
+              <option value="ids">📋 Custom ID List</option>
+            </select>
+            <select id="bulkPerPage" class="bi-inp" title="Results per page"><option>25</option><option>10</option><option>20</option><option>30</option><option>50</option></select>
+            <select id="bulkPage" class="bi-inp" title="Page #"><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select>
+          </div>
+          <div id="bulkSeasonRow" style="display:none;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
+            <select id="bulkYear" class="bi-inp"><option>2026</option><option>2025</option><option>2024</option><option>2023</option><option>2022</option><option>2021</option><option>2020</option><option>2019</option><option>2018</option><option>2017</option><option>2016</option><option>2015</option></select>
+            <select id="bulkSeason" class="bi-inp"><option>WINTER</option><option>SPRING</option><option>SUMMER</option><option>FALL</option></select>
+          </div>
+          <div id="bulkGenreRow" style="display:none;margin-bottom:8px;">
+            <select id="bulkGenre" class="bi-inp"><option value="">Any genre</option><option>Action</option><option>Adventure</option><option>Comedy</option><option>Drama</option><option>Fantasy</option><option>Horror</option><option>Mahou Shoujo</option><option>Mecha</option><option>Music</option><option>Mystery</option><option>Psychological</option><option>Romance</option><option>Sci-Fi</option><option>Slice of Life</option><option>Sports</option><option>Supernatural</option><option>Thriller</option></select>
+          </div>
+          <div id="bulkIdsRow" style="display:none;margin-bottom:8px;">
+            <textarea id="bulkIds" class="bi-inp" rows="2" style="width:100%;resize:vertical;" placeholder="AniList IDs — e.g. 151807 16498 113415 (comma / space / newline)"></textarea>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;align-items:center;">
+            <input id="bulkMinScore" class="bi-inp" type="number" min="0" max="10" step="0.5" value="0" title="Min score (0 = off)" style="width:84px;" placeholder="Min score"/>
+            <select id="bulkFormat" class="bi-inp" title="Format filter"><option value="ANY">Any format</option><option>TV</option><option>MOVIE</option><option>OVA</option><option>ONA</option><option>SPECIAL</option></select>
+            <select id="bulkStatus" class="bi-inp" title="Airing status filter"><option value="ANY">Any status</option><option value="AIRING">Airing</option><option value="FINISHED">Finished</option><option value="UPCOMING">Upcoming</option></select>
+            <input id="bulkMax" class="bi-inp" type="number" min="1" max="200" value="30" title="Max items to import" style="width:84px;" placeholder="Max"/>
+            <label class="bi-lab"><input type="checkbox" id="bulkSkipImported" checked/> Skip imported</label>
+            <label class="bi-lab"><input type="checkbox" id="bulkCreateEps" checked/> Create episode rows</label>
+            <label class="bi-lab"><input type="checkbox" id="bulkAutoEmbeds" checked/> ⚡ Auto source embeds</label>
+            <select id="bulkDelay" class="bi-inp" title="Delay between imports (rate-limit friendly)"><option value="400">0.4s delay</option><option value="800" selected>0.8s delay</option><option value="1500">1.5s delay</option><option value="2500">2.5s delay</option></select>
+          </div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;align-items:center;">
+            <button class="btn btn-ghost" id="bulkPreviewBtn" onclick="bulkPreview()">🔍 Preview</button>
+            <button class="btn btn-success" id="bulkImportBtn" onclick="bulkImportSelected()" disabled>▶ Import Selected</button>
+            <button class="btn btn-ghost" id="bulkRetryBtn" onclick="bulkRetryFailed()" style="display:none;">↻ Retry Failed</button>
+            <button class="btn btn-ghost" id="bulkAbortBtn" onclick="bulkAbort()" style="display:none;color:var(--red);border-color:rgba(255,71,87,0.4);">⏹ Abort</button>
+          </div>
+          <div id="bulkProg" style="height:6px;background:var(--bg3);border-radius:6px;margin:12px 0 6px;overflow:hidden;"><div id="bulkProgFill" style="height:100%;width:0%;background:linear-gradient(90deg,var(--admin),var(--pink));transition:width .3s;border-radius:6px;"></div></div>
+          <div id="bulkStatusLine" style="font-family:'Share Tech Mono',monospace;font-size:11px;color:var(--text3);min-height:14px;margin-bottom:4px;"></div>
+          <div id="bulkSum" style="font-size:11px;color:var(--text2);min-height:14px;"></div>
+        </div>
+        <div class="tbl-wrap" id="bulkTableWrap" style="display:none;margin-bottom:16px;">
+          <div class="tbl-header"><div class="tbl-title">Preview <span id="bulkCount" style="color:var(--text3);font-weight:400;"></span></div>
+            <div style="margin-left:auto;display:flex;gap:6px;">
+              <button class="btn btn-ghost btn-sm" onclick="bulkToggleAll(true)">Select All</button>
+              <button class="btn btn-ghost btn-sm" onclick="bulkToggleAll(false)">None</button>
+            </div>
+          </div>
+          <table><thead><tr><th style="width:34px;"><input type="checkbox" id="bulkCbAll" onchange="bulkToggleAll(this.checked)"/></th><th>Title</th><th>Meta</th><th>IDs</th><th>Flags</th></tr></thead><tbody id="bulkTable"></tbody></table>
+        </div>
+        <div style="background:var(--bg2);border:1px solid var(--border2);border-radius:10px;padding:10px 12px;margin-bottom:16px;">
+          <div style="font-size:11px;font-weight:800;color:#fff;margin-bottom:6px;">📋 Bulk Import Log</div>
+          <div id="bulkLog" style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text3);max-height:150px;overflow-y:auto;white-space:pre-wrap;">Ready.</div>
+        </div>
+        <div style="background:var(--card);border:1px solid var(--border2);border-radius:12px;padding:16px;">
+          <div style="font-family:'Poppins',sans-serif;font-size:14px;font-weight:800;color:#fff;margin-bottom:4px;">🎬 Import Episode Sources (Backfill)</div>
+          <div style="font-size:11px;color:var(--text3);margin-bottom:12px;">Generate source embeds for anime <strong style="color:#06d6a0;">already in the library</strong>. Creates episode rows when missing and resolves AniList IDs automatically (needed for VidNest &amp; Cinetaro).</div>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+            <select id="bfScope" class="bi-inp"><option value="missing">Only anime with NO embeds</option><option value="all">All anime (overwrite embeds)</option></select>
+            <label class="bi-lab"><input type="checkbox" id="bfCreateEps" checked/> Create missing episode rows</label>
+            <button class="btn btn-success" id="bfRunBtn" onclick="bulkBackfillSources()">🎬 Import Episode Sources</button>
+            <button class="btn btn-ghost" id="bfAbortBtn" onclick="bulkBackfillAbort()" style="display:none;color:var(--red);border-color:rgba(255,71,87,0.4);">⏹ Abort</button>
+          </div>
+          <div id="bfProg" style="height:6px;background:var(--bg3);border-radius:6px;margin:10px 0 6px;overflow:hidden;"><div id="bfProgFill" style="height:100%;width:0%;background:linear-gradient(90deg,var(--green),var(--blue));transition:width .3s;border-radius:6px;"></div></div>
+          <div id="bfLog" style="font-family:'Share Tech Mono',monospace;font-size:10px;color:var(--text3);max-height:140px;overflow-y:auto;white-space:pre-wrap;">Ready.</div>
         </div>
       </div>
     </div>
@@ -2336,7 +2420,7 @@ const _origInitAdmin = typeof initAdmin === 'function' ? initAdmin : null;
 
 // ── ANIME TABS ──
 function switchAnimeTab(tab){
-  ['library','search','schedule'].forEach(t=>{
+  ['library','search','schedule','bulk'].forEach(t=>{
     document.getElementById('aTab-'+t).style.display = t===tab ? 'block' : 'none';
     const btn = document.getElementById('at-'+t);
     if(btn){
@@ -2346,6 +2430,7 @@ function switchAnimeTab(tab){
   });
   if(tab==='library') loadLibrary();
   if(tab==='schedule') loadImportLog();
+  if(tab==='bulk') bulkModeChanged();
 }
 
 // ════════════════════════════════════════
@@ -2486,8 +2571,8 @@ async function importAnime(anilistId){
     const trailerUrl = m.trailer?.site === 'youtube' ? 'https://youtube.com/watch?v='+m.trailer.id : null;
     const tags = m.tags?.slice(0,6).map(t=>t.name) || [];
 
-    // Upsert anime
-    const {data:animeRow, error:animeErr} = await client.from('anime').upsert({
+    // Upsert anime (sbUpsertAnimeCompat auto-drops columns missing from this DB, e.g. next_airing_at)
+    const {data:animeRow, error:animeErr} = await sbUpsertAnimeCompat(client, {
       anilist_id: m.id,
       mal_id: m.mal_id,
       title_english: m.title.english,
@@ -2511,7 +2596,7 @@ async function importAnime(anilistId){
       next_airing_at: m.nextAiringEpisode?.airingAt || null,
       next_airing_ep: m.nextAiringEpisode?.episode  || null,
       updated_at: new Date().toISOString()
-    }, {onConflict:'anilist_id'}).select().single();
+    }, 'anilist_id');
 
     if(animeErr) throw new Error(animeErr.message);
 
@@ -5671,6 +5756,399 @@ function jaiCsvPreviewHide(){
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else init();
 })();
+
+// ═════════════════════════════════════════════════════════════════
+// BULK IMPORT (Anime Manager) + EPISODE SOURCE BACKFILL
+// ═════════════════════════════════════════════════════════════════
+let bulkCandidates = [];
+let bulkRunning = false;
+let bulkAborted  = false;
+let bulkFailed   = []; // [{kind:'anilist'|'jikan', id}]
+
+function bulkVal(id){ const el=document.getElementById(id); return el?el.value:''; }
+function bulkChecked(id){ const el=document.getElementById(id); return el?!!el.checked:false; }
+function bulkSetProg(pct, fillId){ const f=document.getElementById(fillId); if(f) f.style.width=Math.max(0,Math.min(100,pct))+'%'; }
+function bulkSleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
+function bulkLog(msg, color){
+  const el=document.getElementById('bulkLog'); if(!el) return;
+  const line=document.createElement('div');
+  if(color==='red') line.style.color='var(--red)';
+  else if(color==='green') line.style.color='var(--green)';
+  else if(color==='gold') line.style.color='var(--gold)';
+  line.textContent='['+new Date().toLocaleTimeString()+'] '+msg;
+  el.appendChild(line); el.scrollTop=el.scrollHeight;
+}
+function bfLog(msg, color){
+  const el=document.getElementById('bfLog'); if(!el) return;
+  const line=document.createElement('div');
+  if(color==='red') line.style.color='var(--red)';
+  else if(color==='green') line.style.color='var(--green)';
+  else if(color==='gold') line.style.color='var(--gold)';
+  line.textContent='['+new Date().toLocaleTimeString()+'] '+msg;
+  el.appendChild(line); el.scrollTop=el.scrollHeight;
+}
+
+function bulkModeChanged(){
+  const mode=bulkVal('bulkMode'), source=bulkVal('bulkSource');
+  const show=(id,v)=>{ const el=document.getElementById(id); if(el) el.style.display=v; };
+  show('bulkSeasonRow', mode==='season' ? 'flex' : 'none');
+  show('bulkGenreRow',  (source==='anilist' && mode!=='ids') ? 'flex' : 'none');
+  show('bulkIdsRow',    mode==='ids' ? 'block' : 'none');
+  const pp=document.getElementById('bulkPerPage');
+  if(pp){
+    [...pp.options].forEach(o=>{ o.disabled = (source==='jikan' && Number(o.value)>25); });
+    if(source==='jikan' && Number(pp.value)>25) pp.value='25';
+  }
+  const ta=document.getElementById('bulkIds');
+  if(ta) ta.placeholder = source==='anilist'
+    ? 'AniList IDs — e.g. 151807 16498 113415 (comma / space / newline)'
+    : 'MAL IDs — e.g. 52991 16498 21 (comma / space / newline)';
+}
+
+// Prefill season/year selectors with the current season
+(function(){
+  const now=new Date(); const seasons=['WINTER','SPRING','SUMMER','FALL'];
+  const y=document.getElementById('bulkYear'), s=document.getElementById('bulkSeason');
+  if(y) y.value=String(now.getFullYear());
+  if(s) s.value=seasons[Math.floor(now.getMonth()/3)];
+})();
+// ── bulk preview / table rendering ──
+async function bulkPreview(){
+  if(bulkRunning){ showToast('Bulk import already running','warn'); return; }
+  const source=bulkVal('bulkSource'), mode=bulkVal('bulkMode');
+  const perPage=Math.max(1,Math.min(50,parseInt(bulkVal('bulkPerPage'))||25));
+  const page=Math.max(1,parseInt(bulkVal('bulkPage'))||1);
+  const statusLine=document.getElementById('bulkStatusLine');
+  const wrap=document.getElementById('bulkTableWrap'), tb=document.getElementById('bulkTable');
+  if(statusLine) statusLine.textContent='⏳ Fetching candidates…';
+  if(wrap) wrap.style.display='none';
+  if(tb) tb.innerHTML='';
+  try{
+    let list=[];
+    if(source==='anilist'){
+      if(mode==='ids'){
+        const ids=[...new Set(bulkVal('bulkIds').split(/[\s,;]+/).map(n=>parseInt(n)).filter(n=>n&&n>0))].slice(0,50);
+        if(!ids.length){ showToast('Enter at least one AniList ID','warn'); if(statusLine) statusLine.textContent=''; return; }
+        const data=await queryAniList(`query($ids:[Int]){ Page(page:1,perPage:50){ media(id_in:$ids,type:ANIME){${ANIME_FIELDS}} } }`,{ids});
+        list=(data.Page.media||[]).map(bulkMapAl);
+      } else {
+        const vars={}; let filt='';
+        if(mode==='season-now'){
+          const now=new Date(); const seasons=['WINTER','SPRING','SUMMER','FALL'];
+          vars.season=seasons[Math.floor(now.getMonth()/3)]; vars.seasonYear=now.getFullYear();
+          filt='season:$season,seasonYear:$seasonYear,';
+        } else if(mode==='season'){
+          vars.season=bulkVal('bulkSeason'); vars.seasonYear=parseInt(bulkVal('bulkYear'));
+          filt='season:$season,seasonYear:$seasonYear,';
+        }
+        const g=bulkVal('bulkGenre');
+        if(g) filt+='genre:"'+g.replace(/"/g,'')+'",';
+        const sort = mode==='top' ? 'SCORE_DESC' : 'TRENDING_DESC';
+        const decl = (filt.indexOf('$season')>=0) ? '($season:MediaSeason,$seasonYear:Int)' : '';
+        const data=await queryAniList(`query${decl}{ Page(page:${page},perPage:${perPage}){ media(${filt}type:ANIME,sort:${sort}){${ANIME_FIELDS}} } }`,vars);
+        list=(data.Page.media||[]).map(bulkMapAl);
+      }
+    } else {
+      if(mode==='ids'){
+        const ids=[...new Set(bulkVal('bulkIds').split(/[\s,;]+/).map(n=>parseInt(n)).filter(n=>n&&n>0))].slice(0,100);
+        if(!ids.length){ showToast('Enter at least one MAL ID','warn'); if(statusLine) statusLine.textContent=''; return; }
+        list=ids.map(id=>({kind:'jikan',id:id,malId:id,alId:null,title:'MAL #'+id,cover:'',format:'—',year:'—',eps:null,score:null,statusText:'—',genres:[],imported:false,raw:null}));
+      } else {
+        let ep='';
+        if(mode==='season-now') ep='/seasons/now';
+        else if(mode==='season') ep='/seasons/'+parseInt(bulkVal('bulkYear'))+'/'+String(bulkVal('bulkSeason')).toLowerCase();
+        else if(mode==='trending') ep='/top/anime?filter=bypopularity';
+        else ep='/top/anime';
+        ep += (ep.indexOf('?')>=0?'&':'?')+'page='+page+'&limit='+Math.min(perPage,25);
+        const data=await jaiFetch(ep, 60000);
+        list=(data&&data.data?data.data:[]).map(bulkMapJk);
+        const g=bulkVal('bulkGenre');
+        if(g) list=list.filter(c=>(c.genres||[]).indexOf(g)>=0);
+      }
+    }
+    const minScore=parseFloat(bulkVal('bulkMinScore'))||0;
+    const fmt=bulkVal('bulkFormat'), st=bulkVal('bulkStatus'), skip=bulkChecked('bulkSkipImported');
+    const maxN=Math.max(1,Math.min(200,parseInt(bulkVal('bulkMax'))||50));
+    const libAl=new Set(), libMal=new Set();
+    animeLibrary.forEach(a=>{ if(a.anilist_id)libAl.add(a.anilist_id); if(a.mal_id)libMal.add(a.mal_id); });
+    list=list.filter(c=>{
+      if(skip && ((c.kind==='anilist' && libAl.has(c.id)) || (c.kind==='jikan' && libMal.has(c.id)))){ c.imported=true; return false; }
+      if(minScore>0 && (c.score||0)<minScore) return false;
+      if(fmt!=='ANY' && c.format!==fmt) return false;
+      if(st!=='ANY' && c.statusText!==st) return false;
+      return true;
+    }).slice(0,maxN);
+    bulkCandidates=list;
+    if(!list.length){ showToast('No candidates found','warn'); if(statusLine) statusLine.textContent=''; return; }
+    bulkRenderTable();
+    if(statusLine) statusLine.textContent='';
+    if(wrap) wrap.style.display='block';
+    const ib=document.getElementById('bulkImportBtn'); if(ib) ib.disabled=false;
+    showToast('✅ '+list.length+' candidates loaded','ok');
+  }catch(e){
+    if(statusLine) statusLine.textContent='';
+    showToast('Preview failed: '+e.message,'err');
+    bulkLog('Preview failed: '+e.message,'red');
+  }
+}
+function bulkMapAl(m){
+  return {kind:'anilist', id:m.id, malId:m.mal_id||null, alId:m.id,
+    title:(m.title&&(m.title.english||m.title.romaji))||'Untitled',
+    cover:(m.coverImage&&(m.coverImage.large||m.coverImage.medium))||'',
+    format:m.format||'—', year:m.seasonYear||'—', eps:m.episodes||null,
+    score:m.averageScore?(m.averageScore/10):null, statusText:m.status||'—',
+    genres:m.genres||[], imported:false, raw:m};
+}
+function bulkMapJk(m){
+  return {kind:'jikan', id:m.mal_id, malId:m.mal_id, alId:null,
+    title:m.title_english||m.title||('MAL #'+m.mal_id),
+    cover:(m.images&&m.images.jpg&&m.images.jpg.image_url)||'',
+    format:(m.type||'—').toUpperCase(), year:(m.year||(m.aired&&m.aired.from?new Date(m.aired.from).getFullYear():'—'))||'—',
+    eps:m.episodes||null, score:m.score||null, statusText:m.status||'—',
+    genres:(m.genres||[]).map(g=>g.name), imported:false, raw:m};
+}
+
+function bulkRenderTable(){
+  const tb=document.getElementById('bulkTable'); if(!tb) return;
+  const cnt=document.getElementById('bulkCount');
+  if(cnt) cnt.textContent='('+bulkCandidates.length+' items)';
+  tb.innerHTML=bulkCandidates.map((c,i)=>{
+    const flags=[];
+    if(c.imported) flags.push('<span class="bi-chip" style="background:rgba(6,214,160,0.12);color:var(--green);">IMPORTED</span>');
+    if(!c.malId && c.kind==='anilist') flags.push('<span class="bi-chip" style="background:rgba(255,214,10,0.12);color:var(--gold);">NO MAL</span>');
+    if(!c.alId && c.kind==='jikan') flags.push('<span class="bi-chip" style="background:rgba(67,97,238,0.12);color:var(--blue);">AL LOOKUP</span>');
+    if(!c.eps) flags.push('<span class="bi-chip" style="background:rgba(255,71,87,0.1);color:var(--red);">NO EP COUNT</span>');
+    const t=String(c.title||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+    return '<tr style="'+(c.imported?'opacity:.55;':'')+'">'
+      +'<td><input type="checkbox" id="bulkCb-'+i+'" '+(c.imported?'disabled':'checked')+'/></td>'
+      +'<td style="max-width:340px;"><div style="display:flex;gap:8px;align-items:center;">'
+      +(c.cover?'<img src="'+c.cover+'" style="width:30px;height:42px;object-fit:cover;border-radius:5px;flex:none;" onerror="this.style.display=\'none\'">':'')
+      +'<div style="font-size:12px;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="'+t+'">'+t+'</div></div></td>'
+      +'<td style="font-size:10px;color:var(--text3);white-space:nowrap;">'+c.format+' · '+c.year+' · '+(c.eps||'?')+' eps · '+(c.score!=null?'⭐ '+Number(c.score).toFixed(1):'—')+'</td>'
+      +'<td style="font-size:9px;color:var(--text3);font-family:\'Share Tech Mono\',monospace;">AL:'+(c.alId||'—')+'<br>MAL:'+(c.malId||'—')+'</td>'
+      +'<td>'+(flags.join(' ')||'<span style="color:var(--text3);font-size:9px;">ready</span>')+'</td></tr>';
+  }).join('');
+}
+
+function bulkToggleAll(on){
+  bulkCandidates.forEach((c,i)=>{ const cb=document.getElementById('bulkCb-'+i); if(cb && !cb.disabled) cb.checked=on; });
+  const all=document.getElementById('bulkCbAll'); if(all) all.checked=on;
+}
+function bulkAbort(){ bulkAborted=true; bulkRunning=false; }
+function bulkBackfillAbort(){ bfAborted=true; bfRunning=false; }
+
+function bulkRetryFailed(){
+  if(bulkRunning) return;
+  if(!bulkFailed.length){ showToast('Nothing to retry','warn'); return; }
+  const list=[];
+  bulkFailed.forEach(f=>{ const c=bulkCandidates.find(x=>x.kind===f.kind&&x.id===f.id); if(c) list.push(c); });
+  bulkFailed=[];
+  if(!list.length){ showToast('Failed items no longer in preview — run Preview again','warn'); return; }
+  bulkRunImport(list);
+}
+
+async function bulkImportSelected(){
+  if(bulkRunning){ showToast('Bulk import already running','warn'); return; }
+  const sb=getSB();
+  if(!sb){ showToast('Supabase not connected — add keys in Settings first','err'); return; }
+  const list=bulkCandidates.filter((c,i)=>{ const cb=document.getElementById('bulkCb-'+i); return cb && cb.checked && !c.imported; });
+  if(!list.length){ showToast('Nothing selected — tick some rows first','warn'); return; }
+  const embedNote = bulkChecked('bulkAutoEmbeds')
+    ? 'Episode source embeds will be auto-generated for each import.'
+    : '⚠️ Embeds will NOT be generated — run "⚡ Auto-Generate All Embeds" or the backfill later.';
+  if(!confirm('Import '+list.length+' anime?\n\n'+embedNote+'\n\nMay take a few minutes — you can abort anytime.')) return;
+  await bulkRunImport(list);
+}
+async function bulkRunImport(list){
+  if(bulkRunning) return;
+  const sb=getSB();
+  if(!sb){ showToast('Supabase not connected','err'); return; }
+  const opts={
+    createEps: bulkChecked('bulkCreateEps'),
+    autoEmbeds: bulkChecked('bulkAutoEmbeds'),
+    delay: Math.max(0,parseInt(bulkVal('bulkDelay'))||800)
+  };
+  bulkRunning=true; bulkAborted=false;
+  const btnI=document.getElementById('bulkImportBtn'), btnR=document.getElementById('bulkRetryBtn'),
+        btnA=document.getElementById('bulkAbortBtn'), btnP=document.getElementById('bulkPreviewBtn');
+  if(btnI) btnI.disabled=true;
+  if(btnP) btnP.disabled=true;
+  if(btnR) btnR.style.display='none';
+  if(btnA) btnA.style.display='inline-block';
+  const sumEl=document.getElementById('bulkSum'); if(sumEl) sumEl.textContent='';
+  const sl=document.getElementById('bulkStatusLine');
+  let ok=0, dup=0, fail=0, epsMade=0, embedsMade=0;
+  bulkFailed=[];
+  const t0=Date.now();
+  for(let i=0;i<list.length;i++){
+    if(!bulkRunning) break;
+    const c=list[i];
+    bulkSetProg(Math.round(i/list.length*100),'bulkProgFill');
+    if(sl) sl.textContent='⏳ ('+(i+1)+'/'+list.length+') '+String(c.title).substring(0,70)+'…';
+    try{
+      let r;
+      if(c.kind==='anilist') r=await bulkImportAnilistOne(sb,c,opts);
+      else                   r=await bulkImportJikanOne(c,opts);
+      if(r.status==='imported'){
+        ok++; epsMade+=r.eps||0; embedsMade+=r.embeds||0;
+        bulkLog('✅ '+c.title+' — '+(r.eps||0)+' eps'+(opts.autoEmbeds&&c.kind==='anilist'?', '+(r.embeds||0)+' embeds':''),'green');
+      } else {
+        dup++;
+        bulkLog('⏭ '+c.title+' — '+r.status);
+      }
+    }catch(e){
+      fail++; bulkFailed.push({kind:c.kind,id:c.id});
+      bulkLog('❌ '+c.title+' — '+e.message,'red');
+    }
+    await bulkSleep(opts.delay);
+  }
+  bulkSetProg(100,'bulkProgFill');
+  if(sl) sl.textContent='';
+  const secs=((Date.now()-t0)/1000).toFixed(0);
+  const abortedNote = bulkAborted ? ' — ABORTED early' : '';
+  const embedNote = opts.autoEmbeds
+    ? ' · ⚡ '+embedsMade+' source embeds'
+    : ' · embeds NOT generated (run Auto-Generate All Embeds later)';
+  if(sumEl) sumEl.innerHTML='✅ <strong>'+ok+'</strong> imported · ⏭ '+dup+' skipped · ❌ '+fail+' failed · '+epsMade+' episodes'+embedNote+' · '+secs+'s'+abortedNote;
+  bulkLog('── Done: '+ok+' imported, '+dup+' skipped, '+fail+' failed, '+epsMade+' episodes, '+embedsMade+' embeds in '+secs+'s'+(abortedNote?' (aborted)':''), fail?'red':'green');
+  if(fail>0 && btnR){ btnR.style.display='inline-block'; btnR.textContent='↻ Retry Failed ('+fail+')'; }
+  bulkRunning=false;
+  if(btnI) btnI.disabled=false;
+  if(btnP) btnP.disabled=false;
+  if(btnA) btnA.style.display='none';
+  bulkSetProg(0,'bulkProgFill');
+  if(ok>0){
+    showToast('✅ Bulk import done — '+ok+' anime imported','ok');
+    await loadLibrary();
+    if(typeof jaiRefreshStats==='function') jaiRefreshStats();
+  }
+}
+// ── Supabase anime upsert with schema-cache self-healing ──
+// If the DB doesn't have a column included in the payload (e.g. next_airing_at on
+// older/edited schemas), drop that key and retry instead of failing the whole import.
+async function sbUpsertAnimeCompat(client, payload, onConflict){
+  const p = {...payload};
+  let res;
+  for(let attempt=0; attempt<6; attempt++){
+    res = await client.from('anime').upsert(p, {onConflict:onConflict||'anilist_id'}).select().single();
+    if(!res.error) return res;
+    const m = /Could not find the '([^']+)' column of 'anime'/.exec(String(res.error.message||''));
+    if(!m || !(m[1] in p)) return res; // not a missing-column error (or column already dropped)
+    console.warn('[upsert:anime] column missing in DB schema, dropping and retrying:', m[1]);
+    delete p[m[1]];
+  }
+  return res;
+}
+
+// ── Bulk import: per-item AniList importer (anime + episodes + embeds) ──
+async function bulkImportAnilistOne(sb, c, opts){
+  const m = c.raw || (await queryAniList(`query($id:Int){ Media(id:$id,type:ANIME){${ANIME_FIELDS}} }`,{id:c.id})).Media;
+  if(!m) throw new Error('AniList returned nothing for #'+c.id);
+  const title = m.title.english || m.title.romaji;
+  // Fresh duplicate check against Supabase
+  const {data:existing} = await sb.from('anime').select('id').eq('anilist_id', m.id).maybeSingle();
+  if(existing) return {status:'already in library', eps:0, embeds:0};
+  const studio = m.studios?.nodes?.[0]?.name || null;
+  const trailerUrl = m.trailer?.site==='youtube' ? 'https://youtube.com/watch?v='+m.trailer.id : null;
+  const tags = m.tags?.slice(0,6).map(t=>t.name) || [];
+  const {data:row, error} = await sbUpsertAnimeCompat(sb, {
+    anilist_id:m.id, mal_id:m.mal_id,
+    title_english:m.title.english, title_romaji:m.title.romaji, title_native:m.title.native,
+    description:m.description?.replace(/<[^>]*>/g,'').substring(0,1000),
+    cover_image:m.coverImage?.extraLarge||m.coverImage?.large, banner_image:m.bannerImage,
+    trailer_url:trailerUrl, genres:m.genres||[], tags, status:m.status, format:m.format,
+    episodes_total:m.episodes, episode_duration:m.duration, season:m.season, season_year:m.seasonYear,
+    score:m.averageScore?m.averageScore/10:null, popularity:m.popularity, studio,
+    next_airing_at:m.nextAiringEpisode?.airingAt||null, next_airing_ep:m.nextAiringEpisode?.episode||null,
+    updated_at:new Date().toISOString()
+  }, 'anilist_id');
+  if(error) throw new Error('anime upsert: '+error.message);
+  let eps=0, embeds=0;
+  const epCount = opts.createEps ? (m.episodes || m.nextAiringEpisode?.episode || 0) : 0;
+  if(epCount>0){
+    const epRows = Array.from({length:epCount}, (_,k)=>({anime_id:row.id, episode_number:k+1, title:'Episode '+(k+1)}));
+    const {error:epErr} = await sb.from('episodes').upsert(epRows, {onConflict:'anime_id,episode_number'});
+    if(epErr) console.warn('[BulkImport] episode upsert:', epErr.message);
+    else eps = epCount;
+    if(opts.autoEmbeds){
+      try{
+        const {data:ids} = await sb.from('episodes').select('id,episode_number').eq('anime_id', row.id);
+        if(ids && ids.length){
+          const r = await adminGenAllEmbedsForAnime(sb, row.id, {mal_id:m.mal_id, anilist_id:m.id, title}, {episodes:ids});
+          embeds = r.saved||0;
+        }
+      }catch(e){ console.warn('[BulkImport] embed generation:', e.message); }
+    }
+  }
+  return {status:'imported', eps, embeds};
+}
+
+// ── Bulk import: per-item Jikan importer (reuses the full jaiImport pipeline —
+//    dup-check, localStorage, AniList ID resolve + AUTOMATIC embed generation) ──
+async function bulkImportJikanOne(c, opts){
+  const r = await jaiImport(c.id, true);
+  if(r==='failed') throw new Error('Jikan import failed — see log');
+  if(r==='imported'){
+    const loc = jaiGetAll().find(a=>a.mal_id===c.id);
+    return {status:'imported', eps:loc&&loc.episodes?loc.episodes.length:0, embeds:0};
+  }
+  return {status: r==='duplicate' ? 'already in local library' : 'already in Supabase', eps:0, embeds:0};
+}
+let bfRunning=false, bfAborted=false;
+
+async function bulkBackfillSources(){
+  if(bfRunning || bulkRunning){ showToast('Another bulk task is running','warn'); return; }
+  const sb=getSB();
+  if(!sb){ showToast('Supabase not connected','err'); return; }
+  if(!animeLibrary.length) await loadLibrary();
+  const targets = animeLibrary.filter(a=>a.id);
+  if(!targets.length){ showToast('Library is empty — import anime first','warn'); return; }
+  const scope = bulkVal('bfScope')||'missing';
+  const createEps = bulkChecked('bfCreateEps');
+  const verb = scope==='missing' ? 'Fill missing embed sources for' : 'REGENERATE (overwrite) embed sources for';
+  if(!confirm(verb+' up to '+targets.length+' anime?\n\nServers: '+ADMIN_EMBED_PROVIDERS.map(p=>p.name).join(', ')+'\nCreates episode rows when missing. May take a few minutes.')) return;
+  bfRunning=true; bfAborted=false;
+  const btn=document.getElementById('bfRunBtn'), abort=document.getElementById('bfAbortBtn');
+  if(btn){ btn.disabled=true; btn.textContent='⏳ Working…'; }
+  if(abort) abort.style.display='inline-block';
+  let done=0, skipped=0, fail=0, totalEmbeds=0, epsMade=0, noId=0;
+  for(let i=0;i<targets.length;i++){
+    if(!bfRunning) break;
+    const a=targets[i];
+    const title=a.title_english||a.title_romaji||('ID #'+a.id);
+    bulkSetProg(Math.round(i/targets.length*100),'bfProgFill');
+    try{
+      const {count:ec} = await sb.from('embed_sources').select('id',{count:'exact',head:true}).eq('anime_id',a.id);
+      if(scope==='missing' && (ec||0)>0){ skipped++; continue; }
+      let {data:epRows} = await sb.from('episodes').select('id,episode_number').eq('anime_id',a.id).order('episode_number',{ascending:true});
+      if((!epRows||!epRows.length) && createEps && a.episodes_total>0){
+        const ins=Array.from({length:a.episodes_total},(_,k)=>({anime_id:a.id,episode_number:k+1,title:'Episode '+(k+1),created_at:new Date().toISOString()}));
+        for(let x=0;x<ins.length;x+=100){
+          const {error}=await sb.from('episodes').upsert(ins.slice(x,x+100),{onConflict:'anime_id,episode_number'});
+          if(error) console.warn('[BF] episode upsert:',error.message);
+        }
+        const {data:again}=await sb.from('episodes').select('id,episode_number').eq('anime_id',a.id).order('episode_number',{ascending:true});
+        epRows=again||[]; epsMade+=ins.length;
+      }
+      if(!epRows||!epRows.length){ skipped++; bfLog('⏭ '+title+' — no episodes (episodes_total unknown — re-import from AniList/Jikan to fix)','gold'); continue; }
+      const r=await adminGenAllEmbedsForAnime(sb, a.id, {mal_id:a.mal_id, anilist_id:a.anilist_id, title}, {episodes:epRows});
+      if(r.saved>0){ done++; totalEmbeds+=r.saved; }
+      else { noId++; }
+      bfLog((r.saved>0?'✅ ':'⚠️ ')+title+' — '+r.saved+' embeds ('+r.providerCount+' servers × '+r.episodeCount+' eps)'+(r.anilistId?'':' [no AniList ID]'), r.saved>0?'green':'gold');
+    }catch(e){
+      fail++; bfLog('❌ '+title+' — '+e.message,'red');
+    }
+    await bulkSleep(250);
+  }
+  bulkSetProg(100,'bfProgFill');
+  bfLog('── Backfill done: '+done+' anime updated, '+totalEmbeds+' embeds, '+epsMade+' episodes created, '+skipped+' skipped, '+fail+' failed'+(noId?' ('+noId+' generated nothing — missing IDs)':'), fail?'red':'green');
+  showToast('🎬 Backfill done — '+totalEmbeds+' embeds across '+done+' anime','ok');
+  bfRunning=false;
+  if(btn){ btn.disabled=false; btn.textContent='🎬 Import Episode Sources'; }
+  if(abort) abort.style.display='none';
+  bulkSetProg(0,'bfProgFill');
+  await loadLibrary();
+}
 </script>
 
 </body>
