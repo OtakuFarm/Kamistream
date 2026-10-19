@@ -100,7 +100,7 @@
   "crons": [
     {
       "path": "/api/import-bulk?action=run&pages=5&publish=true&from-page=1",
-      "schedule": "0 */6 * * *"
+      "schedule": "0 3 * * *"
     }
   ]
 }

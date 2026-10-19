@@ -22,6 +22,8 @@ Thumbs.db
 
 # Local admin panel — local-only, NEVER commit
 local-admin.html
+public/admin.html
+local-admin_*.html
 local-admin.html.map
 setup-admin.bat
 run-admin.bat
