@@ -9,12 +9,17 @@
  *
  *   action=schedule  — returns next run time for Vercel Cron setup
  *
- * Used by: admin panel "Refresh Metadata" button, auto-update scheduler,
- * and CSV batch import (re-fetch fresh metadata).
+ * Auth — every action requires:  Authorization: Bearer <CRON_SECRET>
+ *   Vercel Cron attaches this automatically once CRON_SECRET exists in
+ *   Project → Settings → Environment Variables (then redeploy).
+ *
+ * Used by: Vercel Cron / manual curl. The admin panel writes to Supabase
+ * directly from the browser and does not call this endpoint.
  */
 
 import { createClient } from '@supabase/supabase-js';
 import { spawn } from 'node:child_process';
+import crypto from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -43,6 +48,20 @@ const send = (res, status, body) => {
   res.end(JSON.stringify(body));
 };
 
+// ── auth ──────────────────────────────────────────────────────────────────
+// Vercel Cron attaches `Authorization: Bearer ${CRON_SECRET}` automatically
+// when the CRON_SECRET env var is defined. Constant-time compare (SHA-256
+// first, so both sides are always the same length).
+function isAuthorized(req) {
+  const secret = process.env.CRON_SECRET;
+  if (!secret) return false;
+  const headers = req.headers || {};
+  const got = String(headers.authorization || headers.Authorization || '');
+  const a = crypto.createHash('sha256').update(got).digest();
+  const b = crypto.createHash('sha256').update('Bearer ' + secret).digest();
+  return crypto.timingSafeEqual(a, b);
+}
+
 // run one MAL id through import-anime.mjs
 async function runOneImport(malId) {
   const jobStart = Date.now(); // when the child process spawn began (for duration)
@@ -69,6 +88,17 @@ async function runOneImport(malId) {
 
 // ── handler ─────────────────────────────────────────────────────────────
 export default async function handler(req, res) {
+  // ── auth gate (fail closed) ──
+  if (!process.env.CRON_SECRET) {
+    return send(res, 503, {
+      ok: false,
+      error: 'CRON_SECRET is not configured. Add it under Vercel → Settings → Environment Variables, then redeploy.',
+    });
+  }
+  if (!isAuthorized(req)) {
+    return send(res, 401, { ok: false, error: 'Unauthorized — send Authorization: Bearer <CRON_SECRET>.' });
+  }
+
   const { action, id: jobId, batch, malIds, hours } = req.query;
   const method = req.method || 'GET';
 

@@ -5,6 +5,12 @@
  *   GET /api/import-bulk?action=status&id=<jobId>
  *   GET /api/import-bulk?action=list
  *
+ * Auth — every action requires:  Authorization: Bearer <CRON_SECRET>
+ *   Vercel Cron attaches this automatically once CRON_SECRET exists in
+ *   Project → Settings → Environment Variables (then redeploy). Manual:
+ *     curl -H "Authorization: Bearer $CRON_SECRET" 'https://…/api/import-bulk?action=list'
+ *   Without CRON_SECRET configured the endpoint fails closed (503).
+ *
  * Why not call the script from the browser?
  *   - The import script needs the Supabase service-role key, which MUST stay
  *     server-side. Anon keys are read-only and cannot write to catalogue tables.
@@ -15,6 +21,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { spawn } from 'node:child_process';
+import crypto from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -51,6 +58,20 @@ const send = (res, status, body) => {
   res.end(JSON.stringify(body));
 };
 
+// ── auth ──────────────────────────────────────────────────────────────────
+// Vercel Cron attaches `Authorization: Bearer ${CRON_SECRET}` automatically
+// when the CRON_SECRET env var is defined. Constant-time compare (SHA-256
+// first, so both sides are always the same length).
+function isAuthorized(req) {
+  const secret = process.env.CRON_SECRET;
+  if (!secret) return false;
+  const headers = req.headers || {};
+  const got = String(headers.authorization || headers.Authorization || '');
+  const a = crypto.createHash('sha256').update(got).digest();
+  const b = crypto.createHash('sha256').update('Bearer ' + secret).digest();
+  return crypto.timingSafeEqual(a, b);
+}
+
 // ── run the importer as a child process ────────────────────────────────
 async function runImport(argv) {
   const jobStart = Date.now(); // when the child process spawn began (for duration)
@@ -78,6 +99,17 @@ const jobs = new Map();
 
 // ── handler ─────────────────────────────────────────────────────────────
 export default async function handler(req, res) {
+  // ── auth gate (fail closed) ──
+  if (!process.env.CRON_SECRET) {
+    return send(res, 503, {
+      ok: false,
+      error: 'CRON_SECRET is not configured. Add it under Vercel → Settings → Environment Variables, then redeploy.',
+    });
+  }
+  if (!isAuthorized(req)) {
+    return send(res, 401, { ok: false, error: 'Unauthorized — send Authorization: Bearer <CRON_SECRET>.' });
+  }
+
   const { action, pages, fromPage, publish, limit, dryRun, id } = req.query;
   const method = (req.method || 'GET');
 
