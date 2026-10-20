@@ -197,9 +197,13 @@ function slugifyTitle(title) {
     .replace(/-+/g, '-');
 }
 
-/** Same URL shape as animePath() in src/lib/seo.ts. */
+/** Same URL shape as animePath() in src/lib/seo.ts — slug-based.
+ *  (Was returning `/anime/${_malId}`, which made the sitemap advertise
+ *  numeric URLs while the app linked slugs — Google saw two URL shapes
+ *  and the slug pages were never prerendered at all.) */
 function animePath(_malId, title) {
-  return `/anime/${_malId}`;
+  const s = title ? slugifyTitle(title) : '';
+  return s ? `/anime/${s}` : `/anime/${_malId}`;
 }
 
 /** Same URL shape as animeLikePath() in src/lib/seo.ts. */
@@ -858,7 +862,10 @@ function writeSitemapAnime(anime, likeAnime = [], yearPages = []) {
   // First one wins, so the entry kept is deterministic across builds.
   const seen = new Set();
   const push = (a, path, priority) => {
-    if (!a?.mal_id || seen.has(path)) return;
+    // Identity = a real slug from the title, or a mal_id fallback. A row with
+    // neither would land on /anime/undefined — better absent than advertised.
+    const hasIdentity = (a?.title && slugifyTitle(a.title)) || a?.mal_id;
+    if (!hasIdentity || seen.has(path)) return;
     seen.add(path);
     rows.push({
       url: path,
@@ -876,6 +883,7 @@ function writeSitemapAnime(anime, likeAnime = [], yearPages = []) {
   // "Anime like X" pages rank below the title's own page (0.6): they are
   // supporting pages that answer a follow-up question, not a destination.
   for (const a of likeAnime) {
+    if (!a?.mal_id) continue;   // /anime-like/:id needs the id (seo.ts falls back to /browse)
     push(a, BASE + animeLikePath(a.mal_id, a.title), '0.6');
   }
 
