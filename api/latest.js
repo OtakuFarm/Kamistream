@@ -60,11 +60,11 @@ function slugifyTitle(title) {
     .replace(/-+/g, '-');
 }
 
-/** Same URL shape as animePath() in src/lib/seo.ts — links MUST be the
- *  indexable detail pages, never the noindex /watch pages. */
+/** Same URL shape as animePath() in src/lib/seo.ts — slug-based; links MUST
+ *  be the indexable detail pages, never the noindex /watch pages. */
 function animePath(_malId, title) {
   const s = title ? slugifyTitle(title) : '';
-  return s ? `/anime/${_malId}/${s}` : `/anime/${_malId}`;
+  return s ? `/anime/${s}` : `/anime/${_malId}`;
 }
 
 /** "3h ago" / "2d ago" — relative air time for the tile meta line. */
