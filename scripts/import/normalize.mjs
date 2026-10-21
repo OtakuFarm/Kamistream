@@ -160,7 +160,21 @@ export function normalizeAnime(jikan, al) {
 
   const title = display;
 
-  const synopsis = cleanSynopsis(jikan.synopsis);
+  // Prefer AniList's full description when Jikan's synopsis is thin
+  // (< 200 chars). Jikan's synopses are often truncated or brief, which
+  // leaves titles stuck as `draft` because the publish gate needs a
+  // 200+ char synopsis. AniList descriptions are usually complete prose.
+  let synopsis = cleanSynopsis(jikan.synopsis);
+  if (synopsis.length < 200 && al?.description) {
+    const alSyn = String(al.description || '')
+      .replace(/<br\s*\/?>/gi, ' ')
+      .replace(/<[^>]+>/g, '')
+      .replace(/\[Written by MAL Rewrite\]/gi, '')
+      .replace(/\[Source: MAL Rewrite\]/gi, '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (alSyn.length > synopsis.length) synopsis = alSyn;
+  }
   const poster = jikan.images?.jpg?.image_url
     || jikan.images?.webp?.image_url
     || null;
