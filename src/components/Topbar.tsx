@@ -3,7 +3,8 @@ import { Link, useLocation } from 'wouter';
 import { Search, Bell, Menu, Shuffle, Palette } from 'lucide-react';
 import { Logo } from '@/components/Logo';
 import { useAuth } from '@/lib/auth';
-import { useAnimeSearch, useTrendingAnime } from '@/lib/jikan';
+import { useAnimeSearch, useTopRatedAnime } from '@/lib/jikan';
+import { useTrendingByAirDate } from '@/lib/catalogue';
 import { useDebounce } from '@/hooks/use-debounce';
 import { useTheme, THEMES } from '@/hooks/useTheme';
 import { animePath } from '@/lib/seo';
@@ -28,7 +29,7 @@ export function Topbar({ onMenuClick }: { onMenuClick: () => void }) {
   const [showTheme, setShowTheme]         = useState(false);
   const themeRef = useRef<HTMLDivElement>(null);
   const { user } = useAuth();
-  const { data: trending } = useTrendingAnime();
+  const { data: trending } = useTrendingByAirDate();
   const { theme, setTheme, themes } = useTheme();
   const [spinning, setSpinning]   = useState(false);
   const [spinTitle, setSpinTitle] = useState('');

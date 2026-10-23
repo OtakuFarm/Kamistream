@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react';
-import { useTrendingAnime, useTopRatedAnime, useSeasonalAnime, fetchJikan, withALFallback } from '@/lib/jikan';
-import { getAnimeList, withCatalogueFallback } from '@/lib/catalogue';
+import { useTopRatedAnime, useSeasonalAnime, fetchJikan, withALFallback } from '@/lib/jikan';
+import { getAnimeList, withCatalogueFallback, useTrendingByAirDate } from '@/lib/catalogue';
 import { jikanToAL } from '@/lib/jikanFetch';
 import { AnimeCard } from '@/components/AnimeCard';
 import { AnimeListCard } from '@/components/AnimeListCard';
@@ -22,7 +22,7 @@ import { FloatingPetals } from '@/components/motionBits';
 import { animePath } from '@/lib/seo';
 
 export default function Home() {
-  const { data: trending,  isLoading: trendingLoading  } = useTrendingAnime();
+  const { data: trending,  isLoading: trendingLoading  } = useTrendingByAirDate();
   const { data: topRated,  isLoading: topRatedLoading  } = useTopRatedAnime();
   const { data: seasonal,  isLoading: seasonalLoading  } = useSeasonalAnime();
   const { watchlist } = useWatchlist();

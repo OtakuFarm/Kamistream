@@ -383,6 +383,48 @@ export async function getSimilar(malId: number, limit = 12) {
   return { data: rows.map(r => rowToJikan(r, genres.get(r.id) || [], studios.get(r.id) || [])) };
 }
 
+/**
+ * Currently airing titles ordered by their next episode air date.
+ *
+ * `sort=trending` in getAnimeList simply orders by popularity, which is
+ * useful for a "most popular airing" list but misses the thing that
+ * actually drives a drop schedule: titles whose next episode drops
+ * soonest should sit at the top. This query does exactly that.
+ *
+ * Titles without a `next_episode_air` value float to the bottom (nulls
+ * last), matching the "only currently-airing titles rise to the top"
+ * behaviour described in the migration notes.
+ *
+ * @param limit how many titles to return (default 20, same as useTrendingAnime)
+ */
+export async function getTrendingByAirDate(limit = 20): Promise<JikanPaginatedResponse<JikanAnime>> {
+  const q = supabase
+    .from('anime_catalogue')
+    .select('*', { count: 'exact' })
+    .eq('status', 'published')
+    .eq('air_status', 'Currently Airing')
+    .order('next_episode_air', { ascending: true, nullsFirst: false })
+    .range(0, limit - 1);
+
+  const { data, error, count } = await q;
+  if (error) throw new Error(error.message);
+
+  const rows = (data || []) as CatalogueRow[];
+  const genres = await genresByAnime(rows.map(r => r.id));
+  const studios = await studiosByAnime(rows.map(r => r.id));
+  const total = count ?? rows.length;
+  const lastPage = Math.max(1, Math.ceil(total / limit));
+
+  return {
+    data: rows.map(r => rowToJikan(r, genres.get(r.id) || [], studios.get(r.id) || [])),
+    pagination: {
+      current_page: 1,
+      last_visible_page: lastPage,
+      has_next_page: lastPage > 1,
+    },
+  };
+}
+
 /* ─── hooks ────────────────────────────────────────────────────────────────
  * These mirror the jikan.ts hooks one-for-one, so swapping a call site is a
  * one-line change. `withCatalogueFallback` keeps Jikan as the safety net.
@@ -432,4 +474,26 @@ export const useCatalogueBySlug = (slug: string) =>
     queryFn: () => getAnimeBySlug(slug),
     enabled: catalogueEnabled() && !!slug,
     staleTime: stale,
+  });
+
+/**
+ * Supabase-backed trending hook.
+ *
+ * Replaces Jikan's /top/anime?filter=airing with a Supabase query that
+ * orders currently-airing titles by their next episode air date.
+ *
+ * Key differences from useTrendingAnime:
+ * - Uses `next_episode_air` to determine "trending" (next episode drops
+ *   soonest = most trending)
+ * - No Jikan/AniList API calls at runtime
+ * - Fully cached by React Query with 5-minute staleTime
+ * - Falls back to Jikan if catalogue is disabled (VITE_CATALOGUE=0)
+ */
+export const useTrendingByAirDate = () =>
+  useQuery({
+    queryKey: ['catalogue', 'trending'],
+    queryFn: () => getTrendingByAirDate(20),
+    enabled: catalogueEnabled(),
+    staleTime: stale,
+    retry: 1,
   });
