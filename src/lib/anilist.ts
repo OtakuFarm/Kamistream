@@ -390,9 +390,10 @@ export async function getAnimeRelations(malId: number | string): Promise<any[]> 
   } catch { return []; }
 }
 
-export async function getAiringSchedule(): Promise<AiringScheduleItem[]> {
+export async function getAiringSchedule(start?: number): Promise<AiringScheduleItem[]> {
   const now = Math.floor(Date.now() / 1000);
-  const weekEnd = now + 7 * 24 * 60 * 60;
+  const s = start ?? now;            // default: from now (home.tsx behaviour)
+  const e = s + 7 * 24 * 60 * 60;    // always a 7-day window
   const data = await queryAniList(
     `query($s:Int,$e:Int){
       Page(perPage:50){
@@ -405,7 +406,7 @@ export async function getAiringSchedule(): Promise<AiringScheduleItem[]> {
         }
       }
     }`,
-    { s: now, e: weekEnd }
+    { s: s, e: e }
   );
   return data?.data?.Page?.airingSchedules || [];
 }

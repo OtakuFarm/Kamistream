@@ -4,9 +4,24 @@ import { Link } from 'wouter';
 import { getAiringSchedule } from '@/lib/anilist';
 import { Play } from 'lucide-react';
 import { useSEO } from '@/hooks/useSEO';
+import { supabase } from '@/lib/supabase';
 
 const DAYS = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 const SHORT = ['SUN','MON','TUE','WED','THU','FRI','SAT'];
+
+async function getWatchableMalIds(): Promise<Set<number>> {
+  const { data, error } = await supabase
+    .from('embed_sources')
+    .select('episodes(anime(mal_id))')
+    .eq('is_active', true);
+  if (error || !data) return new Set();
+  const ids = new Set<number>();
+  for (const s of (data as any[])) {
+    const a = s.episodes?.anime;
+    if (a?.mal_id) ids.add(a.mal_id);
+  }
+  return ids;
+}
 
 export default function Schedule() {
   useSEO({ title: 'Estimated Schedule', description: 'Weekly anime airing schedule on KamiStream.', url: '/schedule' });
@@ -16,14 +31,27 @@ export default function Schedule() {
   const [activeDay, setActiveDay] = useState(todayIdx);
   const [showAll, setShowAll] = useState(false);
 
-  const { data: schedule, isLoading } = useQuery({
-    queryKey: ['anilist', 'airing-schedule'],
-    queryFn: getAiringSchedule,
+  // Schedule window: yesterday through +6 days, so the 7-day UI tabs always have data
+  const schedStart = Math.floor(today.getTime() / 1000) - 86400;
+
+  const { data: schedule, isLoading: schedLoading } = useQuery({
+    queryKey: ['anilist', 'airing-schedule', schedStart],
+    queryFn: () => getAiringSchedule(schedStart),
     staleTime: 15 * 60 * 1000,
   });
 
+  const { data: watchableIds, isLoading: srcLoading } = useQuery({
+    queryKey: ['schedule', 'watchable-mal-ids'],
+    queryFn: getWatchableMalIds,
+    staleTime: 15 * 60 * 1000,
+  });
+
+  const isLoading = schedLoading || srcLoading;
+
   const byDay: Record<number, any[]> = { 0:[], 1:[], 2:[], 3:[], 4:[], 5:[], 6:[] };
   (schedule || []).forEach((item: any) => {
+    const malId = item.media?.idMal;
+    if (!malId || !watchableIds?.has(malId)) return; // only anime we actually have
     const d = new Date(item.airingAt * 1000).getDay();
     byDay[d]?.push(item);
   });
@@ -114,7 +142,7 @@ export default function Schedule() {
 
                   {/* Episode + play button */}
                   {malId ? (
-                    <Link href={`/watch/${malId}/${item.episode}`}
+                    <Link href={`/anime/${malId}`}
                       className="shrink-0 flex items-center gap-2 bg-[var(--bg3)] hover:bg-[var(--pink)] border border-[var(--border)] hover:border-[var(--pink)] text-[var(--text3)] hover:text-white px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all">
                       <Play className="w-3 h-3 fill-current" />
                       Episode {item.episode}

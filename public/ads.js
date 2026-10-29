@@ -90,7 +90,7 @@
   /* ── Vignette (Monetag) — only the one confirmed zone ────────────── */
   var VIGNETTE_ZONE = '11482506';
   var VIGNETTE_SRC  = 'https://n6wxm.com/vignette.min.js';
-  var VIGNETTE_COOLDOWN_MS = 90 * 1000; // one per 90s max, on episode nav
+  var VIGNETTE_COOLDOWN_MS = 30 * 1000; // one per 30s max, on episode nav
 
   /* ── Native Banner (Adsterra) ─────────────────────────────────────
    * Container ID is fixed by Adsterra's script — do not rename it. */

@@ -12,6 +12,7 @@ import { useSEO } from "@/hooks/useSEO";
 import { jikanFetch } from "@/lib/jikanFetch";
 import { dedupeByMalId } from "@/lib/dedupeAnime";
 import { getAnimeList, withCatalogueFallback } from "@/lib/catalogue";
+import { getRecentlyAired } from "@/lib/anilist";
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 function getCurrentSeason(): { season: string; year: number } {
@@ -59,13 +60,45 @@ const CATEGORIES: Record<string, {
   "trending": {
     label:       "Trending Now",
     icon:        <TrendingUp className="w-5 h-5" />,
-    // FIX: was /top/anime?filter=bypopularity (all-time popularity, barely
-    // changes). /top/anime?filter=airing tracks what's hot right now — and the
-    // AniList fallback maps it to TRENDING_DESC, matching the intent.
+    // Recently-aired anime are boosted to the top so new episodes push
+    // their shows up the trending list. Falls back to Jikan's airing
+    // trending when the catalogue is unavailable.
     description: "What's hot right now — the top airing anime this week",
     color:       "#f97316",
     ranked:      true,
-    fetchPage:   catPage({ airStatus: 'Currently Airing', sort: 'trending', limit: 24 }, "/top/anime?filter=airing&limit=24"),
+    fetchPage:   async (p: number) => {
+      // Step 1: get recently aired MAL ids from AniList (last 7 days) to boost
+      let boostMalIds: number[] = [];
+      try {
+        const recentlyAired = await getRecentlyAired(168);
+        boostMalIds = recentlyAired
+          .map((item: any) => item.media?.idMal)
+          .filter(Boolean);
+      } catch (e) {
+        console.warn('[trending] AniList recently-aired failed:', e);
+      }
+
+      // Step 2: catalogue first, with boostMalIds pushing recent airings to top
+      try {
+        const result = await getAnimeList({
+          airStatus: 'Currently Airing',
+          sort: 'trending',
+          limit: 24,
+          page: p,
+          boostMalIds,
+        });
+        return {
+          data:     result.data,
+          hasNext:  result.pagination.has_next_page,
+          lastPage: result.pagination.last_visible_page,
+        };
+      } catch (e) {
+        console.warn('[trending] catalogue failed:', e);
+      }
+
+      // Step 3: Jikan fallback
+      return catFetch("/top/anime?filter=airing&limit=24", p);
+    },
   },
   "new-release": {
     label:       "New Release",

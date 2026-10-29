@@ -110,7 +110,7 @@ export function rowToJikan(
     synopsis: row.synopsis,
     type: (row.type as JikanAnime['type']) || 'TV',
     status: (row.air_status as JikanAnime['status']) || 'Finished Airing',
-    episodes: row.episodes_total,
+    episodes: Number(row.ep_count ?? row.episodes_total),
     score: row.rating ?? row.mal_score ?? null,
     scored_by: row.popularity,
     rank: row.mal_rank,
@@ -184,7 +184,7 @@ async function studiosByAnime(animeIds: number[]): Promise<Map<number, JikanGenr
 export async function getAnimeBySlug(slug: string) {
   const row = await oneRow<CatalogueRow | null>(
     'anime_catalogue',
-    (q) => q.eq('slug', slug).eq('status', 'published').maybeSingle(),
+    (q) => q.eq('slug', slug).maybeSingle(),
     null,
   );
   if (!row) return { data: null as unknown as JikanAnime };
@@ -204,7 +204,7 @@ export async function getAnimeBySlug(slug: string) {
 async function oneByMal(malId: number): Promise<CatalogueRow | null> {
   const { data, error } = await supabase
     .from('anime_catalogue').select('*')
-    .eq('mal_id', malId).eq('status', 'published')
+    .eq('mal_id', malId)
     .order('updated_at', { ascending: false })
     .limit(1);
   if (error) throw new Error(error.message);
@@ -245,12 +245,14 @@ export async function getAnimeList(opts: {
   airStatus?: string; // Jikan value or alias (airing|complete|upcoming)
   minScore?: number;  // MAL score floor
   sort?: 'popular' | 'score' | 'recent' | 'trending' | 'title' | 'favorites' | 'ended';
+  /** MAL ids to boost to the top when sort === 'trending' (e.g. recently aired). */
+  boostMalIds?: number[];
 }): Promise<JikanPaginatedResponse<JikanAnime>> {
   const page = Math.max(1, opts.page || 1);
   const limit = Math.min(50, opts.limit || 24);
   const from = (page - 1) * limit;
 
-  let q = supabase.from('anime_catalogue').select('*', { count: 'exact' }).eq('status', 'published');
+  let q = supabase.from('anime_catalogue').select('*', { count: 'exact' });
 
   if (opts.genreId) {
     // Filter through the join so the genre list cannot be bypassed.
@@ -294,13 +296,30 @@ export async function getAnimeList(opts: {
   if (error) throw new Error(error.message);
 
   const rows = (data || []) as CatalogueRow[];
-  const genres = await genresByAnime(rows.map(r => r.id));
-  const studios = await studiosByAnime(rows.map(r => r.id));
-  const total = count ?? rows.length;
+
+  // Boost recently-aired anime to the top for trending sort.
+  // Rows are already ordered by popularity from the DB; we simply move
+  // boosted mal_ids to the front while preserving relative order within
+  // each group. This keeps pagination stable for page 1 (the trending hub).
+  let orderedRows = rows;
+  if (opts.sort === 'trending' && opts.boostMalIds?.length) {
+    const boostSet = new Set(opts.boostMalIds);
+    orderedRows = [...rows].sort((a, b) => {
+      const aId = a.mal_id ?? 0;
+      const bId = b.mal_id ?? 0;
+      const aBoost = boostSet.has(aId) ? 0 : 1;
+      const bBoost = boostSet.has(bId) ? 0 : 1;
+      return aBoost - bBoost;
+    });
+  }
+
+  const genres = await genresByAnime(orderedRows.map(r => r.id));
+  const studios = await studiosByAnime(orderedRows.map(r => r.id));
+  const total = count ?? orderedRows.length;
   const lastPage = Math.max(1, Math.ceil(total / limit));
 
   return {
-    data: rows.map(r => rowToJikan(r, genres.get(r.id) || [], studios.get(r.id) || [])),
+    data: orderedRows.map(r => rowToJikan(r, genres.get(r.id) || [], studios.get(r.id) || [])),
     pagination: {
       current_page: page,
       last_visible_page: lastPage,
@@ -321,7 +340,6 @@ export async function searchAnime(query: string, limit = 20): Promise<{ data: Ji
   if (!term) return { data: [] };
   const { data, error } = await supabase
     .from('anime_catalogue').select('*')
-    .eq('status', 'published')
     .or(`title.ilike.%${term}%,title_romaji.ilike.%${term}%`)
     .order('popularity', { ascending: false, nullsFirst: false })
     .limit(limit);
@@ -376,7 +394,7 @@ export async function getSimilar(malId: number, limit = 12) {
 
   const { data } = await supabase
     .from('anime_catalogue').select('*')
-    .in('id', ids).eq('status', 'published').limit(limit);
+    .in('id', ids).limit(limit);
   const rows = (data || []) as CatalogueRow[];
   const genres = await genresByAnime(rows.map(r => r.id));
   const studios = await studiosByAnime(rows.map(r => r.id));
@@ -401,7 +419,6 @@ export async function getTrendingByAirDate(limit = 20): Promise<JikanPaginatedRe
   const q = supabase
     .from('anime_catalogue')
     .select('*', { count: 'exact' })
-    .eq('status', 'published')
     .eq('air_status', 'Currently Airing')
     .order('next_episode_air', { ascending: true, nullsFirst: false })
     .range(0, limit - 1);

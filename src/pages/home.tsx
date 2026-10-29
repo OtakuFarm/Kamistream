@@ -103,49 +103,6 @@ export default function Home() {
     setLocation(animePath(pick.mal_id, pick.title));
   }
 
-  // New Release (currently airing, sorted by members/popularity)
-  // Routed through the shared Jikan queue (jikan.ts) — no manual staggering
-  // needed since the queue serialises every request app-wide.
-  const { data: newRelease } = useQuery({
-    queryKey: ['home', 'new-release'],
-    queryFn: () => withCatalogueFallback<any[]>(
-      () => getAnimeList({ airStatus: 'Currently Airing', sort: 'popular', limit: 8 }).then(r => r.data),
-      async () => {
-        // Jikan 504s/429s on this heavy query — fall back to AniList (RELEASING)
-        const ep = '/anime?status=airing&order_by=members&sort=desc&limit=8&sfw=true';
-        const j = await withALFallback<any>(
-          () => fetchJikan<any>(ep),
-          () => jikanToAL(ep)
-        );
-        return j.data || [];
-      },
-      (v) => !v?.length,
-    ),
-    staleTime: 15 * 60 * 1000,
-  });
-
-  // Just Completed
-  const { data: justCompleted } = useQuery({
-    queryKey: ['home', 'just-completed'],
-    queryFn: () => withCatalogueFallback<any[]>(
-      () => getAnimeList({ airStatus: 'Finished Airing', sort: 'ended', limit: 5 }).then(r => r.data),
-      async () => {
-        // NOTE: this Jikan query regularly 504s (status=complete + end_date sort
-        // is extremely slow on their side) — the AniList fallback (FINISHED,
-        // END_DATE_DESC) is what usually serves this section.
-        const ep = '/anime?status=complete&order_by=end_date&sort=desc&limit=5&sfw=true';
-        const j = await withALFallback<any>(
-          () => fetchJikan<any>(ep),
-          () => jikanToAL(ep)
-        );
-        return j.data || [];
-      },
-      (v) => !v?.length,
-    ),
-    staleTime: 15 * 60 * 1000,
-  });
-
-  // Upcoming anime
   const { data: upcoming } = useQuery({
     queryKey: ['home', 'upcoming'],
     queryFn: () => withCatalogueFallback<any[]>(
@@ -499,41 +456,7 @@ export default function Home() {
         </section>
       )}
 
-      {/* ── New Release / New Added / Just Completed — bento layout ── */}
-      <section>
-        <div className="grid grid-cols-1 md:grid-cols-4 md:grid-rows-2 gap-3">
-          <div className="md:col-span-2 md:row-span-2 bg-[var(--card)] border border-[var(--border)] rounded-2xl overflow-hidden">
-            <div className="flex items-center justify-between px-3 py-2 border-b border-[var(--border)]">
-              <h3 className="text-[12px] font-heading font-black uppercase tracking-wide">🔥 New Release</h3>
-              <Link href="/category/new-release" className="text-[10px] text-[var(--text3)] hover:text-[var(--pink)] transition-colors font-bold">See All →</Link>
-            </div>
-            <div className="p-1">
-              {(newRelease || []).map((a: any) => <AnimeListCard key={a.mal_id} anime={a} badge="AIRING" />)}
-            </div>
-          </div>
-          <div className="md:col-span-2 bg-[var(--card)] border border-[var(--border)] rounded-2xl overflow-hidden">
-            <div className="flex items-center justify-between px-3 py-2 border-b border-[var(--border)]">
-              <h3 className="text-[12px] font-heading font-black uppercase tracking-wide">⚡ New Added</h3>
-              <Link href="/category/new-added" className="text-[10px] text-[var(--text3)] hover:text-[var(--pink)] transition-colors font-bold">See All →</Link>
-            </div>
-            <div className="p-1">
-              {(recentlyUpdated || []).slice(0, 5).map((a: any) => (
-                <AnimeListCard key={a.mal_id} anime={a} badge={a.latestEp ? `EP ${a.latestEp}` : undefined} badgeColor="var(--green)" />
-              ))}
-            </div>
-          </div>
-          <div className="md:col-span-2 bg-[var(--card)] border border-[var(--border)] rounded-2xl overflow-hidden">
-            <div className="flex items-center justify-between px-3 py-2 border-b border-[var(--border)]">
-              <h3 className="text-[12px] font-heading font-black uppercase tracking-wide">✅ Just Completed</h3>
-              <Link href="/category/just-completed" className="text-[10px] text-[var(--text3)] hover:text-[var(--pink)] transition-colors font-bold">See All →</Link>
-            </div>
-            <div className="p-1">
-              {(justCompleted || []).map((a: any) => <AnimeListCard key={a.mal_id} anime={a} />)}
-            </div>
-          </div>
-        </div>
-      </section>
-
+      
       {/* ── Trending Now ── */}
       <section>
         <SectionHeader icon={<Flame className="w-3.5 h-3.5" />} title="Trending Now" color="#f97316" href="/category/trending" />
