@@ -109,6 +109,28 @@ function getAnikotoUrl(malId: string, epNum: string, lang: 'sub' | 'dub'): strin
   return lang === 'dub' ? (ep.dub || ep.sub) : (ep.sub || ep.dub);
 }
 
+// ── Fetch active embed sources for an episode from the public DB ───────────
+// Uses the catalogue_embed_sources table (RLS: public reads allowed for
+// is_active = true). Falls back to empty array if fetch fails.
+async function fetchEpisodeSources(malId: string, epNum: string, startLang: 'sub' | 'dub') {
+  try {
+    const initCache: { sources: any[]; intro_start: number | null; intro_end: number | null } = { sources: [], intro_start: null, intro_end: null };
+    const { data: anime } = await supabase.from('anime').select('id').eq('mal_id', malId).maybeSingle();
+    if (!anime?.id) return initCache;
+    const epInt = parseInt(epNum, 10);
+    if (!epInt || Number.isNaN(epInt)) return initCache;
+    const { data: episode } = await supabase.from('episodes')
+      .select('id, intro_start, intro_end').eq('anime_id', anime.id).eq('episode_number', epInt).maybeSingle();
+    if (!episode?.id) return initCache;
+    const { data: sources } = await supabase.from('catalogue_embed_sources')
+      .select('id, source_name, embed_url, quality, language, is_active').eq('episode_id', episode.id).eq('is_active', true);
+    const list = (sources || []).filter((s: any) => s.language === startLang || !s.language);
+    return { sources: list.slice(0, 6), intro_start: episode.intro_start, intro_end: episode.intro_end };
+  } catch {
+    return { sources: [], intro_start: null, intro_end: null };
+  }
+}
+
 interface ServerEntry { id: string; name: string; url: string; badge?: string; }
 
 // ── Component ─────────────────────────────────────────────────────────
@@ -194,6 +216,9 @@ export default function AnimeDetail() {
   const [loadingPlayer, setLoadingPlayer] = useState(false);
   const [playerError,   setPlayerError]   = useState(false);
   const [theaterMode,   setTheaterMode]   = useState(false);
+  const [adminSources, setAdminSources] = useState<any[]>([]);
+  const [introStart,    setIntroStart]    = useState<number | null>(null);
+  const [introEnd,      setIntroEnd]      = useState<number | null>(null);
   const errorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const iframeRef     = useRef<HTMLIFrameElement>(null);
   const playerRef     = useRef<HTMLDivElement>(null);
@@ -232,6 +257,21 @@ export default function AnimeDetail() {
   } : {}));
 
   useEffect(() => { setEpPage(1); setActiveEp(null); }, [resolvedId]);
+
+  // ── Fetch admin sources for current episode from the public DB ────
+  // Fires once when the anime/episode changes, in parallel with the
+  // resolver calls (Anikoto, AniList). The player keeps the MAL URL as
+  // fallback until admin sources land, then upgrades via buildServers().
+  useEffect(() => {
+    if (!resolvedId) return;
+    fetchEpisodeSources(resolvedId, '1', (localStorage.getItem('ks_dub') === 'true') ? 'dub' : 'sub')
+      .then((r) => {
+        setAdminSources(r.sources);
+        setIntroStart(r.intro_start);
+        setIntroEnd(r.intro_end);
+      })
+      .catch(() => { setAdminSources([]); });
+  }, [resolvedId]);
 
   // ── Airing countdown ─────────────────────────────────────────────
   useEffect(() => {
@@ -308,6 +348,16 @@ export default function AnimeDetail() {
     const lang = dub ? 'dub' : 'sub';
     const servers: ServerEntry[] = [];
 
+    // Admin sources from public DB (catalogue_embed_sources)
+    if (adminSources.length > 0) {
+      const langSources = adminSources.filter((s: any) => s.language === lang);
+      const usableSources = langSources.length > 0 ? langSources : adminSources;
+      usableSources.forEach((s: any) => {
+        const url = adminSourceUrl(s, lang);
+        if (url) servers.push({ id: `admin-${s.source_name}`, name: s.source_name, url, badge: 'HD' });
+      });
+    }
+
     if (anikotoEmbedId) {
       const anikotoUrl = getAnikotoUrl(id, activeEp, lang);
       servers.push({ id: 'mp-s2', name: 'OniChan', url: anikotoUrl || mpS2(anikotoEmbedId, lang) });
@@ -315,7 +365,7 @@ export default function AnimeDetail() {
     servers.push({ id: 'mp-mal', name: anikotoEmbedId ? 'Otaku' : 'OniChan', url: mpMal(id, activeEp, lang) });
     if (alId) servers.push({ id: 'mp-ani', name: 'Otaku', url: mpAni(alId, activeEp, lang) });
     return servers;
-  }, [activeEp, dub, id, alId, anikotoEmbedId]);
+  }, [activeEp, adminSources, dub, id, alId, anikotoEmbedId]);
 
   const serverList = buildServers();
 
@@ -645,9 +695,9 @@ export default function AnimeDetail() {
                         const isLast    = resumeEp === ep.mal_id;
                         const watched   = isWatched(anime.mal_id, ep.mal_id);
                         return (
-                          <button
+                          <Link
                             key={ep.mal_id}
-                            onClick={() => loadEpisode(String(ep.mal_id))}
+                            href={`/anime/${params?.slug || routeParam}/episode/${ep.mal_id}`}
                             title={ep.title || `Episode ${ep.mal_id}`}
                             className={`aspect-square flex items-center justify-center rounded-lg text-[11px] font-bold transition-all cursor-pointer select-none relative group hover:-translate-y-0.5
                               ${isPlaying
@@ -663,7 +713,7 @@ export default function AnimeDetail() {
                             {watched && !isPlaying && (
                               <CheckCircle2 className="absolute top-0.5 right-0.5 w-2 h-2 text-[#06d6a0] opacity-70" />
                             )}
-                          </button>
+                          </Link>
                         );
                       })}
                     </div>
