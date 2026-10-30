@@ -416,24 +416,50 @@ export async function getSimilar(malId: number, limit = 12) {
  * @param limit how many titles to return (default 20, same as useTrendingAnime)
  */
 export async function getTrendingByAirDate(limit = 20): Promise<JikanPaginatedResponse<JikanAnime>> {
+  // Step 1: get recently aired MAL ids from AniList (last 7 days) to boost
+  let boostMalIds: number[] = [];
+  try {
+    const recentlyAired = await getRecentlyAired(168);
+    boostMalIds = recentlyAired
+      .map((item: any) => item.media?.idMal)
+      .filter(Boolean);
+  } catch (e) {
+    console.warn('[trending] AniList recently-aired failed:', e);
+  }
+
+  // Step 2: query currently-airing anime, ordered by popularity
   const q = supabase
     .from('anime_catalogue')
     .select('*', { count: 'exact' })
     .eq('air_status', 'Currently Airing')
-    .order('next_episode_air', { ascending: true, nullsFirst: false })
+    .order('popularity', { ascending: false, nullsFirst: false })
     .range(0, limit - 1);
 
   const { data, error, count } = await q;
   if (error) throw new Error(error.message);
 
   const rows = (data || []) as CatalogueRow[];
-  const genres = await genresByAnime(rows.map(r => r.id));
-  const studios = await studiosByAnime(rows.map(r => r.id));
-  const total = count ?? rows.length;
+
+  // Boost recently-aired anime to the top (same logic as /category/trending)
+  let orderedRows = rows;
+  if (boostMalIds.length) {
+    const boostSet = new Set(boostMalIds);
+    orderedRows = [...rows].sort((a, b) => {
+      const aId = a.mal_id ?? 0;
+      const bId = b.mal_id ?? 0;
+      const aBoost = boostSet.has(aId) ? 0 : 1;
+      const bBoost = boostSet.has(bId) ? 0 : 1;
+      return aBoost - bBoost;
+    });
+  }
+
+  const genres = await genresByAnime(orderedRows.map(r => r.id));
+  const studios = await studiosByAnime(orderedRows.map(r => r.id));
+  const total = count ?? orderedRows.length;
   const lastPage = Math.max(1, Math.ceil(total / limit));
 
   return {
-    data: rows.map(r => rowToJikan(r, genres.get(r.id) || [], studios.get(r.id) || [])),
+    data: orderedRows.map(r => rowToJikan(r, genres.get(r.id) || [], studios.get(r.id) || [])),
     pagination: {
       current_page: 1,
       last_visible_page: lastPage,
@@ -497,12 +523,12 @@ export const useCatalogueBySlug = (slug: string) =>
  * Supabase-backed trending hook.
  *
  * Replaces Jikan's /top/anime?filter=airing with a Supabase query that
- * orders currently-airing titles by their next episode air date.
+ * orders currently-airing titles by popularity, boosting recently-aired
+ * anime to the top.
  *
  * Key differences from useTrendingAnime:
- * - Uses `next_episode_air` to determine "trending" (next episode drops
- *   soonest = most trending)
- * - No Jikan/AniList API calls at runtime
+ * - Orders by popularity DESC, with recently-aired anime boosted to top
+ * - Calls AniList for recently-aired MAL ids (last 7 days)
  * - Fully cached by React Query with 5-minute staleTime
  * - Falls back to Jikan if catalogue is disabled (VITE_CATALOGUE=0)
  */
