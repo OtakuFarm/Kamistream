@@ -203,7 +203,7 @@ function slugifyTitle(title) {
  *  and the slug pages were never prerendered at all.) */
 function animePath(_malId, title) {
   const s = title ? slugifyTitle(title) : '';
-  return s ? `/anime/${s}` : `/anime/${_malId}`;
+  return s ? `/anime/${_malId}/${s}` : `/anime/${_malId}`;
 }
 
 /** Same URL shape as animeLikePath() in src/lib/seo.ts. */
@@ -294,27 +294,9 @@ async function jikan(pathname, attempt = 1) {
 }
 
 /** Top anime — the single data source for every prerendered page. */
-async function collectTopAnime() {
-  const out  = [];
-  const seen = new Set();
-  for (let page = 1; page <= TOP_PAGES; page++) {
-    try {
-      const json = await jikan(`/top/anime?limit=25&page=${page}`);
-      for (const a of json?.data ?? []) {
-        if (!a?.mal_id || seen.has(a.mal_id)) continue;
-        seen.add(a.mal_id);
-        out.push(a);
-      }
-    } catch (err) {
-      if (err instanceof CircuitOpen) {
-        warn(`  ! stopping early (${err.message}) with ${out.length} anime collected`);
-        break;
-      }
-      warn(`  ! top/anime page ${page} failed (${err.message}) — continuing`);
-    }
-  }
-  return out;
-}
+// ── TOP ANIME ──────────────────────────────────────────────────────────
+// Top anime is read exclusively from the Supabase catalogue. No Jikan,
+// no AniList — the catalogue is the single source of truth for the build.
 
 // ── AniList fallback ─────────────────────────────────────────────────
 // Jikan is not dependable enough to be a build dependency: while developing
@@ -431,86 +413,28 @@ async function fetchAniListPage(mediaArgs, { page = 1, perPage = 50 } = {}) {
 }
 
 /** Fetch up to `want` top anime from AniList (50 per request, 4 for 200). */
-async function collectAniListPool(want) {
-  const out = [];
-  const perPage = 50;
-  const pages = Math.ceil(want / perPage);
-
-  for (let page = 1; page <= pages; page++) {
-    try {
-      out.push(...await fetchAniListPage('type:ANIME,sort:SCORE_DESC,isAdult:false', { page, perPage }));
-    } catch (err) {
-      warn(`  ! AniList page ${page} failed (${err.message}) — continuing`);
-    }
-    if (page < pages) await sleep(700);            // AniList allows ~90 req/min
-  }
-  return out;
-}
-/**
- * The pool every prerendered page is built from.
- *
- * ORDER OF PREFERENCE — catalogue first, Jikan second.
- *
- * The catalogue is the real source of truth once titles are imported into it:
- * one indexed SELECT, no rate limit, no third-party dependency, and no
- * ceiling other than how many titles you imported. The 200-title cap below
- * is Jikan's rate limit, not a design decision, and it is also why this
- * build is slow and has needed a three-layer fallback chain: while writing
- * this, Jikan returned 504 on every endpoint for stretches of several
- * minutes at a time.
- *
- * Jikan is KEPT as a fallback rather than removed, for two reasons. An empty
- * catalogue should degrade to today's behaviour rather than produce a
- * site with no anime in it. And this way the switch is reversible: remove
- * the catalogue block below and the build is byte-identical to before.
- *
- * Both paths return the same shape, so nothing downstream can tell which
- * one ran.
- */
-const POOL_TARGET = TOP_PAGES * 25;   // 200 — the JIKAN cap only
-
 async function collectPool() {
   // ── 1. catalogue ──
-  if (catalogueConfigured()) {
-    try {
-      const pool = await collectCataloguePool();
-      if (pool && pool.length) {
-        console.log(`  · catalogue: ${pool.length} published titles (no rate limit)`);
-        return pool;                       // uncapped, unlike the Jikan path
-      }
-      if (Array.isArray(pool) && pool.length === 0) {
-        warn('  · catalogue is empty (nothing published) — falling back to Jikan');
-      } else {
-        warn('  · catalogue not configured — falling back to Jikan');
-      }
-    } catch (err) {
-      warn(`  ! catalogue pool failed (${err.message}) — falling back to Jikan`);
-    }
+  if (!catalogueConfigured()) {
+    throw new Error(
+      'Catalogue unconfigured — cannot build.' +
+      'Set VITE_CATALOGUE=1 with valid Supabase credentials.'
+    );
   }
 
-  // ── 2. Jikan, topped up by AniList ──
-  let pool = [];
-  try {
-    pool = await collectTopAnime();
-  } catch (err) {
-    warn(`  ! Jikan pool unavailable (${err.message})`);
-  }
-  console.log(`  · Jikan: ${pool.length} titles`);
+  const pool = await collectCataloguePool();
 
-  if (pool.length < POOL_TARGET) {
-    const seen  = new Set(pool.map(a => a.mal_id));
-    const extra = await collectAniListPool(POOL_TARGET - pool.length);
-    let added = 0;
-    for (const a of extra) {
-      if (pool.length >= POOL_TARGET) break;
-      if (seen.has(a.mal_id)) continue;
-      seen.add(a.mal_id);
-      pool.push(a);
-      added++;
-    }
-    console.log(`  · AniList: +${added} titles (pool now ${pool.length})`);
+  if (!Array.isArray(pool) || pool.length === 0) {
+    const err = new Error(
+      'anime_catalogue is empty. ' +
+      'Import anime titles before building: npm run import:bulk'
+    );
+    err.name = 'CatalogueEmptyError';
+    throw err;
   }
-  return pool.slice(0, POOL_TARGET);
+
+  console.log(`  · catalogue: ${pool.length} titles (no rate limit)`);
+  return pool;
 }
 
 

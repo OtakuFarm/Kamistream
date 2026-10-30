@@ -28,7 +28,7 @@ export function slugifyTitle(title: string): string {
  */
 export function animePath(malId: number | string, title?: string): string {
   const s = title ? slugifyTitle(title) : '';
-  return s ? `/anime/${s}` : `/anime/${malId}`;
+  return s ? `/anime/${malId}/${s}` : `/anime/${malId}`;
 }
 
 /**
