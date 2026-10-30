@@ -695,9 +695,9 @@ export default function AnimeDetail() {
                         const isLast    = resumeEp === ep.mal_id;
                         const watched   = isWatched(anime.mal_id, ep.mal_id);
                         return (
-                          <Link
+                          <button
                             key={ep.mal_id}
-                            href={`/anime/${params?.slug || routeParam}/episode/${ep.mal_id}`}
+                            onClick={() => loadEpisode(String(ep.mal_id))}
                             title={ep.title || `Episode ${ep.mal_id}`}
                             className={`aspect-square flex items-center justify-center rounded-lg text-[11px] font-bold transition-all cursor-pointer select-none relative group hover:-translate-y-0.5
                               ${isPlaying
@@ -713,7 +713,7 @@ export default function AnimeDetail() {
                             {watched && !isPlaying && (
                               <CheckCircle2 className="absolute top-0.5 right-0.5 w-2 h-2 text-[#06d6a0] opacity-70" />
                             )}
-                          </Link>
+                          </button>
                         );
                       })}
                     </div>
